@@ -9,6 +9,23 @@
     margin-top: 0;
 }
 
+.article-photo-popover {
+    --#{$prefix}popover-max-width: 230px;
+    --#{$prefix}popover-body-padding-x: 0.5rem;
+    --#{$prefix}popover-body-padding-y: 0.5rem;
+}
+
+.article-photo-popover .popover-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.article-photo-popover .article-photo-popover-img {
+    max-width: 200px;
+    max-height: 200px;
+}
+
 @each $color,
 $value in $theme-colors {
     .#{$color}-popover {

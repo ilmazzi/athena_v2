@@ -61,9 +61,14 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body text-center">
-                    <iconify-icon icon="solar:euro-bold-duotone" class="fs-36 text-success mb-2"></iconify-icon>
-                    <h4 class="mb-1">€{{ number_format($articoliInVetrina->sum('prezzo_vetrina'), 2, ',', '.') }}</h4>
-                    <p class="text-muted mb-0">Valore Totale</p>
+                    <iconify-icon icon="solar:tag-bold-duotone" class="fs-36 text-success mb-2"></iconify-icon>
+                    @php
+                        $prezziCodificati = $articoliInVetrina->getCollection()
+                            ->filter(fn($item) => !empty($item->prezzo_vetrina))
+                            ->count();
+                    @endphp
+                    <h4 class="mb-1">{{ $prezziCodificati }}</h4>
+                    <p class="text-muted mb-0">Prezzi Codificati</p>
                 </div>
             </div>
         </div>
@@ -133,9 +138,28 @@
                                     <span class="badge bg-light-primary text-primary">{{ $articoloVetrina->posizione ?: '-' }}</span>
                                 </td>
                                 <td>
-                                    <span class="fw-bold text-primary">{{ $articoloVetrina->articolo->codice }}</span>
-                                    <br>
-                                    <small class="text-muted">{{ $articoloVetrina->articolo->categoriaMerceologica->nome ?? 'N/A' }}</small>
+                                    <div class="d-flex align-items-center gap-2">
+                                        @php
+                                            $fotoPrincipale = $articoloVetrina->articolo->foto_principale;
+                                            $fotoUrl = null;
+                                            if (!empty($fotoPrincipale)) {
+                                                $fotoUrl = Str::startsWith($fotoPrincipale, ['http://', 'https://'])
+                                                    ? $fotoPrincipale
+                                                    : asset('storage/' . ltrim($fotoPrincipale, '/'));
+                                            }
+                                        @endphp
+                                        @if($fotoUrl)
+                                            <img src="{{ $fotoUrl }}"
+                                                 alt="Foto {{ $articoloVetrina->articolo->codice }}"
+                                                 class="rounded border"
+                                                 style="width: 36px; height: 36px; object-fit: cover;">
+                                        @endif
+                                        <div>
+                                            <span class="fw-bold text-primary">{{ $articoloVetrina->articolo->codice }}</span>
+                                            <br>
+                                            <small class="text-muted">{{ $articoloVetrina->articolo->categoriaMerceologica->nome ?? 'N/A' }}</small>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="fw-semibold">{{ Str::limit($articoloVetrina->articolo->descrizione, 40) }}</div>
@@ -147,14 +171,12 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="input-group input-group-sm" style="width: 120px;">
-                                        <span class="input-group-text">€</span>
-                                        <input type="number" 
+                                    <div class="input-group input-group-sm" style="width: 140px;">
+                                        <input type="text" 
                                                class="form-control" 
                                                value="{{ $articoloVetrina->prezzo_vetrina }}"
                                                wire:change="updatePrezzo({{ $articoloVetrina->id }}, $event.target.value)"
-                                               step="0.01"
-                                               min="0">
+                                               placeholder="Codice prezzo">
                                     </div>
                                 </td>
                                 <td>{{ $articoloVetrina->ripiano ?: '-' }}</td>
@@ -284,16 +306,11 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label class="form-label fw-semibold">Prezzo Vetrina *</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text">€</span>
-                                                <input type="number" 
-                                                       class="form-control @error('prezzo_vetrina') is-invalid @enderror" 
-                                                       wire:model="prezzo_vetrina"
-                                                       step="0.01"
-                                                       min="0"
-                                                       placeholder="0.00">
-                                            </div>
+                                            <label class="form-label fw-semibold">Prezzo Vetrina (codice) *</label>
+                                            <input type="text" 
+                                                   class="form-control @error('prezzo_vetrina') is-invalid @enderror" 
+                                                   wire:model="prezzo_vetrina"
+                                                   placeholder="Es: X773G16">
                                             @error('prezzo_vetrina')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror

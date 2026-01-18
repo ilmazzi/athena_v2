@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Fornitore;
 use App\Models\OcrDocument;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use thiagoalessio\TesseractOCR\TesseractOCR;
 
 class OcrService
@@ -360,6 +362,11 @@ class OcrService
         // Pattern per righe articolo (multi-formato)
         // PRIORITÀ: I pattern più specifici PRIMA, quelli generici DOPO
         $patterns = [
+            // Pattern IWC: codice (referenza) + descrizione + quantita + unita (PC) con seriale sulla stessa riga o successiva
+            '/^(?:IWC\s+)?([A-Z0-9]{6,15})\s+(.+?)\s+(\d{1,5})\s*(?:PC|PZ|Pcs?)/im',
+            // Pattern Citizen/Bulova: codice + descrizione + quantità + separatore + EAN
+            '/^([A-Z0-9\-]{3,15})\s+(.+?)\s+(\d{1,5})\s*\|\s*(\d{8,14})$/m',
+            '/^([A-Z0-9\-]{3,15})\s+(.+?)\s+(\d{1,5})\s+(\d{8,14})$/m',
             // Pattern 1A: SWATCH GROUP - Con unità esplicita (PZ/PC)
             // Es: "0100352110/05.09.2025 L37594966 CONQU 41mm qtz ACC.BLU,BRACC.ACC 18 1PZ"
             '/\d{10}\/[\d\.,:\s\/]+\s+([\$A-Z0-9\.\-]{4,20})\s+(.+?)\s+[\\\\|\"\(\{\#\s]*(\d{1,3})\s*(?:PZ|PC|Pz|pz|P2|ez|192|Mz|R2|SP|flez|Fà|TPZ|PEPE|TRE|Mailat|PÀ|Tez|È)[\s\)\/\\\\]*/i',
@@ -381,7 +388,7 @@ class OcrService
             
             // Pattern 4: Codice alfanumerico + descrizione + quantità
             // Es: "ABC-123  Descrizione articolo  5"
-            '/^([A-Z0-9\-]{3,15})\s+([A-Z][\w\s\-\.]{10,80}?)\s+(\d{1,5})\s*$/m',
+            '/^([A-Z0-9\-]{3,15})\s+([A-Z][^\r\n]{10,120}?)\s+(\d{1,5})\s*(?:\|\s*(\d{8,14}))?$/m',
             
             // Pattern 5: Solo codice numerico e quantità separati (SWATCH style vecchio)
             // Es: "20572    1"
@@ -398,6 +405,12 @@ class OcrService
                 if (count($match) >= 4) {
                     // Pattern con 3 gruppi catturati: codice, descrizione, quantità
                     $articolo['codice'] = strtoupper(trim(str_replace('$', 'S', $match[1]))); // Fix OCR: $ → S
+                    $articolo['codice'] = preg_replace('/\s+/', '', $articolo['codice']);
+                    $articolo['codice'] = rtrim($articolo['codice'], '.');
+                    if (preg_match('/[A-Z0-9][A-Z0-9\.\-]*\d[A-Z0-9\.\-]*/', $articolo['codice'], $codeMatch)) {
+                        $articolo['codice'] = $codeMatch[0];
+                    }
+
                     $articolo['descrizione'] = trim($match[2]);
                     // Se quantità è vuota (es: "pz" senza numero), default = 1
                     $qta = trim($match[3]);
@@ -413,6 +426,14 @@ class OcrService
                         if ($qta == 12) $qta = 1;     // 12 → 1Pz
                         if ($qta == 2) $qta = 1;      // P2 → 1Pz (spesso)
                         $articolo['quantita'] = $qta;
+                    }
+
+                    if (isset($match[4])) {
+                        $eanCandidate = preg_replace('/[^0-9]/', '', $match[4]);
+                        $eanLength = strlen($eanCandidate);
+                        if ($eanLength >= 8 && $eanLength <= 14) {
+                            $articolo['ean'] = $eanCandidate;
+                        }
                     }
                 } elseif (count($match) == 3) {
                     // Pattern con 2 gruppi: codice + descrizione (senza quantità esplicita)
@@ -462,6 +483,20 @@ class OcrService
                     $isValid = false;
                 }
                 
+                // 7. Richiede almeno una cifra nel codice (esclude parole spurie OCR)
+                if ($isValid && !preg_match('/\d/', $articolo['codice'])) {
+                    $isValid = false;
+                }
+
+                // 7. Esclude materiale sussidiario (codici che iniziano con Z o descrizione dedicata)
+                if ($isValid && preg_match('/^Z[A-Z0-9\-]*/', $articolo['codice'])) {
+                    $isValid = false;
+                }
+
+                if ($isValid && stripos($descLower, 'materiale sussidiario') !== false) {
+                    $isValid = false;
+                }
+
                 if ($isValid) {
                     // Cerca numero seriale associato (nelle righe successive)
                     $articolo['numero_seriale'] = $this->extractSerialNumber($text, $articolo['codice']);
@@ -475,6 +510,250 @@ class OcrService
                         $articoli[$key] = $articolo;
                     }
                 }
+            }
+        }
+
+        // Fallback IWC: blocco "NUMERO DI SERIE" con coppie codice/seriale
+        if (preg_match_all('/^\s*([A-Z0-9]{5,})\s*[:\-]\s*([A-Z0-9]+)\b/mi', $text, $serialMatches, PREG_SET_ORDER)) {
+            foreach ($serialMatches as $serialMatch) {
+                $code = strtoupper(trim($serialMatch[1]));
+                $serial = strtoupper(trim($serialMatch[2]));
+
+                if (!preg_match('/\d/', $code)) {
+                    continue;
+                }
+
+                if (isset($articoli[$code])) {
+                    $articoli[$code]['numero_seriale'] = $serial;
+                    if (empty($articoli[$code]['quantita'])) {
+                        $articoli[$code]['quantita'] = 1;
+                    }
+                } else {
+                    $articoli[$code] = [
+                        'codice' => $code,
+                        'descrizione' => 'IWC Referenza ' . $code,
+                        'quantita' => 1,
+                        'numero_seriale' => $serial,
+                    ];
+                }
+            }
+        }
+
+        // Fallback Hublot: linee "Numero di ser(e/ie)" o varianti OCR
+        $lines = preg_split('/\r?\n/', $text);
+        $lineCount = count($lines);
+        $stopTokens = ['CF', 'GF', 'CE', 'OROLOGIO', 'SPIRIT', 'AIMM'];
+        for ($idx = 0; $idx < $lineCount; $idx++) {
+            $line = trim($lines[$idx]);
+
+            if ($line === '') {
+                continue;
+            }
+
+            $matchesNumero = [];
+            if (!preg_match('/(?:m|n)[a-z]{0,4}ro\s+di\s+sa?r[ea]/i', $line, $matchesNumero, PREG_OFFSET_CAPTURE)) {
+                continue;
+            }
+
+            $posNumero = $matchesNumero[0][1];
+
+            $quantity = 1;
+            if (preg_match('/(\d{1,5})\s*$/', $line, $qMatch)) {
+                $quantity = max(1, (int) $qMatch[1]);
+            }
+
+            if ($quantity === 1 && preg_match('/\bP[O0]\s*[1IL]\b/i', $line)) {
+                $quantity = 1;
+            }
+
+            $preNumero = trim(substr($line, 0, $posNumero));
+
+            if ($preNumero === '') {
+                continue;
+            }
+
+            $preClean = trim(preg_replace('/\s+/', ' ', $preNumero));
+            $tokens = preg_split('/\s+/', $preClean);
+
+            if (empty($tokens)) {
+                continue;
+            }
+
+            $codeTokens = [];
+            $splitIndex = count($tokens);
+
+            foreach ($tokens as $tokenIndex => $token) {
+                $upper = strtoupper($token);
+                if (in_array($upper, $stopTokens, true)) {
+                    $splitIndex = $tokenIndex;
+                    break;
+                }
+
+                $codeTokens[] = $token;
+
+                if (preg_match('/\d/', $token)) {
+                    $splitIndex = $tokenIndex + 1;
+                    break;
+                }
+            }
+
+            if (empty($codeTokens)) {
+                continue;
+            }
+
+            $descTokens = array_slice($tokens, $splitIndex);
+            $description = trim(implode(' ', $descTokens));
+
+            $codeRaw = strtoupper(implode('', $codeTokens));
+            $codeNormalized = preg_replace('/[^A-Z0-9\.]/', '', $codeRaw);
+            $codeNormalized = rtrim($codeNormalized, '.');
+
+            if ($codeNormalized === '' || strlen($codeNormalized) < 2) {
+                continue;
+            }
+
+            if (!isset($articoli[$codeNormalized])) {
+                $serial = null;
+                $serialDescription = null;
+                for ($forward = 1; $forward <= 3; $forward++) {
+                    $nextLine = trim($lines[$idx + $forward] ?? '');
+                    if ($nextLine === '') {
+                        continue;
+                    }
+
+                    if (preg_match('/(\d{5,})/', $nextLine, $serialMatch)) {
+                        $serial = $serialMatch[1];
+                        $serialDescription = trim(Str::before($nextLine, $serialMatch[1]));
+                        break;
+                    }
+                }
+
+                $articoli[$codeNormalized] = [
+                    'codice' => $codeNormalized,
+                    'descrizione' => $description,
+                    'quantita' => $quantity,
+                    'numero_seriale' => $serial,
+                ];
+
+                if (($articoli[$codeNormalized]['descrizione'] ?? '') === '' && $serialDescription) {
+                    $articoli[$codeNormalized]['descrizione'] = $serialDescription;
+                }
+            } else {
+                if (empty($articoli[$codeNormalized]['numero_seriale'])) {
+                    for ($forward = 1; $forward <= 3; $forward++) {
+                        $nextLine = trim($lines[$idx + $forward] ?? '');
+                        if ($nextLine === '') {
+                            continue;
+                        }
+
+                        if (preg_match('/(\d{5,})/', $nextLine, $serialMatch)) {
+                            $articoli[$codeNormalized]['numero_seriale'] = $serialMatch[1];
+                            $serialDescription = trim(Str::before($nextLine, $serialMatch[1]));
+                            if (($articoli[$codeNormalized]['descrizione'] ?? '') === '' && $serialDescription) {
+                                $articoli[$codeNormalized]['descrizione'] = $serialDescription;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (empty($articoli[$codeNormalized]['descrizione']) && $description !== '') {
+                    $articoli[$codeNormalized]['descrizione'] = $description;
+                }
+            }
+        }
+
+        for ($idx = 0; $idx < $lineCount; $idx++) {
+            $line = trim($lines[$idx]);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (!preg_match('/OROLOGIO\s+(\d{5,})/i', $line, $serialMatch)) {
+                continue;
+            }
+
+            $serial = $serialMatch[1];
+            $serialDescription = trim(Str::before($line, $serial));
+
+            $codeCandidate = null;
+            for ($back = 1; $back <= 4; $back++) {
+                $candidate = trim($lines[$idx - $back] ?? '');
+                if ($candidate === '' || stripos($candidate, 'orologio') !== false) {
+                    continue;
+                }
+
+                if (preg_match('/^(?:AUTOMATICO|CRONO|TITANIO|CERAMICA|CAUCCIU|ALLIGATORE|QUARZO|TOTAL|VALORE)/i', $candidate)) {
+                    continue;
+                }
+
+                $codeCandidate = $candidate;
+                break;
+            }
+
+            if (!$codeCandidate) {
+                continue;
+            }
+
+            $candidateNorm = trim(preg_replace('/\s+/', ' ', $codeCandidate));
+            $lowerCandidate = Str::lower($candidateNorm);
+            $posNumeroCand = strpos($lowerCandidate, 'mero di');
+            if ($posNumeroCand !== false) {
+                $candidateNorm = trim(substr($candidateNorm, 0, $posNumeroCand));
+            }
+
+            $tokens = preg_split('/\s+/', $candidateNorm);
+            if (empty($tokens)) {
+                continue;
+            }
+
+            $codeTokens = [];
+            $splitIdx = count($tokens);
+            foreach ($tokens as $tokenIndex => $token) {
+                $upper = strtoupper($token);
+                if (in_array($upper, $stopTokens, true)) {
+                    $splitIdx = $tokenIndex;
+                    break;
+                }
+
+                $codeTokens[] = $token;
+
+                if (preg_match('/\d/', $token)) {
+                    $splitIdx = $tokenIndex + 1;
+                    break;
+                }
+            }
+
+            if (empty($codeTokens)) {
+                continue;
+            }
+
+            $descTokens = array_slice($tokens, $splitIdx);
+            $description = trim(implode(' ', $descTokens));
+            if ($description === '' && $serialDescription !== '') {
+                $description = $serialDescription;
+            }
+
+            $codeRaw = strtoupper(implode('', $codeTokens));
+            $codeNormalized = preg_replace('/[^A-Z0-9\.]/', '', $codeRaw);
+            $codeNormalized = rtrim($codeNormalized, '.');
+
+            if ($codeNormalized === '' || isset($articoli[$codeNormalized])) {
+                continue;
+            }
+
+            $articoli[$codeNormalized] = [
+                'codice' => $codeNormalized,
+                'descrizione' => $description ?: 'Articolo Hublot',
+                'quantita' => 1,
+                'numero_seriale' => $serial,
+            ];
+        }
+
+        foreach ($articoli as &$articolo) {
+            if (empty($articolo['descrizione'])) {
+                $articolo['descrizione'] = 'Articolo Hublot';
             }
         }
         
@@ -517,23 +796,32 @@ class OcrService
             
             // Pattern IWC/ROLEX: "Serial#: 6517629" o "Serial: 6517629."
             '/Serial[#:\s]+(\d{6,10})[\.;\s]/i',
+
+            // Italian: "Numero di serie" con eventuale quantità PC/PZ e seriale su stessa riga o successiva
+            '/Numero\s+di\s+serie[\s:]+(?:PC|PZ|PCS)?[\s\S]{0,120}?([A-Z0-9]{5,})/iu',
         ];
         
         foreach ($serialPatterns as $pattern) {
             if (preg_match($pattern, $contextText, $matches)) {
                 $serial = trim($matches[1]);
-                
+
                 // Valida che sia un seriale ragionevole
-                if (strlen($serial) >= 6 && strlen($serial) <= 15) {
-                    Log::debug('Seriale trovato', [
-                        'codice_articolo' => $codiceArticolo,
-                        'seriale' => $serial
-                    ]);
+                if (strlen($serial) >= 6 && strlen($serial) <= 15 && preg_match('/\d/', $serial)) {
                     return $serial;
                 }
             }
         }
-        
+
+        if (stripos($contextText, 'Numero di ser') !== false) {
+            if (preg_match('/Numero\s+di\s+ser(?:ie|e)[\s\S]{0,200}?(\d{5,})/i', $contextText, $matches)) {
+                $serial = trim($matches[1]);
+
+                if (strlen($serial) >= 5 && strlen($serial) <= 20) {
+                    return $serial;
+                }
+            }
+        }
+
         return null;
     }
 
@@ -578,10 +866,6 @@ class OcrService
                 // Valida che sia un EAN ragionevole (8, 12, 13 o 14 cifre)
                 $len = strlen($ean);
                 if ($len >= 8 && $len <= 14 && ctype_digit($ean)) {
-                    Log::debug('EAN trovato', [
-                        'codice_articolo' => $codiceArticolo,
-                        'ean' => $ean
-                    ]);
                     return $ean;
                 }
             }
@@ -606,7 +890,6 @@ class OcrService
             
             // Se codice già visto, salta
             if (isset($seen[$key])) {
-                Log::debug('Articolo duplicato ignorato', ['codice' => $codice]);
                 continue;
             }
             
@@ -636,11 +919,6 @@ class OcrService
                 }
                 
                 if ($isOcrError) {
-                    Log::debug('Articolo con OCR error ignorato', [
-                        'codice_nuovo' => $codice,
-                        'codice_esistente' => $existingCode,
-                        'differenza' => $diff
-                    ]);
                     $isDuplicate = true;
                     break;
                 }
@@ -826,7 +1104,7 @@ class OcrService
     {
         // 1. Prova con P.IVA (più affidabile)
         if (!empty($structuredData['partita_iva'])) {
-            $fornitore = \App\Domain\Vendita\Models\Fornitore::where('partita_iva', $structuredData['partita_iva'])->first();
+            $fornitore = Fornitore::where('partita_iva', $structuredData['partita_iva'])->first();
             if ($fornitore) {
                 Log::info('Fornitore trovato tramite P.IVA', ['fornitore_id' => $fornitore->id, 'piva' => $structuredData['partita_iva']]);
                 return $fornitore->id;
@@ -838,14 +1116,14 @@ class OcrService
             $ragioneSociale = $structuredData['ragione_sociale_estratta'];
             
             // Cerca match esatto
-            $fornitore = \App\Domain\Vendita\Models\Fornitore::where('ragione_sociale', $ragioneSociale)->first();
+            $fornitore = Fornitore::where('ragione_sociale', $ragioneSociale)->first();
             if ($fornitore) {
                 Log::info('Fornitore trovato tramite Ragione Sociale esatta', ['fornitore_id' => $fornitore->id]);
                 return $fornitore->id;
             }
             
             // Cerca match parziale (LIKE)
-            $fornitore = \App\Domain\Vendita\Models\Fornitore::where('ragione_sociale', 'LIKE', "%{$ragioneSociale}%")->first();
+            $fornitore = Fornitore::where('ragione_sociale', 'LIKE', "%{$ragioneSociale}%")->first();
             if ($fornitore) {
                 Log::info('Fornitore trovato tramite Ragione Sociale parziale', ['fornitore_id' => $fornitore->id]);
                 return $fornitore->id;
@@ -869,7 +1147,7 @@ class OcrService
             foreach ($keywords as $keyword) {
                 if (stripos($rawText, $keyword) !== false) {
                     // Cerca nel database
-                    $fornitore = \App\Domain\Vendita\Models\Fornitore::where('ragione_sociale', 'LIKE', "%{$keyword}%")->first();
+                    $fornitore = Fornitore::where('ragione_sociale', 'LIKE', "%{$keyword}%")->first();
                     if ($fornitore) {
                         Log::info('Fornitore trovato tramite keyword nel testo', ['fornitore_id' => $fornitore->id, 'keyword' => $keyword]);
                         return $fornitore->id;

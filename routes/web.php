@@ -73,7 +73,7 @@ Route::prefix('stampanti')->group(function () {
         });
 
         // Conti Deposito routes
-        Route::prefix('conti-deposito')->group(function () {
+        Route::prefix('conti-deposito')->middleware(['role:admin|amministrazione'])->group(function () {
             Route::get('/', function () {
                 return view('conti-deposito.index');
             })->name('conti-deposito.index');
@@ -113,10 +113,10 @@ Route::prefix('stampanti')->group(function () {
             Route::get('/{movimentazione}/download', [\App\Http\Controllers\MovimentazioneInternaController::class, 'downloadDdt'])->name('download');
         });
 
-        // Fatture Vendita routes
-        Route::prefix('fatture-vendita')->name('fatture-vendita.')->group(function () {
-            Route::get('/{fatturaVendita}', [\App\Http\Controllers\FatturaVenditaController::class, 'show'])->name('show');
-            Route::get('/{fatturaVendita}/stampa', [\App\Http\Controllers\FatturaVenditaController::class, 'stampa'])->name('stampa');
+        // Proforme deposito routes
+        Route::prefix('proforme-deposito')->name('proforme-deposito.')->group(function () {
+            Route::get('/{proformaDeposito}', [\App\Http\Controllers\ProformaDepositoController::class, 'show'])->name('show');
+            Route::get('/{proformaDeposito}/stampa', [\App\Http\Controllers\ProformaDepositoController::class, 'stampa'])->name('stampa');
         });
 
 // Routes Inventario
@@ -171,9 +171,11 @@ Route::prefix('inventario')->group(function () {
         Route::get('/upload', [OcrController::class, 'create'])->name('ocr.upload');
         Route::post('/upload', [OcrController::class, 'store'])->name('ocr.store');
         
-        Route::get('/{document}/validate', function (OcrDocument $document) {
-            return view('ocr.validate-livewire', compact('document'));
-        })->name('ocr.validate');
+        Route::get('/{document}/validate', [OcrController::class, 'showValidation'])
+            ->name('ocr.validate');
+
+        Route::post('/{document}/validate', [OcrController::class, 'saveValidation'])
+            ->name('ocr.validate.store');
         
         Route::get('/{document}/pdf', [OcrController::class, 'showPdf'])->name('ocr.documents.pdf');
         Route::get('/{document}/download', [OcrController::class, 'downloadPdf'])->name('ocr.download');
@@ -185,6 +187,10 @@ Route::prefix('inventario')->group(function () {
         Route::get('/societa', \App\Http\Livewire\GestioneSocieta::class)->name('gestione.societa');
         Route::get('/sedi', \App\Http\Livewire\GestioneSedi::class)->name('gestione.sedi');
         Route::get('/magazzini', \App\Http\Livewire\GestioneMagazzini::class)->name('gestione.magazzini');
+        // Utenti (Admin)
+        Route::get('/utenti', \App\Http\Livewire\GestioneUtenti::class)->name('gestione.utenti');
+        Route::get('/ruoli', \App\Http\Livewire\GestioneRuoli::class)->name('gestione.ruoli');
+        Route::get('/permessi', \App\Http\Livewire\GestionePermessi::class)->name('gestione.permessi');
     });
 });
 

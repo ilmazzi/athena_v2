@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OcrDocument;
 use App\Services\OcrService;
-use App\Domain\Vendita\Models\Fornitore;
+use App\Models\Fornitore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -100,7 +100,7 @@ class OcrController extends Controller
         // Fornitori per dropdown
         $fornitori = Fornitore::orderBy('ragione_sociale')->get();
 
-        return view('ocr.validate', compact('document', 'fornitori'));
+        return view('ocr.validate-livewire', compact('document', 'fornitori'));
     }
 
     /**

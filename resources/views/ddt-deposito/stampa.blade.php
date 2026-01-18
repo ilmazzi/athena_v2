@@ -206,17 +206,17 @@
             margin-top: 10px;
             color: var(--bs-primary);
         }
-        .footer {
+        .ddt-footer {
             margin-top: 30px;
             border-top: 2px solid var(--bs-border-color);
             padding-top: 20px;
             display: flex;
             justify-content: space-between;
         }
-        .footer-section {
+        .ddt-footer-section {
             width: 48%;
         }
-        .signature-box {
+        .ddt-signature-box {
             border: 1px solid var(--bs-border-color);
             height: 60px;
             margin-top: 10px;
@@ -412,8 +412,8 @@
     @endif
 
     {{-- Footer con firme --}}
-    <div class="footer">
-        <div class="footer-section">
+    <div class="ddt-footer">
+        <div class="ddt-footer-section">
             <div class="info-title">👤 Mittente</div>
             <div style="margin-bottom: 5px;"><strong>{{ $ddtDeposito->sedeMittente->nome }}</strong></div>
             @if($ddtDeposito->sedeMittente->indirizzo)
@@ -427,12 +427,12 @@
                     Creato da: {{ $ddtDeposito->creatoDa->name }}
                 </div>
             @endif
-            <div class="signature-box">
+            <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma e Timbro:</div>
             </div>
         </div>
 
-        <div class="footer-section">
+        <div class="ddt-footer-section">
             <div class="info-title">📝 Destinatario</div>
             <div style="margin-bottom: 5px;"><strong>{{ $ddtDeposito->sedeDestinataria->nome }}</strong></div>
             @if($ddtDeposito->sedeDestinataria->indirizzo)
@@ -446,7 +446,7 @@
                     ✓ Confermato da: {{ $ddtDeposito->confermatoDa->name }}
                 </div>
             @endif
-            <div class="signature-box">
+            <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma per ricevuta:</div>
             </div>
         </div>

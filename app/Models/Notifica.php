@@ -143,6 +143,7 @@ class Notifica extends Model
     public function getIcona(): string
     {
         return match($this->tipo) {
+            'nuovo_deposito' => 'solar:box-bold-duotone',
             'reso' => 'solar:import-bold-duotone',
             'vendita' => 'solar:cart-check-bold-duotone',
             'scadenza' => 'solar:clock-circle-bold-duotone',
@@ -157,6 +158,7 @@ class Notifica extends Model
     public function getColoreBadge(): string
     {
         return match($this->tipo) {
+            'nuovo_deposito' => 'info',
             'reso' => 'warning',
             'vendita' => 'success',
             'scadenza' => 'info',

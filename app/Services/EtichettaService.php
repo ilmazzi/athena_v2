@@ -152,7 +152,7 @@ class EtichettaService
         ], [
             $articolo->numero_carico ?? 'N/A',
             $articolo->numero_carico ?? 'N/A', // Per QR code
-            '€' . number_format($articolo->prezzo_acquisto ?? 0, 2),
+            '€' . number_format($articolo->prezzo_fornitore ?? $articolo->prezzo_acquisto ?? 0, 2),
             $articolo->carati ?? 'N/A',
             $articolo->materiale ?? 'N/A',
             $articolo->brill ?? 'N/A',

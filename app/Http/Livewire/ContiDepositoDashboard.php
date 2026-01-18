@@ -86,7 +86,7 @@ class ContiDepositoDashboard extends Component
 
     public function getDepositi()
     {
-        return ContoDeposito::with(['sedeMittente', 'sedeDestinataria', 'creatoDa', 'ddtInvio', 'ddtReso', 'ddtDepositi', 'fattureVendita'])
+        return ContoDeposito::with(['sedeMittente', 'sedeDestinataria', 'creatoDa', 'ddtInvio', 'ddtReso', 'ddtDepositi', 'proforme'])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('codice', 'like', '%' . $this->search . '%')

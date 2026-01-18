@@ -32,7 +32,7 @@ class ArticoloVetrina extends Model
     ];
     
     protected $casts = [
-        'prezzo_vetrina' => 'decimal:2',
+        'prezzo_vetrina' => 'string',
         'data_inserimento' => 'date',
         'data_rimozione' => 'date',
         'created_at' => 'datetime',
@@ -67,7 +67,10 @@ class ArticoloVetrina extends Model
      */
     public function getPrezzoFormatted(): string
     {
-        return '€' . number_format($this->prezzo_vetrina, 2, ',', '.');
+        if (is_numeric($this->prezzo_vetrina)) {
+            return '€' . number_format((float) $this->prezzo_vetrina, 2, ',', '.');
+        }
+        return (string) $this->prezzo_vetrina;
     }
 }
 

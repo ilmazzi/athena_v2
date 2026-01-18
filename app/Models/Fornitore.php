@@ -50,6 +50,11 @@ class Fornitore extends Model
     {
         return $this->hasMany(Articolo::class, 'fornitore_id');
     }
+
+    public function prezzi(): HasMany
+    {
+        return $this->hasMany(FornitorePrezzo::class, 'fornitore_id');
+    }
     
     public function ddt(): HasMany
     {

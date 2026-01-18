@@ -29,15 +29,34 @@ import 'simplebar'
 
 // Components
 class Components {
-    initBootstrapComponents() {
-
+    initBootstrapPopoversAndTooltips(root = document) {
+        const safeRoot = root && typeof root.querySelectorAll === 'function' ? root : null;
+        if (!safeRoot) {
+            return;
+        }
         // Popovers
-        const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]')
-        const popoverList = [...popoverTriggerList].map(popoverTriggerEl => new bootstrap.Popover(popoverTriggerEl))
+        const popoverTriggerList = safeRoot.querySelectorAll('[data-bs-toggle="popover"]')
+        popoverTriggerList.forEach((popoverTriggerEl) => {
+            const existingPopover = bootstrap.Popover.getInstance(popoverTriggerEl)
+            if (existingPopover) {
+                existingPopover.dispose()
+            }
+            new bootstrap.Popover(popoverTriggerEl)
+        })
 
         // Tooltips
-        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
-        const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+        const tooltipTriggerList = safeRoot.querySelectorAll('[data-bs-toggle="tooltip"]')
+        tooltipTriggerList.forEach((tooltipTriggerEl) => {
+            const existingTooltip = bootstrap.Tooltip.getInstance(tooltipTriggerEl)
+            if (existingTooltip) {
+                existingTooltip.dispose()
+            }
+            new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    }
+
+    initBootstrapComponents() {
+        this.initBootstrapPopoversAndTooltips();
 
         // offcanvas
         const offcanvasElementList = document.querySelectorAll('.offcanvas')
@@ -710,7 +729,9 @@ class ToastNotification {
 }
 
 document.addEventListener('DOMContentLoaded', function (e) {
-    new Components().init();
+    const components = new Components();
+    components.init();
+    window.AppComponents = components;
     new FormValidation().init();
     new FormAdvanced().init();
     new Portlet().init();
@@ -718,5 +739,42 @@ document.addEventListener('DOMContentLoaded', function (e) {
     new Dragula().init();
     new SwiperSlider().init();
     new ToastNotification().init();
+
+    const registerLivewireHooks = () => {
+        if (window.__livewirePopoverHooksRegistered) {
+            return;
+        }
+        if (!window.Livewire || typeof window.Livewire.hook !== 'function') {
+            return;
+        }
+
+        window.__livewirePopoverHooksRegistered = true;
+
+        try {
+            window.Livewire.hook('message.processed', (message, component) => {
+                if (component?.el) {
+                    window.AppComponents?.initBootstrapPopoversAndTooltips(component.el);
+                }
+            });
+        } catch (error) {
+            // Livewire version mismatch, fall back to morph hook below.
+        }
+
+        try {
+            window.Livewire.hook('morph.updated', (el) => {
+                if (el) {
+                    window.AppComponents?.initBootstrapPopoversAndTooltips(el);
+                }
+            });
+        } catch (error) {
+            // Not supported in this Livewire version.
+        }
+    };
+
+    registerLivewireHooks();
+    document.addEventListener('livewire:load', () => {
+        registerLivewireHooks();
+        window.AppComponents?.initBootstrapPopoversAndTooltips(document);
+    });
 });
 

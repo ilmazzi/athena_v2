@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Sede;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\FiltersBySede;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,7 +21,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class CategoriaMerceologica extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, FiltersBySede;
+
+    protected static function booted(): void
+    {
+        if (!app()->runningInConsole()) {
+            static::addGlobalScope('user_sede', function ($query) {
+                $sedeId = auth()->user()?->sede_id;
+                if ($sedeId) {
+                    $table = $query->getModel()->getTable();
+                    $query->where($table . '.sede_id', $sedeId);
+                }
+            });
+        }
+    }
     
     protected $table = 'categorie_merceologiche';
     

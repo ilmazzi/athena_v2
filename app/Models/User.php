@@ -6,10 +6,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -20,6 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'sede_id',
         'stampante_default_id',
         'categorie_permesse',
         'sedi_permesse',
@@ -45,6 +48,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'sede_id' => 'integer',
             'categorie_permesse' => 'array',
             'sedi_permesse' => 'array',
         ];
@@ -59,12 +63,20 @@ class User extends Authenticatable
     }
 
     /**
+     * Sede di appartenenza dell'utente
+     */
+    public function sede()
+    {
+        return $this->belongsTo(Sede::class, 'sede_id');
+    }
+
+    /**
      * Verifica se l'utente è admin (senza restrizioni)
      */
     public function isAdmin(): bool
     {
-        // Se non ha permessi configurati, è admin
-        return empty($this->categorie_permesse) && empty($this->sedi_permesse);
+        // Considera admin solo se non ha sede assegnata (superuser)
+        return empty($this->sede_id) && empty($this->categorie_permesse) && empty($this->sedi_permesse);
     }
 
     /**
@@ -85,12 +97,8 @@ class User extends Authenticatable
      */
     public function canAccessSede(int $sedeId): bool
     {
-        // Admin può accedere a tutto
-        if ($this->isAdmin()) {
-            return true;
-        }
-        
-        return in_array($sedeId, $this->sedi_permesse ?? []);
+        // Se sede singola, consenti solo la propria sede (o admin)
+        return $this->isAdmin() || $this->sede_id === $sedeId;
     }
 
     /**

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Traits\FiltersBySede;
 use Carbon\Carbon;
 
 /**
@@ -17,7 +18,22 @@ use Carbon\Carbon;
  */
 class ContoDeposito extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, FiltersBySede;
+
+    protected static function booted(): void
+    {
+        if (!app()->runningInConsole()) {
+            static::addGlobalScope('user_sede', function ($query) {
+                $sedeId = auth()->user()?->sede_id;
+                if ($sedeId) {
+                    $query->where(function($q) use ($sedeId) {
+                        $q->where('sede_mittente_id', $sedeId)
+                          ->orWhere('sede_destinataria_id', $sedeId);
+                    });
+                }
+            });
+        }
+    }
     
     protected $table = 'conti_deposito';
     
@@ -189,11 +205,11 @@ class ContoDeposito extends Model
     }
     
     /**
-     * Fatture di vendita associate al deposito
+     * Proforme associate al deposito
      */
-    public function fattureVendita()
+    public function proforme()
     {
-        return $this->hasMany(\App\Models\FatturaVendita::class, 'conto_deposito_id');
+        return $this->hasMany(ProformaDeposito::class, 'conto_deposito_id');
     }
     
     /**

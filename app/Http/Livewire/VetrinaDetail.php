@@ -35,7 +35,7 @@ class VetrinaDetail extends Component
     ];
 
     protected $rules = [
-        'prezzo_vetrina' => 'required|numeric|min:0',
+        'prezzo_vetrina' => 'required|string|max:50',
         'testo_vetrina' => 'required|string|max:500',
         'posizione' => 'nullable|integer|min:0',
         'ripiano' => 'nullable|string|max:50',
@@ -64,6 +64,11 @@ class VetrinaDetail extends Component
         // Se l'articolo ha già un ultimo testo vetrina salvato, lo proponiamo
         if ($this->selectedArticolo->ultimo_testo_vetrina) {
             $this->testo_vetrina = $this->selectedArticolo->ultimo_testo_vetrina;
+        }
+
+        // Precompila prezzo vetrina dal prezzo fornitore se presente e il campo è vuoto
+        if ($this->prezzo_vetrina === '' && $this->selectedArticolo->prezzo_fornitore) {
+            $this->prezzo_vetrina = number_format($this->selectedArticolo->prezzo_fornitore, 2, ',', '.');
         }
     }
 

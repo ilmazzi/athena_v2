@@ -5,6 +5,7 @@ namespace App\Http\Livewire;
 use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
+use App\Models\FornitorePrezzo;
 use App\Models\Sede;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,20 @@ class ArticoliTable extends Component
     public $dataDocumentoFrom = '';
     public $dataDocumentoTo = '';
     public $soloVetrina = false;
+    public $fotoFilter = ''; // '', 'con', 'senza'
+
+    // Prezzi fornitori (aggiornamento massivo)
+    public $prezziFornitoreId = '';
+    public $prezziMatchType = 'referenza';
+    public $prezziMatchValue = '';
+    public $prezziNuovoPrezzo = '';
+    public $prezziSoloSenzaPrezzo = true;
+    public $prezziSalvaRegola = true;
+    public $prezziPreview = [];
+    public $prezziPreviewTotal = 0;
+    public $prezziSelezionati = [];
+    public $prezziApplicaATutti = false;
+    public $prezziPreviewLoaded = false;
     
     // Modalità scarico parziale
     public $showModalScarico = false;
@@ -49,6 +64,7 @@ class ArticoliTable extends Component
     public $articoloDaStampare = null;
     public $prezzoEtichetta = '';
     public $formatoPrezzo = 'euro'; // 'euro' o 'codificato'
+    public $prezzoEtichettaFonte = 'fornitore'; // fornitore|vetrina|manuale
     public $stampanteSelezionata = '';
     public $stampantiDisponibili = [];
     
@@ -56,6 +72,10 @@ class ArticoliTable extends Component
     public $perPage = 25;
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
+
+    // Colonne visibili in tabella
+    public $visibleColumns = [];
+    public $showColumnsDropdown = false;
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -73,6 +93,7 @@ class ArticoliTable extends Component
         'dataDocumentoFrom' => ['except' => ''],
         'dataDocumentoTo' => ['except' => ''],
         'soloVetrina' => ['except' => false],
+        'fotoFilter' => ['except' => ''],
         'sortField' => ['except' => 'created_at'],
         'sortDirection' => ['except' => 'desc'],
     ];
@@ -98,6 +119,11 @@ class ArticoliTable extends Component
     public function toggleMagazzinoDropdown()
     {
         $this->showMagazzinoDropdown = !$this->showMagazzinoDropdown;
+    }
+
+    public function toggleColumnsDropdown()
+    {
+        $this->showColumnsDropdown = !$this->showColumnsDropdown;
     }
 
     public function toggleMagazzino($magazzinoId)
@@ -135,6 +161,65 @@ class ArticoliTable extends Component
     public function updatedDataDocumentoTo()
     {
         $this->resetPage();
+    }
+
+    public function mount()
+    {
+        $defaultColumns = [
+            'codice' => true,
+            'descrizione' => true,
+            'specifiche' => true,
+            'caratura' => true,
+            'giacenza' => true,
+            'costo_unitario' => true,
+            'prezzo_fornitore' => true,
+            'valore_totale' => true,
+            'dati_carico' => true,
+            'ubicazione' => true,
+            'azioni' => true,
+        ];
+
+        $this->visibleColumns = session()->get('articoli.visible_columns', $defaultColumns);
+    }
+
+    public function updatedVisibleColumns()
+    {
+        session()->put('articoli.visible_columns', $this->visibleColumns);
+    }
+
+    public function resetVisibleColumns()
+    {
+        $this->visibleColumns = [
+            'codice' => true,
+            'descrizione' => true,
+            'specifiche' => true,
+            'caratura' => true,
+            'giacenza' => true,
+            'costo_unitario' => true,
+            'prezzo_fornitore' => true,
+            'valore_totale' => true,
+            'dati_carico' => true,
+            'ubicazione' => true,
+            'azioni' => true,
+        ];
+        session()->put('articoli.visible_columns', $this->visibleColumns);
+    }
+
+    public function getColumnOptionsProperty(): array
+    {
+        return [
+            'codice' => 'Codice',
+            'descrizione' => 'Descrizione',
+            'specifiche' => 'Specifiche',
+            'caratura' => 'Caratura',
+            'giacenza' => 'Giacenza',
+            'costo_unitario' => 'Costo unitario',
+            'prezzo_fornitore' => 'Prezzo fornitore',
+            'valore_totale' => 'Valore totale',
+            'dati_carico' => 'Dati carico',
+            'ubicazione' => 'Ubicazione',
+            'azioni' => 'Azioni',
+        ];
     }
 
     public function updatedFornitoreFilter()
@@ -187,6 +272,11 @@ class ArticoliTable extends Component
         $this->resetPage();
     }
 
+    public function updatedFotoFilter()
+    {
+        $this->resetPage();
+    }
+
     public function updatedSoloInventariati()
     {
         $this->resetPage();
@@ -225,6 +315,7 @@ class ArticoliTable extends Component
         $this->dataDocumentoFrom = '';
         $this->dataDocumentoTo = '';
         $this->soloVetrina = false;
+        $this->fotoFilter = '';
         $this->sortField = 'created_at';
         $this->sortDirection = 'desc';
         $this->resetPage();
@@ -350,14 +441,8 @@ class ArticoliTable extends Component
             $articolo = Articolo::findOrFail($articoloId);
             $this->articoloDaStampare = $articolo;
             
-            // Pre-compila il prezzo se disponibile
-            if ($articolo->prezzo_acquisto) {
-                $this->prezzoEtichetta = number_format($articolo->prezzo_acquisto, 2, ',', '.');
-                $this->formatoPrezzo = 'euro';
-            } else {
-                $this->prezzoEtichetta = '';
-                $this->formatoPrezzo = 'euro';
-            }
+            $this->prezzoEtichettaFonte = $this->getDefaultPrezzoFonte($articolo);
+            $this->impostaPrezzoEtichettaDaFonte($articolo);
             
             // Carica stampanti disponibili per questo articolo
             $this->caricaStampantiDisponibili($articolo);
@@ -369,6 +454,63 @@ class ArticoliTable extends Component
         } catch (\Exception $e) {
             session()->flash('error', 'Errore durante l\'apertura del modal: ' . $e->getMessage());
         }
+    }
+
+    public function updatedPrezzoEtichettaFonte()
+    {
+        if (!$this->articoloDaStampare) {
+            return;
+        }
+        $this->impostaPrezzoEtichettaDaFonte($this->articoloDaStampare);
+    }
+
+    private function getPrezzoVetrinaArticolo(Articolo $articolo): ?string
+    {
+        $prezzo = $articolo->articoliVetrina()
+            ->whereNull('data_rimozione')
+            ->orderByDesc('data_inserimento')
+            ->value('prezzo_vetrina');
+
+        return $prezzo ? (string) $prezzo : null;
+    }
+
+    private function getDefaultPrezzoFonte(Articolo $articolo): string
+    {
+        if ($articolo->prezzo_fornitore) {
+            return 'fornitore';
+        }
+        if ($this->getPrezzoVetrinaArticolo($articolo)) {
+            return 'vetrina';
+        }
+        return 'manuale';
+    }
+
+    private function impostaPrezzoEtichettaDaFonte(Articolo $articolo): void
+    {
+        if ($this->prezzoEtichettaFonte === 'fornitore' && $articolo->prezzo_fornitore) {
+            $this->prezzoEtichetta = number_format($articolo->prezzo_fornitore, 2, ',', '.');
+            $this->formatoPrezzo = 'euro';
+            return;
+        }
+
+        if ($this->prezzoEtichettaFonte === 'vetrina') {
+            $prezzoVetrina = $this->getPrezzoVetrinaArticolo($articolo);
+            if ($prezzoVetrina) {
+                $this->prezzoEtichetta = $prezzoVetrina;
+                $this->formatoPrezzo = is_numeric(str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoVetrina)))
+                    ? 'euro'
+                    : 'codificato';
+                return;
+            }
+        }
+
+        if ($this->prezzoEtichettaFonte === 'manuale') {
+            $this->formatoPrezzo = $this->formatoPrezzo ?: 'euro';
+            return;
+        }
+
+        $this->prezzoEtichetta = '';
+        $this->formatoPrezzo = 'euro';
     }
     
     /**
@@ -525,6 +667,11 @@ class ArticoliTable extends Component
                   ->orWhere('articoli.numero_documento_carico', 'like', $searchTerm)
                   ->orWhere('articoli.materiale', 'like', $searchTerm)
                   ->orWhere('articoli.colore', 'like', $searchTerm)
+                  ->orWhere('articoli.numero_seriale', 'like', $searchTerm)
+                  ->orWhere('articoli.ean', 'like', $searchTerm)
+                  ->orWhere('articoli.modello', 'like', $searchTerm)
+                  ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                  ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.marca') LIKE ?", [$searchTerm])
                   ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
                       $subQ->where('nome', 'like', $searchTerm)
                            ->orWhere('codice', 'like', $searchTerm);
@@ -536,9 +683,9 @@ class ArticoliTable extends Component
         }
 
         if (!empty($this->magazziniSelezionati)) {
-            $query->whereIn('articoli.categoria_merceologica_id', $this->magazziniSelezionati);
+            $this->applyMagazzinoFilter($query, $this->magazziniSelezionati);
         } elseif ($this->magazzinoFilter) {
-            $query->where('articoli.categoria_merceologica_id', $this->magazzinoFilter);
+            $this->applyMagazzinoFilter($query, [$this->magazzinoFilter]);
         }
 
         if ($this->statoFilter) {
@@ -623,6 +770,16 @@ class ArticoliTable extends Component
             $query->where('articoli.in_vetrina', true);
         }
 
+        if ($this->fotoFilter === 'con') {
+            $query->whereNotNull('articoli.foto_principale')
+                ->where('articoli.foto_principale', '!=', '');
+        } elseif ($this->fotoFilter === 'senza') {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.foto_principale')
+                    ->orWhere('articoli.foto_principale', '=', '');
+            });
+        }
+
         return $query;
     }
 
@@ -639,6 +796,199 @@ class ArticoliTable extends Component
             ->sum(DB::raw('articoli.prezzo_acquisto * giacenze.quantita_residua'));
             
         return $valoreTotale ?? 0;
+    }
+
+    private function normalizePrezzo($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $clean = str_replace(['€', ' '], '', (string) $value);
+        $clean = str_replace('.', '', $clean);
+        $clean = str_replace(',', '.', $clean);
+        if (!is_numeric($clean)) {
+            return null;
+        }
+        return (float) $clean;
+    }
+
+    private function buildPrezziQuery()
+    {
+        $query = Articolo::query();
+
+        if ($this->prezziFornitoreId) {
+            $query->where('fornitore_id', $this->prezziFornitoreId);
+        }
+
+        $value = trim((string) $this->prezziMatchValue);
+        if ($value === '') {
+            return $query->whereRaw('1=0');
+        }
+
+        switch ($this->prezziMatchType) {
+            case 'referenza':
+                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.referenza')) = ?", [$value]);
+                break;
+            case 'modello':
+                $query->where('modello', $value);
+                break;
+            case 'seriale':
+                $query->where('numero_seriale', $value);
+                break;
+            case 'ean':
+                $query->where('ean', $value);
+                break;
+            case 'codice':
+                $query->where('codice', $value);
+                break;
+            case 'descrizione':
+                $query->where('descrizione', 'like', '%' . $value . '%');
+                break;
+            default:
+                $query->whereRaw('1=0');
+        }
+
+        if ($this->prezziSoloSenzaPrezzo) {
+            $query->where(function ($q) {
+                $q->whereNull('prezzo_fornitore')
+                    ->orWhere('prezzo_fornitore', '<=', 0);
+            });
+        }
+
+        return $query;
+    }
+
+    public function aggiornaPreviewPrezzi()
+    {
+        if (!$this->prezziMatchValue) {
+            session()->flash('error', 'Compila criterio e valore per la ricerca.');
+            return;
+        }
+
+        $query = $this->buildPrezziQuery();
+        $this->prezziPreviewTotal = (clone $query)->count();
+
+        $items = $query->orderBy('id')
+            ->limit(200)
+            ->get([
+                'id',
+                'codice',
+                'descrizione',
+                'prezzo_fornitore',
+                'prezzo_acquisto',
+                'numero_seriale',
+                'modello',
+                'ean',
+                'caratteristiche',
+            ]);
+
+        $this->prezziPreview = $items->toArray();
+        $this->prezziSelezionati = $items->pluck('id')->toArray();
+        $this->prezziApplicaATutti = false;
+        $this->prezziPreviewLoaded = true;
+    }
+
+    public function toggleSelezionaTuttiPreview()
+    {
+        if (count($this->prezziSelezionati) === count($this->prezziPreview)) {
+            $this->prezziSelezionati = [];
+        } else {
+            $this->prezziSelezionati = array_column($this->prezziPreview, 'id');
+        }
+    }
+
+    public function applicaPrezzoFornitore()
+    {
+        $prezzo = $this->normalizePrezzo($this->prezziNuovoPrezzo);
+        if (!$this->prezziMatchValue || $prezzo === null || $prezzo <= 0) {
+            session()->flash('error', 'Compila criterio, valore e prezzo valido.');
+            return;
+        }
+
+        if (!$this->prezziPreviewLoaded) {
+            session()->flash('error', 'Prima fai una ricerca con "Cerca" e seleziona gli articoli da aggiornare.');
+            return;
+        }
+
+        $query = $this->buildPrezziQuery();
+        $aggiornati = 0;
+        $modificati = 0;
+
+        if (!$this->prezziApplicaATutti) {
+            $ids = array_filter($this->prezziSelezionati);
+            if (empty($ids)) {
+                session()->flash('error', 'Seleziona almeno un articolo da aggiornare.');
+                return;
+            }
+            $query->whereIn('id', $ids);
+        }
+
+        $query->select('id', 'prezzo_fornitore')
+            ->orderBy('id')
+            ->chunkById(200, function ($chunk) use ($prezzo, &$aggiornati, &$modificati) {
+                foreach ($chunk as $articolo) {
+                    $aggiornati++;
+                    if ((float) $articolo->prezzo_fornitore === (float) $prezzo) {
+                        continue;
+                    }
+
+                    Articolo::where('id', $articolo->id)->update([
+                        'prezzo_fornitore' => $prezzo,
+                    ]);
+
+                    $modificati++;
+                }
+            });
+
+        if ($this->prezziSalvaRegola && $this->prezziFornitoreId) {
+            FornitorePrezzo::updateOrCreate(
+                [
+                    'fornitore_id' => $this->prezziFornitoreId,
+                    'match_type' => $this->prezziMatchType,
+                    'match_value' => trim((string) $this->prezziMatchValue),
+                ],
+                [
+                    'prezzo' => $prezzo,
+                ]
+            );
+        }
+
+        session()->flash('success', "Aggiornati {$modificati} articoli (trovati {$aggiornati}).");
+    }
+
+    private function applyMagazzinoFilter($query, array $magazziniIds): void
+    {
+        $magazziniIds = array_filter($magazziniIds);
+        if (empty($magazziniIds)) {
+            return;
+        }
+
+        $cdIds = CategoriaMerceologica::whereIn('id', $magazziniIds)
+            ->where('codice', 'like', 'CD-%')
+            ->pluck('id')
+            ->toArray();
+        $nonCdIds = array_values(array_diff($magazziniIds, $cdIds));
+
+        if (!empty($cdIds) && empty($nonCdIds)) {
+            $query->whereIn('articoli.categoria_merceologica_id', $cdIds)
+                ->where('articoli.quantita_in_deposito', '>', 0)
+                ->whereNotNull('articoli.conto_deposito_corrente_id');
+            return;
+        }
+
+        if (!empty($cdIds) && !empty($nonCdIds)) {
+            $query->where(function ($q) use ($cdIds, $nonCdIds) {
+                $q->whereIn('articoli.categoria_merceologica_id', $nonCdIds)
+                    ->orWhere(function ($q2) use ($cdIds) {
+                        $q2->whereIn('articoli.categoria_merceologica_id', $cdIds)
+                            ->where('articoli.quantita_in_deposito', '>', 0)
+                            ->whereNotNull('articoli.conto_deposito_corrente_id');
+                    });
+            });
+            return;
+        }
+
+        $query->whereIn('articoli.categoria_merceologica_id', $nonCdIds);
     }
 
     public function render()
@@ -663,6 +1013,11 @@ class ArticoliTable extends Component
                   ->orWhere('numero_documento_carico', 'like', $searchTerm)
                   ->orWhere('materiale', 'like', $searchTerm)
                   ->orWhere('colore', 'like', $searchTerm)
+                  ->orWhere('numero_seriale', 'like', $searchTerm)
+                  ->orWhere('ean', 'like', $searchTerm)
+                  ->orWhere('modello', 'like', $searchTerm)
+                  ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                  ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') LIKE ?", [$searchTerm])
                   ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
                       $subQ->where('nome', 'like', $searchTerm)
                            ->orWhere('codice', 'like', $searchTerm);
@@ -675,9 +1030,9 @@ class ArticoliTable extends Component
 
         // Filtro per categorie (singolo o multiplo)
         if (!empty($this->magazziniSelezionati)) {
-            $query->whereIn('categoria_merceologica_id', $this->magazziniSelezionati);
+            $this->applyMagazzinoFilter($query, $this->magazziniSelezionati);
         } elseif ($this->magazzinoFilter) {
-            $query->where('categoria_merceologica_id', $this->magazzinoFilter);
+            $this->applyMagazzinoFilter($query, [$this->magazzinoFilter]);
         }
 
         if ($this->statoFilter) {
@@ -766,6 +1121,16 @@ class ArticoliTable extends Component
 
         if ($this->soloVetrina) {
             $query->where('in_vetrina', true);
+        }
+
+        if ($this->fotoFilter === 'con') {
+            $query->whereNotNull('foto_principale')
+                ->where('foto_principale', '!=', '');
+        } elseif ($this->fotoFilter === 'senza') {
+            $query->where(function ($q) {
+                $q->whereNull('foto_principale')
+                    ->orWhere('foto_principale', '=', '');
+            });
         }
 
         // Applica sorting

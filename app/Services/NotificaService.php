@@ -23,6 +23,43 @@ class NotificaService
     /**
      * Crea e invia notifica per reso manuale/automatico
      */
+    public function notificaNuovoDeposito(ContoDeposito $contoDeposito): ?Notifica
+    {
+        $societaDestinataria = $contoDeposito->getSocietaDestinataria();
+        $societaMittente = $contoDeposito->getSocietaMittente();
+
+        if (!$societaDestinataria) {
+            return null;
+        }
+
+        $titolo = "Nuovo conto deposito {$contoDeposito->codice}";
+        $mittente = $societaMittente?->ragione_sociale ?? $contoDeposito->sedeMittente->nome ?? 'Sede mittente';
+        $messaggio = "Hai ricevuto un nuovo conto deposito {$contoDeposito->codice} da {$mittente}. " .
+                     "Articoli inviati: {$contoDeposito->articoli_inviati}. Valore: €" .
+                     number_format($contoDeposito->valore_totale_invio, 2, ',', '.') . ".";
+
+        $dati = [
+            'sede_mittente' => $contoDeposito->sedeMittente->nome ?? null,
+            'sede_destinataria' => $contoDeposito->sedeDestinataria->nome ?? null,
+            'data_invio' => $contoDeposito->data_invio,
+            'articoli_inviati' => $contoDeposito->articoli_inviati,
+            'valore_totale_invio' => $contoDeposito->valore_totale_invio,
+        ];
+
+        return $this->creaNotifica(
+            tipo: 'nuovo_deposito',
+            societaId: $societaDestinataria->id,
+            contoDeposito: $contoDeposito,
+            movimento: null,
+            titolo: $titolo,
+            messaggio: $messaggio,
+            datiAggiuntivi: $dati
+        );
+    }
+
+    /**
+     * Crea e invia notifica per reso manuale/automatico
+     */
     public function notificaReso(
         ContoDeposito $contoDeposito,
         MovimentoDeposito $movimento,

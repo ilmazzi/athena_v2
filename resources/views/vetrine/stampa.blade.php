@@ -177,8 +177,8 @@
             <div class="stat-label">Articoli</div>
         </div>
         <div class="stat-item">
-            <div class="stat-value">€{{ number_format($articoli->sum('prezzo_vetrina'), 2, ',', '.') }}</div>
-            <div class="stat-label">Valore Totale</div>
+            <div class="stat-value">{{ $articoli->whereNotNull('prezzo_vetrina')->where('prezzo_vetrina', '!=', '')->count() }}</div>
+            <div class="stat-label">Prezzi Codificati</div>
         </div>
         <div class="stat-item">
             <div class="stat-value">{{ $articoli->avg('giorni_esposizione') ? round($articoli->avg('giorni_esposizione')) : 0 }}</div>
@@ -226,7 +226,11 @@
                             </div>
                         </td>
                         <td style="text-align: center; font-weight: bold; font-size: 14px; color: var(--bs-success);">
-                            €{{ number_format($articoloVetrina->prezzo_vetrina, 0, ',', '.') }}
+                            @if(is_numeric($articoloVetrina->prezzo_vetrina))
+                                €{{ number_format((float)$articoloVetrina->prezzo_vetrina, 0, ',', '.') }}
+                            @else
+                                {{ $articoloVetrina->prezzo_vetrina }}
+                            @endif
                         </td>
                     </tr>
                 @endforeach
@@ -240,8 +244,8 @@
 
     <div class="footer">
         Athena v2 - Sistema di Gestione Magazzino<br>
-        Vetrina {{ $vetrina->codice }} - {{ $articoli->count() }} articoli - 
-        Valore totale: €{{ number_format($articoli->sum('prezzo_vetrina'), 2, ',', '.') }}
+        Vetrina {{ $vetrina->codice }} - {{ $articoli->count() }} articoli -
+        Prezzi codificati: {{ $articoli->whereNotNull('prezzo_vetrina')->where('prezzo_vetrina', '!=', '')->count() }}
     </div>
 
     <script>

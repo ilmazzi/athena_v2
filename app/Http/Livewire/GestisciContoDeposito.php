@@ -4,13 +4,17 @@ namespace App\Http\Livewire;
 
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 use App\Models\ContoDeposito;
 use App\Models\Articolo;
 use App\Models\ProdottoFinito;
-use App\Models\FatturaVendita;
+use App\Models\ProformaDeposito;
 use App\Services\ContoDepositoService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * GestisciContoDeposito - Gestione singolo conto deposito
@@ -23,7 +27,7 @@ use Illuminate\Support\Collection;
  */
 class GestisciContoDeposito extends Component
 {
-    use WithPagination;
+    use WithPagination, WithFileUploads;
 
     public $depositoId;
     public $deposito;
@@ -57,30 +61,137 @@ class GestisciContoDeposito extends Component
     public $articoliSelezionatiVendita = [];
     public $prodottiFinitiSelezionatiVendita = [];
     
-    // Dati fattura vendita (condivisi tra vendita singola e multipla)
-    public $numeroFattura = '';
-    public $dataFattura = '';
+    // Dati proforma deposito (condivisi tra vendita singola e multipla)
+    public $numeroProforma = '';
+    public $dataProforma = '';
     public $clienteNome = '';
     public $clienteCognome = '';
     public $clienteTelefono = '';
     public $clienteEmail = '';
-    public $importoTotaleFattura = 0;
-    public $noteFattura = '';
+    public $importoTotaleProforma = 0;
+    public $noteProforma = '';
+
+    // Gestione fattura definitiva (documento fiscale)
+    public $showSegnaFatturataModal = false;
+    public $proformaSelezionataId = null;
+    public $fatturaPdf;
+    public $fatturaNumero = '';
+    public $fatturaData = '';
+    public $fatturaNote = '';
+
+    // Rinnovo
+    public $showRinnovoModal = false;
+    public $rinnovoModalita = 'rimanenti';
+
+    // Anteprima invio
+    public $showAnteprimaInvioModal = false;
+
+    // ==========================================
+    // DERIVED PROPERTIES (ACCESS CONTROLS)
+    // ==========================================
+
+    public function getUserSedeIdProperty(): ?int
+    {
+        return Auth::user()?->sede_id;
+    }
+
+    public function getIsSuperAdminProperty(): bool
+    {
+        $user = Auth::user();
+        return $user && method_exists($user, 'hasRole') && $user->hasRole('admin');
+    }
+
+    public function getIsMittenteProperty(): bool
+    {
+        if ($this->isSuperAdmin) {
+            return true;
+        }
+        return $this->userSedeId && $this->deposito && $this->userSedeId === $this->deposito->sede_mittente_id;
+    }
+
+    public function getIsDestinatarioProperty(): bool
+    {
+        if ($this->isSuperAdmin) {
+            return true;
+        }
+        return $this->userSedeId && $this->deposito && $this->userSedeId === $this->deposito->sede_destinataria_id;
+    }
+
+    public function getPuoGestireMittenteProperty(): bool
+    {
+        if (!$this->deposito) {
+            return false;
+        }
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        return $this->deposito->stato === 'attivo'
+            && !$this->deposito->ddt_invio_id
+            && $user->can('conti_deposito.manage')
+            && ($this->isMittente || $this->isSuperAdmin);
+    }
+
+    public function getPuoGestireDestinatarioProperty(): bool
+    {
+        if (!$this->deposito) {
+            return false;
+        }
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($this->deposito->stato === 'chiuso') {
+            return false;
+        }
+
+        $haPermesso = $user->can('conti_deposito.manage') || $user->can('conti_deposito.resi');
+
+        return $haPermesso
+            && ($this->isDestinatario || $this->isSuperAdmin);
+    }
+
+    public function getPuoRinnovareProperty(): bool
+    {
+        if (!$this->deposito) {
+            return false;
+        }
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($this->deposito->stato === 'chiuso') {
+            return false;
+        }
+
+        $haPermesso = $user->can('conti_deposito.manage') || $user->can('conti_deposito.resi');
+
+        return $haPermesso
+            && ($this->isMittente || $this->isDestinatario || $this->isSuperAdmin);
+    }
+
+    public function getHaContenutoDepositoProperty(): bool
+    {
+        return $this->articoliInDeposito->isNotEmpty() || $this->prodottiFinitiInDeposito->isNotEmpty();
+    }
 
     protected $rules = [
         'articoliSelezionati.*.quantita' => 'required|integer|min:1',
         'quantitaVendita' => 'required|integer|min:1',
-        
-        // Regole fattura vendita - OBBLIGATORIE per tutte le vendite
-        'numeroFattura' => 'required|string|max:50',
-        'dataFattura' => 'required|date',
+
+        // Regole proforma deposito - OBBLIGATORIE per tutte le vendite
+        'numeroProforma' => 'required|string|max:50',
+        'dataProforma' => 'required|date',
         'clienteNome' => 'required|string|max:100',
         'clienteCognome' => 'required|string|max:100',
         'clienteTelefono' => 'nullable|string|max:20',
         'clienteEmail' => 'nullable|email|max:100',
-        'importoTotaleFattura' => 'nullable|numeric|min:0.01', // Opzionale: calcolato automaticamente se vuoto
-        'noteFattura' => 'nullable|string|max:500',
-        
+        'importoTotaleProforma' => 'nullable|numeric|min:0.01', // Opzionale: calcolato automaticamente se vuoto
+        'noteProforma' => 'nullable|string|max:500',
+
         // Selezioni - OPZIONALI
         'articoliSelezionatiVendita' => 'nullable|array',
         'prodottiFinitiSelezionatiVendita' => 'nullable|array',
@@ -88,19 +199,24 @@ class GestisciContoDeposito extends Component
 
     public function mount($depositoId)
     {
+        $user = Auth::user();
+        if (!$user || !$user->can('conti_deposito.view')) {
+            abort(403);
+        }
         $this->depositoId = $depositoId;
         $this->deposito = ContoDeposito::with(['ddtResi.dettagli', 'ddtInvio', 'ddtRimando',
             'sedeMittente', 
             'sedeDestinataria',
             'movimenti.articolo.giacenza',
             'movimenti.prodottoFinito',
-            'movimentiVendita.fatturaVendita', // Carica fatture di vendita dai movimenti
-            'fattureVendita', // Carica fatture di vendita direttamente
+            'movimentiVendita.proforma',
+            'proforme',
             'creatoDa'
         ])->findOrFail($depositoId);
         
-        // Inizializza data fattura ad oggi
-        $this->dataFattura = now()->format('Y-m-d');
+        // Inizializza data proforma e fattura definitiva
+        $this->dataProforma = now()->format('Y-m-d');
+        $this->fatturaData = now()->format('Y-m-d');
     }
 
     // ==========================================
@@ -172,6 +288,10 @@ class GestisciContoDeposito extends Component
 
     public function apriAggiungiArticoliModal()
     {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può aggiungere articoli prima della generazione del DDT di invio.');
+            return;
+        }
         $this->reset(['search', 'articoliSelezionati', 'prodottiFinitiSelezionati']);
         $this->tipoItem = 'articoli';
         $this->showAggiungiArticoliModal = true;
@@ -181,6 +301,26 @@ class GestisciContoDeposito extends Component
     {
         $this->showAggiungiArticoliModal = false;
         $this->resetValidation();
+    }
+
+    public function apriAnteprimaInvioModal()
+    {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può visualizzare l\'anteprima del DDT.');
+            return;
+        }
+
+        if (!$this->haContenutoDeposito) {
+            session()->flash('error', 'Aggiungi almeno un articolo o prodotto finito prima di generare l\'anteprima.');
+            return;
+        }
+
+        $this->showAnteprimaInvioModal = true;
+    }
+
+    public function chiudiAnteprimaInvioModal()
+    {
+        $this->showAnteprimaInvioModal = false;
     }
 
     public function toggleArticolo($articoloId)
@@ -213,6 +353,10 @@ class GestisciContoDeposito extends Component
 
     public function aggiungiArticoliAlDeposito()
     {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Deposito bloccato: non è possibile aggiungere articoli dopo l\'invio.');
+            return;
+        }
         // Validazione specifica per aggiunta articoli (solo quantità degli articoli selezionati)
         $this->validate([
             'articoliSelezionati.*.quantita' => 'required|integer|min:1',
@@ -260,22 +404,26 @@ class GestisciContoDeposito extends Component
     // ==========================================
     
     /**
-     * Apre il modal per vendita multipla con fattura
+     * Apre il modal per vendita multipla con proforma
      */
     public function apriVenditaMultiplaModal()
     {
-        // NON resettare le selezioni! Solo i campi fattura
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può registrare vendite da questo deposito.');
+            return;
+        }
+        // NON resettare le selezioni! Solo i campi proforma
         $this->reset([
-            'numeroFattura',
+            'numeroProforma',
             'clienteNome',
             'clienteCognome', 
             'clienteTelefono',
             'clienteEmail',
-            'importoTotaleFattura',
-            'noteFattura'
+            'importoTotaleProforma',
+            'noteProforma'
         ]);
         
-        $this->dataFattura = now()->format('Y-m-d');
+        $this->dataProforma = now()->format('Y-m-d');
         $this->showVenditaMultiplaModal = true;
     }
     
@@ -320,11 +468,11 @@ class GestisciContoDeposito extends Component
     public function toggleProdottoFinitoVendita($pfId)
     {
         // Debug log per verificare che il metodo viene chiamato
-        \Log::info("toggleProdottoFinitoVendita chiamato con ID: {$pfId}");
+        Log::info("toggleProdottoFinitoVendita chiamato con ID: {$pfId}");
         
         if (isset($this->prodottiFinitiSelezionatiVendita[$pfId])) {
             unset($this->prodottiFinitiSelezionatiVendita[$pfId]);
-            \Log::info("PF {$pfId} rimosso dalla selezione");
+            Log::info("PF {$pfId} rimosso dalla selezione");
         } else {
             $pfData = $this->prodottiFinitiInDeposito->firstWhere('prodotto_finito.id', $pfId);
             if ($pfData) {
@@ -337,16 +485,16 @@ class GestisciContoDeposito extends Component
                     'codice' => $pfData['prodotto_finito']['codice'] ?? '',
                     'descrizione' => $pfData['prodotto_finito']['descrizione'] ?? '',
                 ];
-                \Log::info("PF {$pfId} aggiunto alla selezione");
+                Log::info("PF {$pfId} aggiunto alla selezione");
             } else {
-                \Log::error("PF {$pfId} non trovato nella collection prodottiFinitiInDeposito");
+                Log::error("PF {$pfId} non trovato nella collection prodottiFinitiInDeposito");
             }
         }
         
         $this->calcolaImportoTotale();
         
         // Debug della selezione attuale
-        \Log::info("Selezione attuale: " . count($this->prodottiFinitiSelezionatiVendita) . " PF selezionati");
+        Log::info("Selezione attuale: " . count($this->prodottiFinitiSelezionatiVendita) . " PF selezionati");
     }
     
     /**
@@ -366,7 +514,7 @@ class GestisciContoDeposito extends Component
             $totale += $pf['costo_unitario'];
         }
         
-        $this->importoTotaleFattura = $totale;
+        $this->importoTotaleProforma = $totale;
     }
     
     /**
@@ -378,47 +526,51 @@ class GestisciContoDeposito extends Component
     }
     
     /**
-     * Registra vendita multipla con fattura
+     * Registra vendita multipla con proforma
      */
     public function registraVenditaMultipla()
     {
-        \Log::info("🔥 registraVenditaMultipla CHIAMATO!");
-        \Log::info("📊 Selezioni: Articoli=" . count($this->articoliSelezionatiVendita) . ", PF=" . count($this->prodottiFinitiSelezionatiVendita));
-        \Log::info("📝 Campi fattura: numeroFattura='{$this->numeroFattura}', clienteNome='{$this->clienteNome}', clienteCognome='{$this->clienteCognome}'");
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può registrare vendite da questo deposito.');
+            return;
+        }
+        Log::info("🔥 registraVenditaMultipla CHIAMATO!");
+        Log::info("📊 Selezioni: Articoli=" . count($this->articoliSelezionatiVendita) . ", PF=" . count($this->prodottiFinitiSelezionatiVendita));
+        Log::info("📝 Campi proforma: numeroProforma='{$this->numeroProforma}', clienteNome='{$this->clienteNome}', clienteCognome='{$this->clienteCognome}'");
         
         // Validazione specifica per vendita multipla
-        \Log::info("🔍 Pre-validazione...");
+        Log::info("🔍 Pre-validazione...");
         try {
             $this->validate([
-                'numeroFattura' => 'required|string|max:50',
-                'dataFattura' => 'required|date',
+                'numeroProforma' => 'required|string|max:50',
+                'dataProforma' => 'required|date',
                 'clienteNome' => 'required|string|max:100',
                 'clienteCognome' => 'required|string|max:100',
                 'clienteTelefono' => 'nullable|string|max:20',
                 'clienteEmail' => 'nullable|email|max:100',
-                'importoTotaleFattura' => 'nullable|numeric|min:0', // Opzionale: calcolato se vuoto
-                'noteFattura' => 'nullable|string|max:500',
+                'importoTotaleProforma' => 'nullable|numeric|min:0', // Opzionale: calcolato se vuoto
+                'noteProforma' => 'nullable|string|max:500',
             ]);
-            \Log::info("✅ Validazione OK!");
+            Log::info("✅ Validazione OK!");
         } catch (\Exception $e) {
-            \Log::error("❌ Validazione FALLITA: " . $e->getMessage());
+            Log::error("❌ Validazione FALLITA: " . $e->getMessage());
             throw $e;
         }
         
-        \Log::info("🔍 Controllo selezioni...");
+        Log::info("🔍 Controllo selezioni...");
         if (empty($this->articoliSelezionatiVendita) && empty($this->prodottiFinitiSelezionatiVendita)) {
-            \Log::error("❌ Nessuna selezione trovata!");
+            Log::error("❌ Nessuna selezione trovata!");
             session()->flash('error', 'Seleziona almeno un articolo o prodotto finito da vendere');
             return;
         }
-        \Log::info("✅ Selezioni trovate, procedo...");
+        Log::info("✅ Selezioni trovate, procedo...");
 
-        \Log::info("🚀 Inizio transazione...");
+        Log::info("🚀 Inizio transazione...");
         try {
             DB::transaction(function () {
-                \Log::info("📦 Dentro transazione DB...");
+                Log::info("📦 Dentro transazione DB...");
                 
-                // Calcola totale articoli per fattura
+                // Calcola totale articoli per proforma
                 $totaleArticoli = 0;
                 $importoCalcolato = 0;
                 
@@ -436,48 +588,48 @@ class GestisciContoDeposito extends Component
                 }
                 
                 // Se importo non specificato, usa il calcolato
-                if (empty($this->importoTotaleFattura) || $this->importoTotaleFattura == 0) {
-                    $this->importoTotaleFattura = $importoCalcolato;
+                if (empty($this->importoTotaleProforma) || $this->importoTotaleProforma == 0) {
+                    $this->importoTotaleProforma = $importoCalcolato;
                 }
                 
-                // Crea fattura di vendita
-                \Log::info("📄 Creazione fattura vendita...");
-                $fattura = $this->creaFatturaVendita();
-                $fattura->update([
+                // Crea proforma deposito
+                Log::info("📄 Creazione proforma deposito...");
+                $proforma = $this->creaProforma();
+                $proforma->update([
                     'quantita_totale' => $totaleArticoli,
                     'numero_articoli' => count($this->articoliSelezionatiVendita) + count($this->prodottiFinitiSelezionatiVendita),
                 ]);
-                \Log::info("✅ Fattura vendita creata: {$fattura->numero}");
+                Log::info("✅ Proforma creata: {$proforma->numero}");
                 
-                \Log::info("🔧 Creazione ContoDepositoService...");
+                Log::info("🔧 Creazione ContoDepositoService...");
                 $service = new ContoDepositoService();
-                \Log::info("✅ ContoDepositoService creato!");
+                Log::info("✅ ContoDepositoService creato!");
                 
-                \Log::info("🛒 Inizio registrazione vendite...");
+                Log::info("🛒 Inizio registrazione vendite...");
                 
                 // Registra vendite articoli
-                \Log::info("🔍 Articoli selezionati: " . count($this->articoliSelezionatiVendita));
+                Log::info("🔍 Articoli selezionati: " . count($this->articoliSelezionatiVendita));
                 foreach ($this->articoliSelezionatiVendita as $articoloId => $articoloData) {
-                    \Log::info("📦 Registro vendita articolo ID: {$articoloId}...");
+                    Log::info("📦 Registro vendita articolo ID: {$articoloId}...");
                     $articolo = Articolo::findOrFail($articoloId);
                     $service->registraVendita(
                         $this->deposito,
                         $articolo,
                         $articoloData['quantita'],
-                        $fattura
+                        $proforma
                     );
                 }
                 
                 // Registra vendite prodotti finiti
-                \Log::info("🔍 PF selezionati: " . count($this->prodottiFinitiSelezionatiVendita));
+                Log::info("🔍 PF selezionati: " . count($this->prodottiFinitiSelezionatiVendita));
                 foreach ($this->prodottiFinitiSelezionatiVendita as $pfId => $pfData) {
-                    \Log::info("🏆 Registro vendita PF ID: {$pfId}...");
+                    Log::info("🏆 Registro vendita PF ID: {$pfId}...");
                     $prodottoFinito = ProdottoFinito::findOrFail($pfId);
                     $service->registraVendita(
                         $this->deposito,
                         $prodottoFinito,
                         1,
-                        $fattura
+                        $proforma
                     );
                 }
                 
@@ -485,18 +637,18 @@ class GestisciContoDeposito extends Component
                 $this->deposito->refresh();
             });
             
-            // Ricarica fatture dopo la transazione
-            $this->deposito->load('fattureVendita');
+            // Ricarica proforme dopo la transazione
+            $this->deposito->load('proforme');
             
             $totaleItemsVenduti = count($this->articoliSelezionatiVendita) + count($this->prodottiFinitiSelezionatiVendita);
             
-            \Log::info("🎉 VENDITA COMPLETATA! Items venduti: {$totaleItemsVenduti}");
+            Log::info("🎉 VENDITA COMPLETATA! Items venduti: {$totaleItemsVenduti}");
             
             // Reset selezioni dopo vendita
             $this->articoliSelezionatiVendita = [];
             $this->prodottiFinitiSelezionatiVendita = [];
             
-            session()->flash('success', "🎉 Vendita registrata con successo! {$totaleItemsVenduti} articoli venduti per €" . number_format($this->importoTotaleFattura, 2, ',', '.'));
+            session()->flash('success', "🎉 Vendita registrata con successo! {$totaleItemsVenduti} articoli venduti per €" . number_format($this->importoTotaleProforma, 2, ',', '.'));
             
             $this->chiudiVenditaMultiplaModal();
             
@@ -534,6 +686,10 @@ class GestisciContoDeposito extends Component
 
     public function apriRegistraVenditaModal($tipo, $itemId)
     {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può registrare vendite da questo deposito.');
+            return;
+        }
         if ($tipo === 'articolo') {
             $articoloData = $this->articoliInDeposito->firstWhere('articolo.id', $itemId);
             $articolo = $articoloData['articolo'];
@@ -568,32 +724,36 @@ class GestisciContoDeposito extends Component
         
         // Calcola e inizializza importo totale automaticamente
         $costoUnitario = $this->itemVendita['costo_unitario'];
-        $this->importoTotaleFattura = $costoUnitario * $this->quantitaVendita;
+        $this->importoTotaleProforma = $costoUnitario * $this->quantitaVendita;
         
-        // Inizializza dataFattura solo se vuota
-        if (empty($this->dataFattura)) {
-            $this->dataFattura = now()->format('Y-m-d');
+        // Inizializza data proforma solo se vuota
+        if (empty($this->dataProforma)) {
+            $this->dataProforma = now()->format('Y-m-d');
         }
         // Reset validazione precedente
         $this->resetValidation();
         $this->showRegistraVenditaModal = true;
-        \Log::info("✅ Modal vendita aperto per {$tipo} ID: {$itemId}, totale iniziale: {$this->importoTotaleFattura}");
+        Log::info("✅ Modal vendita aperto per {$tipo} ID: {$itemId}, totale iniziale: {$this->importoTotaleProforma}");
     }
 
     public function chiudiRegistraVenditaModal()
     {
         $this->showRegistraVenditaModal = false;
         $this->itemVendita = null;
-        // NON resettare i campi fattura - potrebbero essere riutilizzati
+        // NON resettare i campi proforma - potrebbero essere riutilizzati
         $this->resetValidation();
     }
     
     
     public function registraVendita()
     {
-        \Log::info("🔥 registraVendita CHIAMATO!");
-        \Log::info("📊 Dati: quantitaVendita={$this->quantitaVendita}, numeroFattura={$this->numeroFattura}, clienteNome={$this->clienteNome}");
-        \Log::info("📦 itemVenditaTipo={$this->itemVenditaTipo}, itemVenditaId={$this->itemVenditaId}");
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può registrare vendite da questo deposito.');
+            return;
+        }
+        Log::info("🔥 registraVendita CHIAMATO!");
+        Log::info("📊 Dati: quantitaVendita={$this->quantitaVendita}, numeroProforma={$this->numeroProforma}, clienteNome={$this->clienteNome}");
+        Log::info("📦 itemVenditaTipo={$this->itemVenditaTipo}, itemVenditaId={$this->itemVenditaId}");
         
         try {
             // Recupera item dal database per calcolare totale
@@ -606,108 +766,222 @@ class GestisciContoDeposito extends Component
             }
 
             // Calcola importo totale se non specificato
-            if (empty($this->importoTotaleFattura) || $this->importoTotaleFattura == 0) {
-                $this->importoTotaleFattura = $costoUnitario * $this->quantitaVendita;
-                \Log::info("💰 Importo calcolato automaticamente: {$this->importoTotaleFattura}");
+            if (empty($this->importoTotaleProforma) || $this->importoTotaleProforma == 0) {
+                $this->importoTotaleProforma = $costoUnitario * $this->quantitaVendita;
+                Log::info("💰 Importo proforma calcolato automaticamente: {$this->importoTotaleProforma}");
             }
             
-            // Validazione per vendita singola (inclusi campi fattura)
+            // Validazione per vendita singola (inclusi campi proforma)
             $this->validate([
                 'quantitaVendita' => 'required|integer|min:1',
-                'numeroFattura' => 'required|string|max:50',
-                'dataFattura' => 'required|date',
+                'numeroProforma' => 'required|string|max:50',
+                'dataProforma' => 'required|date',
                 'clienteNome' => 'required|string|max:100',
                 'clienteCognome' => 'required|string|max:100',
                 'clienteTelefono' => 'nullable|string|max:20',
                 'clienteEmail' => 'nullable|email|max:100',
-                'importoTotaleFattura' => 'required|numeric|min:0.01', // Ora obbligatorio dopo calcolo
-                'noteFattura' => 'nullable|string|max:500',
+                'importoTotaleProforma' => 'required|numeric|min:0.01',
+                'noteProforma' => 'nullable|string|max:500',
                 'itemVenditaTipo' => 'required|in:articolo,prodotto_finito',
                 'itemVenditaId' => 'required|integer',
             ]);
-            \Log::info("✅ Validazione OK!");
+            Log::info("✅ Validazione OK!");
             
-            \Log::info("📄 Creazione fattura...");
-            // Crea fattura di vendita (il totale è già stato calcolato sopra)
-            $fattura = $this->creaFatturaVendita();
-            \Log::info("✅ Fattura creata: {$fattura->numero}");
+            Log::info("📄 Creazione proforma...");
+            // Crea proforma deposito (il totale è già stato calcolato sopra)
+            $proforma = $this->creaProforma();
+            Log::info("✅ Proforma creata: {$proforma->numero}");
             
             $service = new ContoDepositoService();
             
-            \Log::info("📦 Registrazione vendita nel service...");
+            Log::info("📦 Registrazione vendita nel service...");
             $movimento = $service->registraVendita(
                 $this->deposito,
                 $item,
                 $this->quantitaVendita,
-                $fattura
+                $proforma
             );
-            \Log::info("✅ Movimento creato!");
+            Log::info("✅ Movimento creato!");
 
-            // Aggiorna deposito e ricarica fatture
+            // Aggiorna deposito e ricarica proforme
             $this->deposito->refresh();
-            $this->deposito->load('fattureVendita');
+            $this->deposito->load('proforme');
 
             session()->flash('success', "✅ Vendita registrata con successo!<br>
-                <small>Fattura: <strong>{$fattura->numero}</strong> | Cliente: {$this->clienteNome} {$this->clienteCognome}</small>");
+                <small>Proforma: <strong>{$proforma->numero}</strong> | Cliente: {$this->clienteNome} {$this->clienteCognome}</small>");
             
             // Chiudi modal solo se tutto è OK
             $this->chiudiRegistraVenditaModal();
             
-            \Log::info("🎉 VENDITA COMPLETATA!");
+            Log::info("🎉 VENDITA COMPLETATA!");
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error("❌ Errore validazione: " . json_encode($e->errors()));
+            Log::error("❌ Errore validazione: " . json_encode($e->errors()));
             session()->flash('error', 'Errore di validazione. Verifica i campi inseriti.');
             // NON chiudere il modal se c'è errore di validazione
         } catch (\Exception $e) {
-            \Log::error("❌ Errore durante registrazione: " . $e->getMessage());
-            \Log::error("Stack trace: " . $e->getTraceAsString());
+            Log::error("❌ Errore durante registrazione: " . $e->getMessage());
+            Log::error("Stack trace: " . $e->getTraceAsString());
             session()->flash('error', 'Errore durante la registrazione: ' . $e->getMessage());
             // NON chiudere il modal se c'è errore
         }
     }
-    
-    /**
-     * Crea una fattura di vendita per il deposito
-     */
-    private function creaFatturaVendita(): FatturaVendita
+
+
+    private function creaProforma(): ProformaDeposito
     {
-        // Recupera DDT invio del deposito (se esiste)
         $ddtInvio = $this->deposito->ddtInvio;
-        
-        // Costruisci note con riferimento DDT invio
+
         $noteArray = [];
-        if (!empty($this->noteFattura)) {
-            $noteArray[] = $this->noteFattura;
+        if (!empty($this->noteProforma)) {
+            $noteArray[] = $this->noteProforma;
         }
         if ($ddtInvio) {
             $noteArray[] = "DDT Invio: {$ddtInvio->numero}";
         }
-        
+
         $note = !empty($noteArray) ? implode(' | ', $noteArray) : null;
-        
-        // importoTotaleFattura è già calcolato in registraVendita() prima di chiamare questo metodo
-        $importoTotale = $this->importoTotaleFattura;
-        
-        return FatturaVendita::create([
-            'numero' => $this->numeroFattura,
-            'anno' => date('Y', strtotime($this->dataFattura)),
-            'data_documento' => $this->dataFattura,
+
+        $importoTotale = $this->importoTotaleProforma;
+
+        return ProformaDeposito::create([
+            'numero' => $this->numeroProforma,
+            'anno' => date('Y', strtotime($this->dataProforma)),
+            'data_documento' => $this->dataProforma,
             'cliente_nome' => $this->clienteNome,
             'cliente_cognome' => $this->clienteCognome,
             'cliente_telefono' => $this->clienteTelefono,
             'cliente_email' => $this->clienteEmail,
             'totale' => $importoTotale,
-            'imponibile' => $importoTotale, // Totale senza IVA
-            'iva' => 0, // Calcolare IVA se necessario
+            'imponibile' => $importoTotale,
+            'iva' => 0,
             'sede_id' => $this->deposito->sede_destinataria_id,
             'conto_deposito_id' => $this->deposito->id,
             'ddt_invio_id' => $ddtInvio?->id,
             'quantita_totale' => isset($this->itemVendita) ? $this->quantitaVendita : 0,
             'numero_articoli' => isset($this->itemVendita) ? 1 : 0,
             'note' => $note,
+            'stato' => ProformaDeposito::STATO_DA_FATTURARE,
         ]);
     }
+
+
+    // ==========================================
+    // ACTIONS - PROFORME / FATTURAZIONE
+    // ==========================================
+
+    public function apriSegnaFatturataModal(int $proformaId): void
+    {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può aggiornare lo stato della proforma.');
+            return;
+        }
+
+        $proforma = ProformaDeposito::where('conto_deposito_id', $this->deposito->id)
+            ->findOrFail($proformaId);
+
+        $this->proformaSelezionataId = $proforma->id;
+        $this->fatturaNumero = $proforma->fattura_numero ?? '';
+        $this->fatturaData = $proforma->fattura_data ? $proforma->fattura_data->format('Y-m-d') : now()->format('Y-m-d');
+        $this->fatturaNote = $proforma->fattura_note ?? '';
+        $this->fatturaPdf = null;
+
+        $this->resetValidation();
+        $this->showSegnaFatturataModal = true;
+    }
+
+    public function chiudiSegnaFatturataModal(): void
+    {
+        $this->showSegnaFatturataModal = false;
+        $this->reset(['fatturaPdf', 'fatturaNumero', 'fatturaData', 'fatturaNote']);
+        $this->resetValidation();
+    }
+
+    public function salvaFatturaProforma(): void
+    {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può aggiornare lo stato della proforma.');
+            return;
+        }
+
+        if (!$this->proformaSelezionataId) {
+            session()->flash('error', 'Seleziona una proforma valida.');
+            return;
+        }
+
+        $proforma = ProformaDeposito::where('conto_deposito_id', $this->deposito->id)
+            ->findOrFail($this->proformaSelezionataId);
+
+        $requirePdf = !$proforma->fattura_pdf_path;
+
+        $rules = [
+            'fatturaNumero' => 'nullable|string|max:100',
+            'fatturaData' => 'nullable|date',
+            'fatturaNote' => 'nullable|string|max:500',
+        ];
+
+        $rules['fatturaPdf'] = ($requirePdf ? 'required' : 'nullable') . '|file|mimes:pdf|max:20480';
+
+        $this->validate($rules, [
+            'fatturaPdf.required' => 'Carica il PDF della fattura per completare la fatturazione.',
+            'fatturaPdf.mimes' => 'Il documento deve essere un PDF.',
+            'fatturaPdf.max' => 'Il PDF non può superare i 20MB.',
+        ]);
+
+        $path = $proforma->fattura_pdf_path;
+        if ($this->fatturaPdf) {
+            if ($path && Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
+            $path = $this->fatturaPdf->store("proforme/{$proforma->id}", 'public');
+        }
+
+        $proforma->update([
+            'stato' => ProformaDeposito::STATO_FATTURATA,
+            'fattura_pdf_path' => $path,
+            'fatturata_da' => Auth::id(),
+            'fatturata_il' => now(),
+            'fattura_numero' => $this->fatturaNumero ?: null,
+            'fattura_data' => $this->fatturaData ?: null,
+            'fattura_note' => $this->fatturaNote ?: null,
+        ]);
+
+        $this->deposito->refresh()->load('proforme');
+
+        $this->chiudiSegnaFatturataModal();
+
+        session()->flash('success', 'La proforma è stata marcata come fatturata e il PDF è stato salvato.');
+    }
+
+    public function riapriProforma(int $proformaId): void
+    {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può aggiornare lo stato della proforma.');
+            return;
+        }
+
+        $proforma = ProformaDeposito::where('conto_deposito_id', $this->deposito->id)
+            ->findOrFail($proformaId);
+
+        if ($proforma->fattura_pdf_path && Storage::disk('public')->exists($proforma->fattura_pdf_path)) {
+            Storage::disk('public')->delete($proforma->fattura_pdf_path);
+        }
+
+        $proforma->update([
+            'stato' => ProformaDeposito::STATO_DA_FATTURARE,
+            'fattura_pdf_path' => null,
+            'fatturata_da' => null,
+            'fatturata_il' => null,
+            'fattura_numero' => null,
+            'fattura_data' => null,
+            'fattura_note' => null,
+        ]);
+
+        $this->deposito->refresh()->load('proforme');
+
+        session()->flash('success', 'La proforma è tornata in stato "da fatturare" e il PDF è stato rimosso.');
+    }
+
 
     // ==========================================
     // ACTIONS - DDT
@@ -715,17 +989,25 @@ class GestisciContoDeposito extends Component
 
     public function generaDdtInvio()
     {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può generare il DDT di invio.');
+            return;
+        }
+
+        if (!$this->haContenutoDeposito) {
+            session()->flash('error', 'Aggiungi almeno un articolo o prodotto finito prima di generare il DDT.');
+            return;
+        }
         try {
             $service = new ContoDepositoService();
             $ddtDeposito = $service->generaDdtInvio($this->deposito);
             
             // Aggiorna deposito
             $this->deposito->refresh();
+            $this->showAnteprimaInvioModal = false;
 
-            session()->flash('success', "DDT di invio {$ddtDeposito->numero} generato con successo");
-            
-            // Redirect alla stampa DDT Deposito
-            return redirect()->route('ddt-deposito.stampa', $ddtDeposito->id);
+            $url = route('ddt-deposito.stampa', $ddtDeposito->id);
+            session()->flash('success', "DDT di invio {$ddtDeposito->numero} generato con successo.<br><a class='btn btn-sm btn-outline-dark mt-2' target='_blank' rel='noopener' href='{$url}'>Apri stampa DDT</a>");
 
         } catch (\Exception $e) {
             session()->flash('error', 'Errore durante la generazione DDT: ' . $e->getMessage());
@@ -734,6 +1016,10 @@ class GestisciContoDeposito extends Component
 
     public function apriGeneraDdtResoModal()
     {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può generare il DDT di reso.');
+            return;
+        }
         $this->showGeneraDdtResoModal = true;
     }
     
@@ -783,6 +1069,10 @@ class GestisciContoDeposito extends Component
     
     public function generaDdtReso()
     {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può generare il DDT di reso.');
+            return;
+        }
         try {
             // Verifica se ci sono movimenti disponibili
             $movimentiDisponibili = $this->getAnteprimaMovimentiResoProperty();
@@ -822,12 +1112,54 @@ class GestisciContoDeposito extends Component
         }
     }
 
+    /**
+     * Rinnova il deposito per un altro anno creando reso + nuovo invio
+     */
+    public function apriRinnovoModal()
+    {
+        if (!$this->puoRinnovare) {
+            session()->flash('error', 'Non hai i permessi per rinnovare questo deposito.');
+            return;
+        }
+        $this->rinnovoModalita = 'rimanenti';
+        $this->showRinnovoModal = true;
+    }
+
+    public function chiudiRinnovoModal()
+    {
+        $this->showRinnovoModal = false;
+    }
+
+    public function confermaRinnovoDeposito()
+    {
+        if (!$this->puoRinnovare) {
+            session()->flash('error', 'Non hai i permessi per rinnovare questo deposito.');
+            return;
+        }
+
+        $modalita = $this->rinnovoModalita === 'tutti' ? 'tutti' : 'rimanenti';
+
+        try {
+            $service = new ContoDepositoService();
+            $nuovo = $service->rinnovaDeposito($this->deposito, $modalita);
+            $this->showRinnovoModal = false;
+            session()->flash('success', "✅ Deposito rinnovato (modalità: {$modalita}). Nuovo deposito: {$nuovo->codice}");
+            return redirect()->route('conti-deposito.show', $nuovo->id);
+        } catch (\Throwable $e) {
+            session()->flash('error', '❌ Errore rinnovo: ' . $e->getMessage());
+        }
+    }
+
     // ==========================================
     // ACTIONS - RESO MANUALE
     // ==========================================
 
     public function apriResoManualeModal()
     {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può effettuare resi manuali.');
+            return;
+        }
         // NON resettare le selezioni: permette di selezionare prima di aprire il modal
         $this->showResoManualeModal = true;
     }
@@ -884,6 +1216,10 @@ class GestisciContoDeposito extends Component
 
     public function eseguiResoManuale()
     {
+        if (!$this->puoGestireDestinatario) {
+            session()->flash('error', 'Solo la sede destinataria può effettuare resi manuali.');
+            return;
+        }
         if (empty($this->articoliSelezionatiReso) && empty($this->prodottiFinitiSelezionatiReso)) {
             session()->flash('error', 'Seleziona almeno un articolo o prodotto finito da restituire');
             return;
@@ -960,7 +1296,7 @@ class GestisciContoDeposito extends Component
     public function render()
     {
         // Assicura che ddtResi e fatture siano sempre caricati
-        $this->deposito->load(['ddtResi.dettagli', 'movimentiVendita.fatturaVendita', 'fattureVendita']);
+        $this->deposito->load(['ddtResi.dettagli', 'movimentiVendita.proforma', 'proforme']);
         
         return view('livewire.gestisci-conto-deposito', [
             'articoliDisponibili' => $this->articoliDisponibili,

@@ -30,7 +30,7 @@ class MovimentoDeposito extends Model
         'data_movimento',
         'ddt_id',
         'fattura_id', // Fatture di ACQUISTO (legacy)
-        'fattura_vendita_id', // Fatture di VENDITA
+        'proforma_id', // Proforma deposito
         'note',
         'dettagli',
         'eseguito_da',
@@ -91,11 +91,11 @@ class MovimentoDeposito extends Model
     }
     
     /**
-     * Fattura di VENDITA associata al movimento
+     * Proforma associata al movimento
      */
-    public function fatturaVendita(): BelongsTo
+    public function proforma(): BelongsTo
     {
-        return $this->belongsTo(FatturaVendita::class, 'fattura_vendita_id');
+        return $this->belongsTo(ProformaDeposito::class, 'proforma_id');
     }
     
     /**
@@ -244,7 +244,7 @@ class MovimentoDeposito extends Model
         $item,
         int $quantita,
         float $costoUnitario,
-        ?FatturaVendita $fattura = null,
+        ?ProformaDeposito $proforma = null,
         ?string $note = null
     ): self {
         $isArticolo = $item instanceof Articolo;
@@ -260,7 +260,7 @@ class MovimentoDeposito extends Model
             'costo_totale' => $quantita * $costoUnitario,
             'data_movimento' => now(),
             'fattura_id' => null, // Non usiamo più fattura_id per vendite
-            'fattura_vendita_id' => $fattura?->id,
+            'proforma_id' => $proforma?->id,
             'note' => $note,
             'eseguito_da' => auth()->id(),
         ]);

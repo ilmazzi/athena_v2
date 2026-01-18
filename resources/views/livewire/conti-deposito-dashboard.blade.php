@@ -15,7 +15,7 @@
         </div>
     </div>
 
-    {{-- Statistiche --}}
+    {{-- Statistiche principali --}}
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card border-0 bg-light-primary">
@@ -72,6 +72,72 @@
                         <div class="flex-grow-1 ms-3">
                             <h5 class="fw-bold mb-0">€{{ number_format($statistiche['valore_totale_depositi'], 0, ',', '.') }}</h5>
                             <p class="text-muted mb-0 small">Valore Totale</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Approfondimenti --}}
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 bg-light-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <iconify-icon icon="solar:document-text-bold-duotone" class="fs-2 text-danger"></iconify-icon>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="fw-bold mb-0">{{ $statistiche['proforme_da_fatturare'] }}</h5>
+                            <p class="text-muted mb-0 small">Proforme da fatturare</p>
+                            <small class="text-danger fw-semibold">€{{ number_format($statistiche['valore_da_fatturare'], 0, ',', '.') }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-light-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <iconify-icon icon="solar:check-circle-bold-duotone" class="fs-2 text-success"></iconify-icon>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="fw-bold mb-0">{{ $statistiche['proforme_fatturate'] }}</h5>
+                            <p class="text-muted mb-0 small">Proforme fatturate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0" style="background-color:#ede5ff;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <iconify-icon icon="solar:bill-check-bold-duotone" class="fs-2" style="color:#5d3fd3;"></iconify-icon>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="fw-bold mb-0">{{ $statistiche['fatture_pdf'] }}</h5>
+                            <p class="text-muted mb-0 small">Fatture caricate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 bg-light-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <iconify-icon icon="solar:box-minimalistic-bold-duotone" class="fs-2 text-warning"></iconify-icon>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h5 class="fw-bold mb-0">{{ $statistiche['giacenze_residue'] }}</h5>
+                            <p class="text-muted mb-0 small">Articoli ancora in deposito</p>
+                            <small class="text-warning fw-semibold">DDT reso mancanti: {{ $statistiche['depositi_senza_ddt_reso'] }}</small>
                         </div>
                     </div>
                 </div>
@@ -146,6 +212,16 @@
         </div>
     </div>
 
+    {{-- Legenda documenti --}}
+    <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 small mb-3">
+        <span class="fw-semibold text-muted me-2">Legenda documenti:</span>
+        <span class="badge bg-light-info text-info">DDT Invio</span>
+        <span class="badge bg-light-warning text-warning">DDT Reso</span>
+        <span class="badge bg-light-danger text-danger">Proforma da fatturare</span>
+        <span class="badge bg-light-success text-success">Proforma fatturata</span>
+        <span class="badge" style="background-color:#ede5ff;color:#5d3fd3;">Fattura finale</span>
+    </div>
+
     {{-- Tabella depositi --}}
     <div class="card">
         <div class="card-body">
@@ -154,7 +230,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>Codice</th>
-                            <th>DDT / Fatture</th>
+                            <th>DDT / Proforme</th>
                             <th>Sedi</th>
                             <th>Data Invio</th>
                             <th>Scadenza</th>
@@ -172,49 +248,44 @@
                                 </td>
                                 <td>
                                     <div class="d-flex flex-column gap-1">
-                                        {{-- DDT Invio --}}
                                         @if($deposito->ddt_invio_id && $deposito->ddtInvio)
-                                            <div class="d-flex align-items-center gap-1">
-                                                <iconify-icon icon="solar:export-bold" class="text-primary small"></iconify-icon>
-                                                <a href="{{ route('ddt-deposito.show', $deposito->ddt_invio_id) }}" 
-                                                   class="text-primary small fw-bold" title="DDT Invio">
-                                                    {{ $deposito->ddtInvio->numero }}
+                                            <a href="{{ route('ddt-deposito.show', $deposito->ddt_invio_id) }}" 
+                                               class="badge bg-light-info text-info d-inline-flex align-items-center gap-1" title="DDT di invio">
+                                                <iconify-icon icon="solar:export-bold" class="small"></iconify-icon>
+                                                {{ $deposito->ddtInvio->numero }}
+                                            </a>
+                                        @endif
+
+                                        @foreach($deposito->ddtResi as $ddtReso)
+                                            <a href="{{ route('ddt-deposito.show', $ddtReso->id) }}" 
+                                               class="badge bg-light-warning text-warning d-inline-flex align-items-center gap-1" title="DDT di reso {{ $ddtReso->numero }}">
+                                                <iconify-icon icon="solar:import-bold" class="small"></iconify-icon>
+                                                {{ $ddtReso->numero }}
+                                            </a>
+                                        @endforeach
+
+                                        @foreach(($deposito->proforme ?? collect())->sortByDesc('data_documento') as $proforma)
+                                            @php
+                                                $isFatturata = $proforma->stato === \App\Models\ProformaDeposito::STATO_FATTURATA;
+                                                $proformaClasse = $isFatturata ? 'bg-light-success text-success' : 'bg-light-danger text-danger';
+                                                $iconaProforma = $isFatturata ? 'solar:document-text-bold' : 'solar:danger-circle-bold';
+                                            @endphp
+                                            <a href="{{ route('proforme-deposito.show', ['proformaDeposito' => $proforma->id]) }}" 
+                                               class="badge {{ $proformaClasse }} d-inline-flex align-items-center gap-1" 
+                                               title="Proforma {{ $proforma->numero }} - Cliente: {{ $proforma->cliente_nome }} {{ $proforma->cliente_cognome }} - €{{ number_format($proforma->totale, 2, ',', '.') }}">
+                                                <iconify-icon icon="{{ $iconaProforma }}" class="small"></iconify-icon>
+                                                PF {{ $proforma->numero }}
+                                            </a>
+
+                                            @if($isFatturata && $proforma->fattura_pdf_url)
+                                                <a href="{{ $proforma->fattura_pdf_url }}" target="_blank" class="badge d-inline-flex align-items-center gap-1" style="background-color:#ede5ff;color:#5d3fd3;" title="Fattura finale">
+                                                    <iconify-icon icon="solar:bill-check-bold" class="small"></iconify-icon>
+                                                    {{ $proforma->fattura_numero ? 'FT '.$proforma->fattura_numero : 'Fattura' }}
                                                 </a>
-                                            </div>
-                                        @endif
-                                        
-                                        {{-- DDT Resi --}}
-                                        @if($deposito->ddtResi->count() > 0)
-                                            <div class="d-flex flex-column gap-1">
-                                                @foreach($deposito->ddtResi as $ddtReso)
-                                                    <div class="d-flex align-items-center gap-1">
-                                                        <iconify-icon icon="solar:import-bold" class="text-warning small"></iconify-icon>
-                                                        <a href="{{ route('ddt-deposito.show', $ddtReso->id) }}" 
-                                                           class="text-warning small fw-bold" title="DDT Reso {{ $ddtReso->numero }}">
-                                                            {{ $ddtReso->numero }}
-                                                        </a>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                        
-                                        {{-- Fatture di Vendita --}}
-                                        @if($deposito->fattureVendita && $deposito->fattureVendita->count() > 0)
-                                            <div class="d-flex flex-column gap-1">
-                                                @foreach($deposito->fattureVendita->sortByDesc('data_documento') as $fattura)
-                                                    <div class="d-flex align-items-center gap-1">
-                                                        <iconify-icon icon="solar:document-text-bold" class="text-success small"></iconify-icon>
-                                                        <a href="{{ route('fatture-vendita.show', $fattura->id) }}" 
-                                                           class="text-success small fw-bold" title="Fattura {{ $fattura->numero }} - Cliente: {{ $fattura->cliente_nome }} {{ $fattura->cliente_cognome }} - €{{ number_format($fattura->totale, 2, ',', '.') }}">
-                                                            FV {{ $fattura->numero }}
-                                                        </a>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        @endif
-                                        
-                                        {{-- Nessun documento --}}
-                                        @if(!$deposito->ddt_invio_id && $deposito->ddtResi->count() == 0 && (!$deposito->fattureVendita || $deposito->fattureVendita->count() == 0))
+                                            @endif
+                                        @endforeach
+
+                                        @if(!$deposito->ddt_invio_id && $deposito->ddtResi->count() == 0 && (!$deposito->proforme || $deposito->proforme->count() == 0))
                                             <span class="text-muted small">-</span>
                                         @endif
                                     </div>
@@ -273,13 +344,22 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        {{-- Tasto Gestisci (principale) --}}
-                                        <a href="{{ route('conti-deposito.gestisci', $deposito->id) }}" 
-                                           class="btn btn-primary btn-sm"
-                                           title="Gestisci deposito">
-                                            <iconify-icon icon="solar:settings-bold" class="me-1"></iconify-icon>
-                                            Gestisci
-                                        </a>
+                                        {{-- Azione principale: se attivo -> Gestisci, se chiuso -> Dettagli --}}
+                                        @if($deposito->stato === 'attivo')
+                                            <a href="{{ route('conti-deposito.gestisci', $deposito->id) }}" 
+                                               class="btn btn-primary btn-sm"
+                                               title="Gestisci deposito">
+                                                <iconify-icon icon="solar:settings-bold" class="me-1"></iconify-icon>
+                                                Gestisci
+                                            </a>
+                                        @else
+                                            <a href="{{ route('conti-deposito.show', $deposito->id) }}" 
+                                               class="btn btn-light btn-sm"
+                                               title="Dettagli deposito">
+                                                <iconify-icon icon="solar:eye-bold" class="me-1 text-secondary"></iconify-icon>
+                                                Dettagli
+                                            </a>
+                                        @endif
                                         
                                         {{-- Tasto Dettagli --}}
                                         <button class="btn btn-light btn-sm" 
@@ -296,13 +376,7 @@
                                             </button>
                                         @endif
                                         
-                                        @if($deposito->stato === 'chiuso' && $deposito->puoEssereRinnovato())
-                                            <button class="btn btn-light btn-sm" 
-                                                    wire:click="creaRimando({{ $deposito->id }})"
-                                                    title="Rimanda in deposito">
-                                                <iconify-icon icon="solar:refresh-bold" class="text-success"></iconify-icon>
-                                            </button>
-                                        @endif
+                                        {{-- Azioni consentite sui depositi chiusi: nessuna --}}
                                     </div>
                                 </td>
                             </tr>
@@ -495,8 +569,8 @@
                                                 <span class="badge bg-success">Attivo</span>
                                             </p>
                                         </div>
-                                    </div>
-                                    
+</div>
+
                                     @if($noteDeposito)
                                         <hr>
                                         <p class="mb-0">
@@ -600,38 +674,56 @@
 
                         {{-- Movimenti --}}
                         @if($depositoSelezionato->movimenti->count() > 0)
+                            @php
+                                $movimentiPerTipo = $depositoSelezionato->movimenti
+                                    ->sortBy('data_movimento')
+                                    ->groupBy('tipo_movimento');
+                                $sezioniMov = [
+                                    'invio' => 'Invii',
+                                    'vendita' => 'Vendite',
+                                    'reso' => 'Resi',
+                                    'rimando' => 'Rimandi',
+                                ];
+                            @endphp
+
                             <h6 class="fw-bold">Movimenti</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Data</th>
-                                            <th>Tipo</th>
-                                            <th>Articolo/PF</th>
-                                            <th>Qtà</th>
-                                            <th>Valore</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($depositoSelezionato->movimenti->sortBy('data_movimento') as $movimento)
-                                            <tr>
-                                                <td class="small">{{ $movimento->data_movimento->format('d/m/Y') }}</td>
-                                                <td>
-                                                    <span class="badge bg-light-{{ $movimento->tipo_movimento_color }} text-{{ $movimento->tipo_movimento_color }}">
-                                                        {{ $movimento->tipo_movimento_label }}
-                                                    </span>
-                                                </td>
-                                                <td class="small">
-                                                    <strong>{{ $movimento->getCodiceItem() }}</strong><br>
-                                                    {{ Str::limit($movimento->getDescrizioneItem(), 30) }}
-                                                </td>
-                                                <td>{{ $movimento->quantita }}</td>
-                                                <td class="small">{{ $movimento->costo_totale_formatted }}</td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
+
+                            @foreach($sezioniMov as $tipoMovimento => $titoloSezione)
+                                @if(isset($movimentiPerTipo[$tipoMovimento]))
+                                    <h6 class="small text-uppercase text-muted mt-3 mb-2">{{ $titoloSezione }}</h6>
+                                    <div class="table-responsive mb-3">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Data</th>
+                                                    <th>Tipo</th>
+                                                    <th>Articolo/PF</th>
+                                                    <th>Qtà</th>
+                                                    <th>Valore</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($movimentiPerTipo[$tipoMovimento] as $movimento)
+                                                    <tr>
+                                                        <td class="small">{{ optional($movimento->data_movimento)->format('d/m/Y') }}</td>
+                                                        <td>
+                                                            <span class="badge bg-light-{{ $movimento->tipo_movimento_color }} text-{{ $movimento->tipo_movimento_color }}">
+                                                                {{ $movimento->tipo_movimento_label }}
+                                                            </span>
+                                                        </td>
+                                                        <td class="small">
+                                                            <strong>{{ $movimento->getCodiceItem() }}</strong><br>
+                                                            {{ Str::limit($movimento->getDescrizioneItem(), 40) }}
+                                                        </td>
+                                                        <td>{{ $movimento->quantita }}</td>
+                                                        <td class="small">{{ $movimento->costo_totale_formatted }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                @endif
+                            @endforeach
                         @endif
 
                         {{-- Note --}}

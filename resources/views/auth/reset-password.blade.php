@@ -18,23 +18,35 @@
                                     </a>
                                 </div>
 
-                                <h2 class="fw-bold fs-24">Reset Password</h2>
+                                <h2 class="fw-bold fs-24">Imposta nuova password</h2>
 
-                                <p class="text-muted mt-1 mb-4">Enter your email address and we'll send you an email with instructions to reset your password.</p>
+                                <p class="text-muted mt-1 mb-4">Inserisci una nuova password per il tuo account.</p>
 
                                 <div>
-                                    <form class="authentication-form">
+                                    <form class="authentication-form" method="POST" action="{{ route('password.update') }}">
+                                        @csrf
+                                        <input type="hidden" name="token" value="{{ $request->route('token') }}">
                                         <div class="mb-3">
-                                            <label class="form-label" for="example-email">Email</label>
-                                            <input type="email" id="example-email" name="example-email" class="form-control" placeholder="Enter your email">
+                                            <label class="form-label" for="email">Email</label>
+                                            <input type="email" id="email" name="email" class="form-control" value="{{ old('email', $request->email) }}" required autofocus>
+                                            @error('email')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="password">Nuova Password</label>
+                                            <input type="password" id="password" name="password" class="form-control" required minlength="8">
+                                            @error('password')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label" for="password_confirmation">Conferma Password</label>
+                                            <input type="password" id="password_confirmation" name="password_confirmation" class="form-control" required minlength="8">
                                         </div>
                                         <div class="mb-1 text-center d-grid">
-                                            <button class="btn btn-primary" type="submit">Reset Password</button>
+                                            <button class="btn btn-primary" type="submit">Salva nuova password</button>
                                         </div>
                                     </form>
                                 </div>
 
-                                <p class="mt-5 text-danger text-center">Back to<a href="{{ route('second', [ 'auth' , 'login']) }}" class="text-dark fw-bold ms-1">Login</a></p>
+                                <p class="mt-5 text-danger text-center">Torna al <a href="{{ route('login') }}" class="text-dark fw-bold ms-1">Login</a></p>
                             </div>
                         </div>
                     </div>

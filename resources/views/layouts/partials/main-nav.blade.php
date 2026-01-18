@@ -70,31 +70,33 @@
             </a>
         </li>
 
-        <li class="nav-item">
-            <a class="nav-link menu-arrow" href="#sidebarContiDeposito" data-bs-toggle="collapse" role="button"
-               aria-expanded="false" aria-controls="sidebarContiDeposito">
-                     <span class="nav-icon">
-                    <iconify-icon icon="solar:box-bold-duotone"></iconify-icon>
-                     </span>
-                <span class="nav-text">Conti Deposito</span>
-            </a>
-            <div class="collapse" id="sidebarContiDeposito">
-                <ul class="nav sub-navbar-nav">
-                    <li class="sub-nav-item">
-                        <a class="sub-nav-link" href="{{ route('conti-deposito.index') }}">
-                            <iconify-icon icon="solar:list-bold" class="me-1"></iconify-icon>
-                            Lista Depositi
-                        </a>
-                    </li>
-                    <li class="sub-nav-item">
-                        <a class="sub-nav-link" href="{{ route('conti-deposito.resi') }}">
-                            <iconify-icon icon="solar:import-bold" class="me-1"></iconify-icon>
-                            Gestione Resi
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </li>
+        @hasanyrole('admin|amministrazione')
+            <li class="nav-item">
+                <a class="nav-link menu-arrow" href="#sidebarContiDeposito" data-bs-toggle="collapse" role="button"
+                   aria-expanded="false" aria-controls="sidebarContiDeposito">
+                         <span class="nav-icon">
+                        <iconify-icon icon="solar:box-bold-duotone"></iconify-icon>
+                         </span>
+                    <span class="nav-text">Conti Deposito</span>
+                </a>
+                <div class="collapse" id="sidebarContiDeposito">
+                    <ul class="nav sub-navbar-nav">
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link" href="{{ route('conti-deposito.index') }}">
+                                <iconify-icon icon="solar:list-bold" class="me-1"></iconify-icon>
+                                Lista Depositi
+                            </a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link" href="{{ route('conti-deposito.resi') }}">
+                                <iconify-icon icon="solar:import-bold" class="me-1"></iconify-icon>
+                                Gestione Resi
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+        @endhasanyrole
 
         <li class="nav-item">
             <a class="nav-link" href="{{ route('movimentazioni-interne.index') }}">
@@ -117,6 +119,9 @@
                     <ul class="nav sub-navbar-nav">
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('documenti-acquisto.nuovo') }}">Nuovo Documento</a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link" href="#">Carico da Fornitore (DDT)</a>
                         </li>
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('documenti-acquisto.index') }}">Elenco Documenti</a>
@@ -365,25 +370,24 @@
             {{-- ============================================ --}}
             <li class="menu-title mt-2">Sistema</li>
 
-            <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarUtenti" data-bs-toggle="collapse" role="button"
-                   aria-expanded="false" aria-controls="sidebarUtenti">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:user-speak-rounded-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Utenti</span>
-                </a>
-                <div class="collapse" id="sidebarUtenti">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Ruoli</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Permessi</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
+            @hasanyrole('admin|amministrazione')
+                <li class="nav-item">
+                    <a class="nav-link menu-arrow" href="#sidebarUtenti" data-bs-toggle="collapse" role="button"
+                       aria-expanded="false" aria-controls="sidebarUtenti">
+                            <span class="nav-icon">
+                           <iconify-icon icon="solar:user-speak-rounded-bold-duotone"></iconify-icon>
+                            </span>
+                        <span class="nav-text">Utenti & Permessi</span>
+                    </a>
+                    <div class="collapse" id="sidebarUtenti">
+                        <ul class="nav sub-navbar-nav">
+                            <li class="sub-nav-item"><a class="sub-nav-link" href="{{ route('gestione.utenti') }}">Gestione Utenti</a></li>
+                            <li class="sub-nav-item"><a class="sub-nav-link" href="{{ route('gestione.ruoli') }}">Ruoli</a></li>
+                            <li class="sub-nav-item"><a class="sub-nav-link" href="{{ route('gestione.permessi') }}">Permessi</a></li>
+                        </ul>
+                    </div>
+                </li>
+            @endhasanyrole
 
             <li class="nav-item">
                 <a class="nav-link" href="#">

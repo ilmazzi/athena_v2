@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use App\Models\Traits\FiltersBySede;
 
 /**
  * DdtDeposito - DDT specifico per Conti Deposito
@@ -16,7 +18,22 @@ use Carbon\Carbon;
  */
 class DdtDeposito extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, FiltersBySede;
+
+    protected static function booted(): void
+    {
+        if (!app()->runningInConsole()) {
+            static::addGlobalScope('user_sede', function ($query) {
+                $sedeId = auth()->user()?->sede_id;
+                if ($sedeId) {
+                    $query->where(function($q) use ($sedeId) {
+                        $q->where('sede_mittente_id', $sedeId)
+                          ->orWhere('sede_destinataria_id', $sedeId);
+                    });
+                }
+            });
+        }
+    }
     
     protected $table = 'ddt_depositi';
     
@@ -140,6 +157,39 @@ class DdtDeposito extends Model
     public function scopePerAnno($query, int $anno)
     {
         return $query->where('anno', $anno);
+    }
+    
+    // ==========================================
+    // HELPERS
+    // ==========================================
+    /**
+     * Genera un numero progressivo per sede mittente (separato per sede e anno)
+     * Restituisce un intero incrementale (1,2,3,...) per l'anno corrente.
+     */
+    public static function generaNumeroPerSede(int $sedeMittenteId): int
+    {
+        $anno = now()->year;
+        $max = self::where('sede_mittente_id', $sedeMittenteId)
+            ->where('anno', $anno)
+            ->select(DB::raw('MAX(CAST(numero AS UNSIGNED)) as max_num'))
+            ->value('max_num');
+        return ((int) $max) + 1;
+    }
+
+    /**
+     * Genera numero formattato e globalmente univoco per sede e anno: CAV-2025-0001
+     */
+    public static function generaNumeroPerSedeFormatted(int $sedeMittenteId): string
+    {
+        $anno = now()->year;
+        $sede = Sede::find($sedeMittenteId);
+        $prefix = $sede?->codice ?? 'SED';
+        $seq = self::where('sede_mittente_id', $sedeMittenteId)
+            ->where('anno', $anno)
+            ->select(DB::raw('MAX(CAST(SUBSTRING_INDEX(numero, "-", -1) AS UNSIGNED)) as max_seq'))
+            ->value('max_seq');
+        $next = ((int)$seq) + 1;
+        return sprintf('%s-%d-%04d', $prefix, $anno, $next);
     }
     
     // ==========================================

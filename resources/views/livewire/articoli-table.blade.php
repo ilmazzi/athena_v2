@@ -168,6 +168,10 @@
             $filtriAttivi[] = ['label' => 'Sede', 'value' => $sede ? $sede->nome : $ubicazioneFilter, 'field' => 'ubicazioneFilter'];
         }
         if($statoFilter) $filtriAttivi[] = ['label' => 'Stato', 'value' => ucfirst($statoFilter), 'field' => 'statoFilter'];
+        if($fotoFilter) {
+            $fotoLabel = $fotoFilter === 'con' ? 'Con foto' : 'Senza foto';
+            $filtriAttivi[] = ['label' => 'Foto', 'value' => $fotoLabel, 'field' => 'fotoFilter'];
+        }
     @endphp
 
     @if(count($filtriAttivi) > 0)
@@ -396,6 +400,15 @@
                     </div>
 
                     <div class="col-lg-2">
+                        <label class="form-label small fw-semibold">Foto</label>
+                        <select class="form-select form-select-sm" wire:model.live="fotoFilter">
+                            <option value="">Tutte</option>
+                            <option value="con">Con foto</option>
+                            <option value="senza">Senza foto</option>
+                        </select>
+                    </div>
+
+                    <div class="col-lg-2">
                         <label class="form-label small fw-semibold">Filtri Speciali</label>
                         <div class="d-flex gap-3 mt-2">
                             <div class="form-check">
@@ -404,6 +417,126 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="row g-3 mt-2 border-top pt-3">
+                    <div class="col-12">
+                        <h6 class="mb-2">
+                            <iconify-icon icon="solar:dollar-minimalistic-bold" class="me-2"></iconify-icon>
+                            Prezzi Fornitore (aggiornamento massivo)
+                        </h6>
+                    </div>
+                    <div class="col-lg-3">
+                        <label class="form-label small fw-semibold">Fornitore</label>
+                        <select class="form-select form-select-sm" wire:model.live="prezziFornitoreId">
+                            <option value="">Seleziona fornitore</option>
+                            @foreach($fornitori as $fornitore)
+                                <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-2">
+                        <label class="form-label small fw-semibold">Criterio</label>
+                        <select class="form-select form-select-sm" wire:model.live="prezziMatchType">
+                            <option value="referenza">Referenza</option>
+                            <option value="modello">Modello</option>
+                            <option value="seriale">Seriale</option>
+                            <option value="ean">EAN</option>
+                            <option value="codice">Codice</option>
+                            <option value="descrizione">Descrizione</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-3">
+                        <label class="form-label small fw-semibold">Valore</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="Es. REF-123" wire:model.live.debounce.500ms="prezziMatchValue">
+                    </div>
+                    <div class="col-lg-2">
+                        <label class="form-label small fw-semibold">Nuovo prezzo</label>
+                        <input type="text" class="form-control form-control-sm" placeholder="€ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
+                    </div>
+                    <div class="col-lg-2 d-flex align-items-end">
+                        <button class="btn btn-sm btn-outline-secondary w-100" wire:click="aggiornaPreviewPrezzi">
+                            Cerca
+                        </button>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="prezziSoloSenzaPrezzo" wire:model.live="prezziSoloSenzaPrezzo">
+                            <label class="form-check-label small" for="prezziSoloSenzaPrezzo">Solo articoli senza prezzo</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="prezziSalvaRegola" wire:model.live="prezziSalvaRegola">
+                            <label class="form-check-label small" for="prezziSalvaRegola">Salva regola fornitore</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="prezziApplicaATutti" wire:model.live="prezziApplicaATutti">
+                            <label class="form-check-label small" for="prezziApplicaATutti">Applica a tutti i risultati trovati</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        @if($prezziPreviewLoaded)
+                            <div class="alert alert-info py-2">
+                                <iconify-icon icon="solar:info-circle-bold" class="me-1"></iconify-icon>
+                                Trovati <strong>{{ $prezziPreviewTotal }}</strong> articoli. Mostro i primi <strong>{{ count($prezziPreview) }}</strong>.
+                            </div>
+                        @endif
+                    </div>
+
+                    @if($prezziPreviewLoaded)
+                        <div class="col-12">
+                            <div class="table-responsive border rounded">
+                                <table class="table table-sm mb-0">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th style="width: 40px;">
+                                                <input type="checkbox" class="form-check-input" wire:click="toggleSelezionaTuttiPreview">
+                                            </th>
+                                            <th>Codice</th>
+                                            <th>Descrizione</th>
+                                            <th>Referenza</th>
+                                            <th>Seriale</th>
+                                            <th>Prezzo attuale</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($prezziPreview as $row)
+                                            @php
+                                                $referenza = $row['caratteristiche']['referenza'] ?? null;
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox" class="form-check-input"
+                                                           wire:model.live="prezziSelezionati"
+                                                           value="{{ $row['id'] }}">
+                                                </td>
+                                                <td>{{ $row['codice'] }}</td>
+                                                <td>{{ Str::limit($row['descrizione'] ?? 'N/A', 40) }}</td>
+                                                <td>{{ $referenza ?? '-' }}</td>
+                                                <td>{{ $row['numero_seriale'] ?? '-' }}</td>
+                                                <td>
+                                                    @if(!empty($row['prezzo_fornitore']))
+                                                        €{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
+                                                    @else
+                                                        <span class="text-muted">-</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted">Nessun risultato</td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-12 d-flex justify-content-end">
+                            <button class="btn btn-sm btn-primary" wire:click="applicaPrezzoFornitore">
+                                Applica prezzi selezionati
+                            </button>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -447,6 +580,31 @@
                             Data
                         </button>
                     </div>
+                    <div class="position-relative">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" wire:click="toggleColumnsDropdown">
+                            <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
+                            Colonne
+                        </button>
+                        @if($showColumnsDropdown)
+                            <div class="position-absolute end-0 mt-2 bg-white border rounded shadow-lg p-2"
+                                 style="z-index: 1050; min-width: 220px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">Seleziona colonne</small>
+                                    <button class="btn btn-link btn-sm p-0" wire:click="resetVisibleColumns">Reset</button>
+                                </div>
+                                @foreach($this->columnOptions as $key => $label)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               id="col_{{ $key }}"
+                                               wire:model.live="visibleColumns.{{ $key }}">
+                                        <label class="form-check-label" for="col_{{ $key }}">
+                                            {{ $label }}
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -489,6 +647,7 @@
                             }
                         @endphp
                         <tr>
+                            @if($visibleColumns['codice'] ?? true)
                             <th style="cursor: pointer;" wire:click="sortBy('codice')">
                                 <div class="d-flex align-items-center gap-1">
                                     @php
@@ -506,6 +665,8 @@
                                     @endif
                                 </div>
                             </th>
+                            @endif
+                            @if($visibleColumns['descrizione'] ?? true)
                             <th style="cursor: pointer;" wire:click="sortBy('descrizione')">
                                 <div class="d-flex align-items-center gap-1">
                                     <iconify-icon icon="solar:text-field-bold" class="text-info"></iconify-icon>
@@ -515,20 +676,26 @@
                                     @endif
                                 </div>
                             </th>
-                            @if(!$isOrologioCategory)
+                            @endif
+                            @if(!$isOrologioCategory && ($visibleColumns['specifiche'] ?? true))
                             <th>
                                 <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
                                 Specifiche
                             </th>
+                            @endif
+                            @if(!$isOrologioCategory && ($visibleColumns['caratura'] ?? true))
                             <th>
                                 <iconify-icon icon="solar:gem-bold" class="text-warning me-1"></iconify-icon>
                                 Caratura
                             </th>
                             @endif
+                            @if($visibleColumns['giacenza'] ?? true)
                             <th>
                                 <iconify-icon icon="solar:box-bold" class="text-secondary me-1"></iconify-icon>
                                 Giacenza
                             </th>
+                            @endif
+                            @if($visibleColumns['costo_unitario'] ?? true)
                             <th style="cursor: pointer;" wire:click="sortBy('prezzo_acquisto')">
                                 <div class="d-flex align-items-center gap-1">
                                     <iconify-icon icon="solar:dollar-bold" class="text-warning"></iconify-icon>
@@ -538,29 +705,47 @@
                                     @endif
                                 </div>
                             </th>
+                            @endif
+                            @if($visibleColumns['prezzo_fornitore'] ?? true)
+                            <th>
+                                <div class="d-flex align-items-center gap-1">
+                                    <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
+                                    Prezzo Fornitore
+                                </div>
+                            </th>
+                            @endif
+                            @if($visibleColumns['valore_totale'] ?? true)
                             <th>
                                 <div class="d-flex align-items-center gap-1">
                                     <iconify-icon icon="solar:calculator-bold" class="text-secondary"></iconify-icon>
                                     Valore Totale
                                 </div>
                             </th>
+                            @endif
+                            @if($visibleColumns['dati_carico'] ?? true)
                             <th>
                                 <iconify-icon icon="solar:file-text-bold" class="text-info me-1"></iconify-icon>
                                 Dati Carico
                             </th>
+                            @endif
+                            @if($visibleColumns['ubicazione'] ?? true)
                             <th>
                                 <iconify-icon icon="solar:map-point-bold" class="text-danger me-1"></iconify-icon>
                                 Ubicazione
                             </th>
+                            @endif
+                            @if($visibleColumns['azioni'] ?? true)
                             <th class="text-center">
                                 <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
                                 Azioni
                             </th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($articoli as $index => $articolo)
-                            <tr>
+                            <tr wire:key="articolo-{{ $articolo->id }}">
+                                @if($visibleColumns['codice'] ?? true)
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         @php
@@ -576,12 +761,40 @@
                                         <div class="d-flex align-items-center justify-content-center">
                                             <iconify-icon icon="{{ $iconaArticolo['icon'] }}" class="{{ $iconaArticolo['color'] }} fs-5" title="{{ $iconaArticolo['title'] }}"></iconify-icon>
                                         </div>
+                                        @php
+                                            $fotoPrincipale = $articolo->foto_principale;
+                                            $fotoUrl = null;
+                                            if (!empty($fotoPrincipale)) {
+                                                $fotoUrl = Str::startsWith($fotoPrincipale, ['http://', 'https://'])
+                                                    ? $fotoPrincipale
+                                                    : asset('storage/' . ltrim($fotoPrincipale, '/'));
+                                            }
+                                        @endphp
+                                        @if($fotoUrl)
+                                            <img src="{{ $fotoUrl }}"
+                                                 alt="Foto {{ $articolo->codice }}"
+                                                 class="rounded border"
+                                                 style="width: 36px; height: 36px; object-fit: cover; cursor: pointer;"
+                                                 data-bs-toggle="modal"
+                                                 data-bs-target="#articoloFotoModal"
+                                                 data-foto-url="{{ $fotoUrl }}"
+                                                 data-foto-alt="Foto {{ $articolo->codice }}">
+                                        @endif
                                         <div>
-                                            <span class="fw-semibold">{{ $articolo->codice }}</span>
-                                            <br><small class="text-muted">#{{ $articoli->firstItem() + $index }}</small>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="fw-semibold">{{ $articolo->codice }}</span>
+                                                @if($fotoUrl)
+                                                    <iconify-icon icon="solar:camera-bold" class="text-success" title="Foto presente"></iconify-icon>
+                                                @else
+                                                    <iconify-icon icon="solar:camera-off-bold" class="text-muted" title="Nessuna foto"></iconify-icon>
+                                                @endif
+                                            </div>
+                                            <small class="text-muted">#{{ $articoli->firstItem() + $index }}</small>
                                         </div>
                                     </div>
                                 </td>
+                                @endif
+                                @if($visibleColumns['descrizione'] ?? true)
                                 <td>
                                     <div>
                                         <span class="fw-semibold ">{{ Str::limit($articolo->descrizione, 30) ?? 'N/A' }}</span>
@@ -593,20 +806,21 @@
                                         <br><small class="text-muted">
                                             <iconify-icon icon="solar:star-bold" class="text-warning me-1"></iconify-icon>
                                             @if($articolo->caratteristiche && is_array($articolo->caratteristiche) && isset($articolo->caratteristiche['marca']))
-                                                {{ $articolo->caratteristiche['marca'] }}
+                                                <span class="fw-semibold">Marca:</span> {{ $articolo->caratteristiche['marca'] }}
                                             @else
-                                                N/A
+                                                <span class="fw-semibold">Marca:</span> N/A
                                             @endif
                                             @if($articolo->caratteristiche && is_array($articolo->caratteristiche) && isset($articolo->caratteristiche['referenza']))
                                                 <span class="ms-2">
                                                     <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
-                                                    {{ $articolo->caratteristiche['referenza'] }}
+                                                    <span class="fw-semibold">Ref:</span> {{ $articolo->caratteristiche['referenza'] }}
                                                 </span>
                                             @endif
                                         </small>
                                     </div>
                                 </td>
-                                @if(!$isOrologioCategory)
+                                @endif
+                                @if(!$isOrologioCategory && ($visibleColumns['specifiche'] ?? true))
                                 <td>
                                     <div class="text-center">
                                         <!-- Per gioielli: materiale, colore, peso -->
@@ -651,7 +865,7 @@
                                     </div>
                                 </td>
                                 @endif
-                                @if(!$isOrologioCategory)
+                                @if(!$isOrologioCategory && ($visibleColumns['caratura'] ?? true))
                                 <td>
                                     <div class="text-center">
                                         <!-- Per gioielli: titolo e caratura -->
@@ -675,6 +889,7 @@
                                     </div>
                                 </td>
                                 @endif
+                                @if($visibleColumns['giacenza'] ?? true)
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->giacenza)
@@ -735,7 +950,16 @@
                                                         <span class="badge bg-warning-subtle text-warning">In Vetrina</span>
                                                     </div>
                                                     @if($articolo->articoliVetrina && $articolo->articoliVetrina->first() && $articolo->articoliVetrina->first()->prezzo_vetrina)
-                                                        <small class="text-muted">€{{ number_format($articolo->articoliVetrina->first()->prezzo_vetrina, 0) }}</small>
+                                                        @php
+                                                            $prezzoVetrina = $articolo->articoliVetrina->first()->prezzo_vetrina;
+                                                        @endphp
+                                                        <small class="text-muted">
+                                                            @if(is_numeric($prezzoVetrina))
+                                                                €{{ number_format((float)$prezzoVetrina, 0, ',', '.') }}
+                                                            @else
+                                                                {{ $prezzoVetrina }}
+                                                            @endif
+                                                        </small>
                                                     @endif
                                                 </div>
                                             @endif
@@ -748,6 +972,8 @@
                                         @endif
                                     </div>
                                 </td>
+                                @endif
+                                @if($visibleColumns['costo_unitario'] ?? true)
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->prezzo_acquisto)
@@ -760,6 +986,22 @@
                                         @endif
                                     </div>
                                 </td>
+                                @endif
+                                @if($visibleColumns['prezzo_fornitore'] ?? true)
+                                <td>
+                                    <div class="text-center">
+                                        @if($articolo->prezzo_fornitore)
+                                            <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
+                                                <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
+                                                <span class="fw-semibold text-success">€{{ number_format($articolo->prezzo_fornitore, 0, ',', '.') }}</span>
+                                            </div>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </div>
+                                </td>
+                                @endif
+                                @if($visibleColumns['valore_totale'] ?? true)
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->prezzo_acquisto && $articolo->giacenza)
@@ -769,15 +1011,19 @@
                                         @endif
                                     </div>
                                 </td>
+                                @endif
+                                @if($visibleColumns['dati_carico'] ?? true)
                                 <td>
                                     <div class="text-center">
                                         @php
-                                            // Preferisci fattura se presente, altrimenti DDT
+                                            // Preferisci fornitore articolo, poi fattura, poi DDT
                                             $fattura = $articolo->fatturaDettaglio->first()?->fattura;
                                             $ddt = $articolo->ddtDettaglio->first()?->ddt;
                                             $documento = $fattura ?? $ddt;
                                             $tipoDocumento = $fattura ? 'FATTURA' : 'DDT';
                                             $badgeColor = $fattura ? 'success' : 'primary';
+                                            $fornitoreArticolo = $articolo->fornitore;
+                                            $fornitoreDocumento = $documento?->fornitore;
                                         @endphp
                                         
                                         <!-- Fornitore -->
@@ -785,7 +1031,7 @@
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:shop-bold" class="text-warning"></iconify-icon>
                                                 <small class="fw-semibold">
-                                                    {{ Str::limit($documento?->fornitore?->ragione_sociale ?? 'N/A', 15) }}
+                                                    {{ Str::limit($fornitoreArticolo?->ragione_sociale ?? $fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
                                                 </small>
                                             </div>
                                         </div>
@@ -824,6 +1070,8 @@
                                         @endif
                                     </div>
                                 </td>
+                                @endif
+                                @if($visibleColumns['ubicazione'] ?? true)
                                 <td>
                                     @if($articolo->giacenza && $articolo->giacenza->sede)
                                         <div class="text-center">
@@ -845,6 +1093,8 @@
                                         <span class="text-muted">-</span>
                                     @endif
                                 </td>
+                                @endif
+                                @if($visibleColumns['azioni'] ?? true)
                                 <td class="text-center">
                                     <div class="dropdown">
                                         <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
@@ -889,10 +1139,19 @@
                                         </ul>
                                     </div>
                                 </td>
+                                @endif
                             </tr>
                         @empty
+                            @php
+                                $colspan = count(array_filter($visibleColumns ?? []));
+                                if ($isOrologioCategory) {
+                                    $colspan -= ($visibleColumns['specifiche'] ?? false) ? 1 : 0;
+                                    $colspan -= ($visibleColumns['caratura'] ?? false) ? 1 : 0;
+                                }
+                                $colspan = max(1, $colspan);
+                            @endphp
                             <tr>
-                                <td colspan="{{ $isOrologioCategory ? '6' : '8' }}" class="text-center py-4">
+                                <td colspan="{{ $colspan }}" class="text-center py-4">
                                     <iconify-icon icon="solar:magnifer-zoom-out-bold" class="fs-48 text-muted mb-3"></iconify-icon>
                                     <h5 class="text-muted">Nessun articolo trovato</h5>
                                     <p class="text-muted">Prova a modificare i filtri di ricerca per trovare gli articoli</p>
@@ -1069,6 +1328,31 @@
                         </div>
 
                         <div class="mb-3">
+                            <label class="form-label fw-semibold">Prezzo da stampare</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" wire:model.live="prezzoEtichettaFonte" value="fornitore" id="prezzoFonteFornitore">
+                                    <label class="form-check-label" for="prezzoFonteFornitore">
+                                        Fornitore
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" wire:model.live="prezzoEtichettaFonte" value="vetrina" id="prezzoFonteVetrina">
+                                    <label class="form-check-label" for="prezzoFonteVetrina">
+                                        Vetrina
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" wire:model.live="prezzoEtichettaFonte" value="manuale" id="prezzoFonteManuale">
+                                    <label class="form-check-label" for="prezzoFonteManuale">
+                                        Manuale
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Selezione valida per tutte le stampe finché non la cambi.</small>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="prezzoEtichetta" class="form-label fw-semibold">
                                 Prezzo per Etichetta
                                 @if($formatoPrezzo === 'euro')
@@ -1134,3 +1418,53 @@
     @endif
     
 </div>
+
+@once
+    <div class="modal fade" id="articoloFotoModal" tabindex="-1" aria-labelledby="articoloFotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="articoloFotoModalLabel">Foto articolo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="articoloFotoModalImg" src="" alt="" class="img-fluid rounded">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const modalEl = document.getElementById('articoloFotoModal');
+                if (!modalEl) {
+                    return;
+                }
+
+                modalEl.addEventListener('show.bs.modal', function (event) {
+                    const trigger = event.relatedTarget;
+                    if (!trigger) {
+                        return;
+                    }
+                    const img = modalEl.querySelector('#articoloFotoModalImg');
+                    if (!img) {
+                        return;
+                    }
+                    const fotoUrl = trigger.getAttribute('data-foto-url') || '';
+                    const fotoAlt = trigger.getAttribute('data-foto-alt') || 'Foto articolo';
+                    img.src = fotoUrl;
+                    img.alt = fotoAlt;
+                });
+
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    const img = modalEl.querySelector('#articoloFotoModalImg');
+                    if (img) {
+                        img.src = '';
+                        img.alt = '';
+                    }
+                });
+            });
+        </script>
+    @endpush
+@endonce

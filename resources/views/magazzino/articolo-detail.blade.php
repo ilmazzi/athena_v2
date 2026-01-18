@@ -37,7 +37,7 @@
                 <div class="card-body">
                     <div class="row">
                         <!-- Informazioni Base -->
-                        <div class="col-md-6">
+                        <div class="col-md-8">
                             <h6 class="fw-bold text-primary mb-3">
                                 <iconify-icon icon="solar:info-circle-bold" class="me-2"></iconify-icon>
                                 Informazioni Base
@@ -88,8 +88,35 @@
                             </table>
                         </div>
 
+                        <!-- Foto Articolo -->
+                        <div class="col-md-4">
+                            <h6 class="fw-bold text-secondary mb-3">
+                                <iconify-icon icon="solar:gallery-bold" class="me-2"></iconify-icon>
+                                Immagine
+                            </h6>
+                            @php
+                                $fotoPrincipale = $articolo->foto_principale;
+                                $fotoUrl = null;
+                                if (!empty($fotoPrincipale)) {
+                                    $fotoUrl = Str::startsWith($fotoPrincipale, ['http://', 'https://'])
+                                        ? $fotoPrincipale
+                                        : asset('storage/' . ltrim($fotoPrincipale, '/'));
+                                }
+                            @endphp
+                            @if($fotoUrl)
+                                <a href="{{ $fotoUrl }}" target="_blank" class="d-block">
+                                    <img src="{{ $fotoUrl }}"
+                                         alt="Foto {{ $articolo->codice }}"
+                                         class="img-fluid rounded border"
+                                         style="max-height: 260px; object-fit: cover;">
+                                </a>
+                            @else
+                                <div class="text-muted">Nessuna immagine disponibile</div>
+                            @endif
+                        </div>
+                        
                         <!-- Giacenza e Prezzi -->
-                        <div class="col-md-6">
+                        <div class="col-md-12 mt-4">
                             <h6 class="fw-bold text-success mb-3">
                                 <iconify-icon icon="solar:box-storage-bold" class="me-2"></iconify-icon>
                                 Giacenza e Prezzi

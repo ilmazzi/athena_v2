@@ -7,6 +7,7 @@ use App\Models\ValueObjects\PrezzoAcquisto;
 use App\Models\ValueObjects\StatoArticolo;
 use App\Models\Sede;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\FiltersBySede;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,11 +26,34 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Articolo extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, FiltersBySede;
+
+    protected static function booted(): void
+    {
+        if (!app()->runningInConsole()) {
+            static::addGlobalScope('user_sede', function ($query) {
+                $sedeId = auth()->user()?->sede_id;
+                if ($sedeId) {
+                    $table = $query->getModel()->getTable();
+                    $query->where(function($q) use ($table, $sedeId){
+                        $q->where($table . '.sede_id', $sedeId)
+                          ->orWhereExists(function($sub) use ($sedeId, $table){
+                              $sub->selectRaw(1)
+                                  ->from('giacenze_sedi')
+                                  ->whereColumn('giacenze_sedi.articolo_id', $table.'.id')
+                                  ->where('giacenze_sedi.sede_id', $sedeId)
+                                  ->where('giacenze_sedi.quantita_residua', '>', 0);
+                          });
+                    });
+                }
+            });
+        }
+    }
     
     protected $table = 'articoli';
     
     protected $fillable = [
+        'fornitore_id',
         'codice',
         'descrizione',
         'descrizione_estesa',
@@ -45,6 +69,7 @@ class Articolo extends Model
         'materiale',
         'colore',
         'prezzo_acquisto',  // ✅ Salvato in DB
+        'prezzo_fornitore', // ✅ Prezzo vendita concordato (non costo)
         'stato',            // ✅ ENUM vecchio (manteniamo per retrocompatibilità)
         'stato_articolo',   // ✅ ENUM nuovo (disponibile, in_prodotto_finito, scaricato, scaricato_in_pf)
         'scarico_id',       // ✅ Link a tabella scarichi (opzionale, per tracciabilità interna)
@@ -60,6 +85,7 @@ class Articolo extends Model
         'caratteristiche',
         'ean',
         'numero_seriale',
+        'modello',
         'ultimo_testo_vetrina',
         'conto_deposito_corrente_id',
         'quantita_in_deposito',
@@ -71,6 +97,7 @@ class Articolo extends Model
         'titolo' => 'string',
         'caratura' => 'string',
         'prezzo_acquisto' => 'decimal:2',
+        'prezzo_fornitore' => 'decimal:2',
         'data_carico' => 'date',
         'assemblato_il' => 'datetime',
         'in_vetrina' => 'boolean',
@@ -78,6 +105,7 @@ class Articolo extends Model
         'visibile_catalogo' => 'boolean',
         'foto_aggiuntive' => 'array',
         'caratteristiche' => 'array',
+        'modello' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -162,6 +190,16 @@ class Articolo extends Model
     public function giacenze(): HasMany
     {
         return $this->hasMany(Giacenza::class, 'articolo_id');
+    }
+
+    public function giacenzePerSede(): HasMany
+    {
+        return $this->hasMany(GiacenzaSede::class, 'articolo_id');
+    }
+
+    public function fornitore(): BelongsTo
+    {
+        return $this->belongsTo(Fornitore::class, 'fornitore_id');
     }
     
     /**
