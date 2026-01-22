@@ -27,10 +27,10 @@
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 15mm;
+            padding: 10mm;
             background: white;
-            font-size: 11px;
-            line-height: 1.3;
+            font-size: 10px;
+            line-height: 1.25;
         }
         .print-button {
             position: fixed;
@@ -47,49 +47,49 @@
         }
         .header {
             text-align: center;
-            border-bottom: 2px solid var(--bs-dark);
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            border-bottom: 1px solid var(--bs-dark);
+            padding-bottom: 6px;
+            margin-bottom: 8px;
         }
         .header h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 16px;
             color: var(--bs-dark);
             font-weight: bold;
         }
         .header .info {
-            margin-top: 10px;
+            margin-top: 4px;
             color: var(--bs-secondary);
-            font-size: 14px;
+            font-size: 11px;
         }
         .document-info {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px;
-            padding: 15px;
+            margin-bottom: 10px;
+            padding: 8px 10px;
             background: var(--bs-light);
-            border-radius: 5px;
-            gap: 20px;
+            border-radius: 4px;
+            gap: 10px;
         }
         .info-section {
             flex: 1;
         }
         .info-title {
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             color: var(--bs-primary);
             font-weight: bold;
-            font-size: 14px;
+            font-size: 11px;
             border-bottom: 1px solid var(--bs-border-color);
-            padding-bottom: 5px;
+            padding-bottom: 3px;
         }
         .info-row {
-            margin-bottom: 6px;
-            font-size: 11px;
+            margin-bottom: 3px;
+            font-size: 10px;
         }
         .info-label {
             font-weight: bold;
             display: inline-block;
-            width: 90px;
+            width: 75px;
             color: var(--bs-secondary);
         }
         .tipo-badge {
@@ -188,28 +188,28 @@
         .summary-box {
             background: var(--bs-light);
             border: 1px solid var(--bs-border-color);
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
+            padding: 8px 10px;
+            margin: 10px 0;
+            border-radius: 4px;
         }
         .summary-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 11px;
+            margin-bottom: 4px;
+            font-size: 10px;
         }
         .summary-total {
             font-weight: bold;
-            font-size: 14px;
-            border-top: 2px solid var(--bs-dark);
-            padding-top: 8px;
-            margin-top: 10px;
+            font-size: 12px;
+            border-top: 1px solid var(--bs-dark);
+            padding-top: 6px;
+            margin-top: 6px;
             color: var(--bs-primary);
         }
         .ddt-footer {
-            margin-top: 30px;
-            border-top: 2px solid var(--bs-border-color);
-            padding-top: 20px;
+            margin-top: 12px;
+            border-top: 1px solid var(--bs-border-color);
+            padding-top: 8px;
             display: flex;
             justify-content: space-between;
         }
@@ -218,25 +218,25 @@
         }
         .ddt-signature-box {
             border: 1px solid var(--bs-border-color);
-            height: 60px;
-            margin-top: 10px;
-            padding: 8px;
+            height: 45px;
+            margin-top: 6px;
+            padding: 6px;
             background: white;
         }
         .note-box {
             border: 1px solid var(--bs-border-color);
-            padding: 12px;
+            padding: 8px 10px;
             background: var(--bs-light);
-            margin: 20px 0;
-            border-radius: 5px;
+            margin: 10px 0;
+            border-radius: 4px;
         }
         .technical-info {
-            margin-top: 30px;
-            font-size: 9px;
+            margin-top: 12px;
+            font-size: 8px;
             color: var(--bs-secondary);
             text-align: center;
             border-top: 1px solid var(--bs-border-color);
-            padding-top: 10px;
+            padding-top: 6px;
         }
     </style>
 </head>
@@ -247,11 +247,11 @@
 
     {{-- Header --}}
     <div class="header">
+        <img src="/images/depascalis_small.svg" alt="De Pascalis" style="height: 32px; margin-bottom: 4px;">
         <h1>DOCUMENTO DI TRASPORTO - DEPOSITO</h1>
         <div class="info">
             <strong>{{ $ddtDeposito->numero }}</strong> - 
             {{ $ddtDeposito->data_documento ? $ddtDeposito->data_documento->format('d/m/Y') : 'N/A' }}
-            <br>
             <span class="tipo-badge tipo-{{ $ddtDeposito->tipo }}">
                 {{ $ddtDeposito->tipo_label }}
             </span>
@@ -311,37 +311,29 @@
         <div class="info-section">
             <div class="info-title">🏢 Trasporto</div>
             <div class="info-row">
-                <span class="info-label">Mittente:</span>
-                <strong>{{ $ddtDeposito->sedeMittente->nome }}</strong>
+                <span class="info-label">Causale:</span>
+                {{ $ddtDeposito->causale ?? '—' }}
             </div>
             <div class="info-row">
-                <span class="info-label">Destinatario:</span>
-                <strong>{{ $ddtDeposito->sedeDestinataria->nome }}</strong>
+                <span class="info-label">Aspetto beni:</span>
+                {{ $ddtDeposito->configurazione['aspetto_beni'] ?? '—' }}
             </div>
-            @if($ddtDeposito->causale)
-                <div class="info-row">
-                    <span class="info-label">Causale:</span>
-                    {{ $ddtDeposito->causale }}
-                </div>
-            @endif
-            @if($ddtDeposito->numero_colli)
-                <div class="info-row">
-                    <span class="info-label">Colli:</span>
-                    {{ $ddtDeposito->numero_colli }}
-                </div>
-            @endif
-            @if($ddtDeposito->corriere)
-                <div class="info-row">
-                    <span class="info-label">Corriere:</span>
-                    {{ $ddtDeposito->corriere }}
-                </div>
-            @endif
-            @if($ddtDeposito->numero_tracking)
-                <div class="info-row">
-                    <span class="info-label">Tracking:</span>
-                    <strong>{{ $ddtDeposito->numero_tracking }}</strong>
-                </div>
-            @endif
+            <div class="info-row">
+                <span class="info-label">Colli:</span>
+                {{ $ddtDeposito->numero_colli ?? '—' }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Trasporto:</span>
+                {{ $ddtDeposito->configurazione['trasporto_a_mezzo'] ?? $ddtDeposito->configurazione['trasporto_mezzo'] ?? '—' }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Corriere:</span>
+                {{ $ddtDeposito->corriere ?? '—' }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Tracking:</span>
+                <strong>{{ $ddtDeposito->numero_tracking ?? '—' }}</strong>
+            </div>
         </div>
     </div>
 
@@ -402,25 +394,52 @@
     </div>
 
     {{-- Note --}}
-    @if($ddtDeposito->note)
-        <div class="note-box">
-            <h4 style="color: var(--bs-primary); margin-bottom: 8px; font-size: 12px;">📝 Note</h4>
-            <div style="font-size: 10px; line-height: 1.4;">
-                {{ $ddtDeposito->note }}
-            </div>
+    <div class="note-box">
+        <h4 style="color: var(--bs-primary); margin-bottom: 8px; font-size: 12px;">📝 Note</h4>
+        <div style="font-size: 10px; line-height: 1.4;">
+            {{ $ddtDeposito->note ?? '—' }}
         </div>
-    @endif
+    </div>
 
     {{-- Footer con firme --}}
     <div class="ddt-footer">
         <div class="ddt-footer-section">
             <div class="info-title">👤 Mittente</div>
-            <div style="margin-bottom: 5px;"><strong>{{ $ddtDeposito->sedeMittente->nome }}</strong></div>
+            <div style="margin-bottom: 5px;">
+                <strong>{{ $ddtDeposito->sedeMittente->societa->ragione_sociale ?? $ddtDeposito->sedeMittente->nome }}</strong>
+            </div>
+            @if($ddtDeposito->sedeMittente->societa)
+                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $ddtDeposito->sedeMittente->nome }}</div>
+            @endif
             @if($ddtDeposito->sedeMittente->indirizzo)
                 <div style="font-size: 9px; margin-bottom: 5px;">{{ $ddtDeposito->sedeMittente->indirizzo }}</div>
             @endif
             @if($ddtDeposito->sedeMittente->citta)
                 <div style="font-size: 9px; margin-bottom: 5px;">{{ $ddtDeposito->sedeMittente->citta }} {{ $ddtDeposito->sedeMittente->cap ?? '' }}</div>
+            @endif
+            @if($ddtDeposito->sedeMittente->telefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $ddtDeposito->sedeMittente->telefono }}</div>
+            @endif
+            @if($ddtDeposito->sedeMittente->email)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $ddtDeposito->sedeMittente->email }}</div>
+            @endif
+            @if($ddtDeposito->sedeMittente->sede_legale || $ddtDeposito->sedeMittente->partita_iva || $ddtDeposito->sedeMittente->codice_fiscale)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    <strong>Sede legale:</strong>
+                    {{ $ddtDeposito->sedeMittente->sede_legale ?? '—' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    {{ $ddtDeposito->sedeMittente->sede_legale_indirizzo ?? '' }}
+                    {{ $ddtDeposito->sedeMittente->sede_legale_cap ?? '' }}
+                    {{ $ddtDeposito->sedeMittente->sede_legale_citta ?? '' }}
+                    {{ $ddtDeposito->sedeMittente->sede_legale_provincia ?? '' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    P.IVA: {{ $ddtDeposito->sedeMittente->partita_iva ?? '—' }}
+                    @if($ddtDeposito->sedeMittente->codice_fiscale)
+                        | C.F.: {{ $ddtDeposito->sedeMittente->codice_fiscale }}
+                    @endif
+                </div>
             @endif
             @if($ddtDeposito->creatoDa)
                 <div style="font-size: 9px; color: var(--bs-secondary); margin-bottom: 5px;">
@@ -434,12 +453,41 @@
 
         <div class="ddt-footer-section">
             <div class="info-title">📝 Destinatario</div>
-            <div style="margin-bottom: 5px;"><strong>{{ $ddtDeposito->sedeDestinataria->nome }}</strong></div>
+            <div style="margin-bottom: 5px;">
+                <strong>{{ $ddtDeposito->sedeDestinataria->societa->ragione_sociale ?? $ddtDeposito->sedeDestinataria->nome }}</strong>
+            </div>
+            @if($ddtDeposito->sedeDestinataria->societa)
+                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $ddtDeposito->sedeDestinataria->nome }}</div>
+            @endif
             @if($ddtDeposito->sedeDestinataria->indirizzo)
                 <div style="font-size: 9px; margin-bottom: 5px;">{{ $ddtDeposito->sedeDestinataria->indirizzo }}</div>
             @endif
             @if($ddtDeposito->sedeDestinataria->citta)
                 <div style="font-size: 9px; margin-bottom: 5px;">{{ $ddtDeposito->sedeDestinataria->citta }} {{ $ddtDeposito->sedeDestinataria->cap ?? '' }}</div>
+            @endif
+            @if($ddtDeposito->sedeDestinataria->telefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $ddtDeposito->sedeDestinataria->telefono }}</div>
+            @endif
+            @if($ddtDeposito->sedeDestinataria->email)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $ddtDeposito->sedeDestinataria->email }}</div>
+            @endif
+            @if($ddtDeposito->sedeDestinataria->sede_legale || $ddtDeposito->sedeDestinataria->partita_iva || $ddtDeposito->sedeDestinataria->codice_fiscale)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    <strong>Sede legale:</strong>
+                    {{ $ddtDeposito->sedeDestinataria->sede_legale ?? '—' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    {{ $ddtDeposito->sedeDestinataria->sede_legale_indirizzo ?? '' }}
+                    {{ $ddtDeposito->sedeDestinataria->sede_legale_cap ?? '' }}
+                    {{ $ddtDeposito->sedeDestinataria->sede_legale_citta ?? '' }}
+                    {{ $ddtDeposito->sedeDestinataria->sede_legale_provincia ?? '' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    P.IVA: {{ $ddtDeposito->sedeDestinataria->partita_iva ?? '—' }}
+                    @if($ddtDeposito->sedeDestinataria->codice_fiscale)
+                        | C.F.: {{ $ddtDeposito->sedeDestinataria->codice_fiscale }}
+                    @endif
+                </div>
             @endif
             @if($ddtDeposito->confermatoDa)
                 <div style="font-size: 9px; color: var(--bs-success); margin-bottom: 5px;">

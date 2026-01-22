@@ -136,11 +136,8 @@
                         <button class="btn btn-outline-primary" wire:click="apriAggiungiArticoliModal">
                             <iconify-icon icon="solar:add-circle-bold" class="me-1"></iconify-icon> Aggiungi altri articoli
                         </button>
-                        <button class="btn btn-outline-secondary" wire:click="apriAnteprimaInvioModal">
-                            <iconify-icon icon="solar:document-text-bold" class="me-1"></iconify-icon> Anteprima DDT
-                        </button>
-                        <button class="btn btn-success" wire:click="generaDdtInvio">
-                            <iconify-icon icon="solar:document-add-bold" class="me-1"></iconify-icon> Genera DDT Invio
+                        <button class="btn btn-success" wire:click="apriAnteprimaInvioModal">
+                            <iconify-icon icon="solar:document-add-bold" class="me-1"></iconify-icon> Compila e genera DDT
                         </button>
                     @else
                         <a href="{{ route('ddt-deposito.show', $deposito->ddt_invio_id) }}" class="btn btn-info" target="_blank" rel="noopener">
@@ -1134,7 +1131,48 @@
                             Nessun articolo selezionato. Aggiungi articoli prima di generare il DDT.
                         </div>
                     @else
-                        <p class="text-muted">Controlla le righe che verranno incluse nel DDT di invio.</p>
+                        <p class="text-muted">Compila i dati DDT e controlla le righe che verranno incluse.</p>
+
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3">Dati trasporto</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Causale trasporto</label>
+                                        <input type="text" class="form-control" wire:model="ddtCausale" placeholder="Es: Conto deposito">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Aspetto esteriore beni</label>
+                                        <input type="text" class="form-control" wire:model="ddtAspettoBeni" placeholder="Es: Colli">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">N. colli</label>
+                                        <input type="number" min="0" class="form-control" wire:model="ddtNumeroColli">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">Trasporto a mezzo</label>
+                                        <select class="form-select" wire:model="ddtTrasportoMezzo">
+                                            <option value="">Seleziona...</option>
+                                            <option value="mittente">Mittente</option>
+                                            <option value="destinatario">Destinatario</option>
+                                            <option value="vettore">Vettore</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">Corriere/Vettore</label>
+                                        <input type="text" class="form-control" wire:model="ddtCorriere">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Numero tracking</label>
+                                        <input type="text" class="form-control" wire:model="ddtNumeroTracking">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Note</label>
+                                        <input type="text" class="form-control" wire:model="ddtNote" placeholder="Note per il DDT">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         @if($articoliInDeposito->isNotEmpty())
                             <h6 class="fw-semibold">Articoli ({{ $articoliInDeposito->count() }})</h6>
@@ -1527,6 +1565,47 @@
                                 <li>Genera il DDT di reso</li>
                                 <li>Stampa e spedisci</li>
                             </ol>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="fw-bold mb-3">Dati trasporto</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Causale trasporto</label>
+                                        <input type="text" class="form-control" wire:model="ddtCausale" placeholder="Es: Reso conto deposito">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Aspetto esteriore beni</label>
+                                        <input type="text" class="form-control" wire:model="ddtAspettoBeni" placeholder="Es: Colli">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">N. colli</label>
+                                        <input type="number" min="0" class="form-control" wire:model="ddtNumeroColli">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">Trasporto a mezzo</label>
+                                        <select class="form-select" wire:model="ddtTrasportoMezzo">
+                                            <option value="">Seleziona...</option>
+                                            <option value="mittente">Mittente</option>
+                                            <option value="destinatario">Destinatario</option>
+                                            <option value="vettore">Vettore</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-semibold">Corriere/Vettore</label>
+                                        <input type="text" class="form-control" wire:model="ddtCorriere">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Numero tracking</label>
+                                        <input type="text" class="form-control" wire:model="ddtNumeroTracking">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-semibold">Note</label>
+                                        <input type="text" class="form-control" wire:model="ddtNote" placeholder="Note per il DDT">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         @php

@@ -232,6 +232,56 @@
                                 @error('email') <div class="invalid-feedback">{{ $message }}</div> @enderror
                             </div>
 
+                            {{-- Dati legali --}}
+                            <div class="col-12 mb-2">
+                                <hr>
+                                <h6 class="fw-bold text-primary mb-2">Dati legali sede</h6>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Sede legale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="sede_legale"
+                                       placeholder="Ragione sociale / sede legale">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Indirizzo sede legale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="sede_legale_indirizzo">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Città sede legale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="sede_legale_citta">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Provincia sede legale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="sede_legale_provincia"
+                                       maxlength="2">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">CAP sede legale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="sede_legale_cap">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Partita IVA</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="partita_iva">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Codice Fiscale</label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       wire:model="codice_fiscale">
+                            </div>
+
                             {{-- Tipo --}}
                             <div class="col-md-4 mb-3">
                                 <label class="form-label">Tipo *</label>

@@ -38,6 +38,13 @@ class Sede extends Model
         'attivo',
         'note',
         'orari',
+        'sede_legale',
+        'sede_legale_indirizzo',
+        'sede_legale_citta',
+        'sede_legale_provincia',
+        'sede_legale_cap',
+        'partita_iva',
+        'codice_fiscale',
     ];
     
     protected $casts = [

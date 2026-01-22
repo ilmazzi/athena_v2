@@ -44,6 +44,15 @@ class GestisciContoDeposito extends Component
     // Modal generazione DDT reso
     public $showGeneraDdtResoModal = false;
 
+    // Dati DDT (invio/reso)
+    public $ddtCausale = '';
+    public $ddtNumeroColli = '';
+    public $ddtCorriere = '';
+    public $ddtNumeroTracking = '';
+    public $ddtTrasportoMezzo = '';
+    public $ddtAspettoBeni = '';
+    public $ddtNote = '';
+
     // Form aggiunta articoli
     public $search = '';
     public $tipoItem = 'articoli'; // 'articoli' o 'prodotti_finiti'
@@ -315,12 +324,16 @@ class GestisciContoDeposito extends Component
             return;
         }
 
+        if ($this->ddtCausale === '') {
+            $this->ddtCausale = 'Conto deposito';
+        }
         $this->showAnteprimaInvioModal = true;
     }
 
     public function chiudiAnteprimaInvioModal()
     {
         $this->showAnteprimaInvioModal = false;
+        $this->resetValidation();
     }
 
     public function toggleArticolo($articoloId)
@@ -987,6 +1000,19 @@ class GestisciContoDeposito extends Component
     // ACTIONS - DDT
     // ==========================================
 
+    private function getDatiDdt(): array
+    {
+        return [
+            'causale' => $this->ddtCausale ?: null,
+            'numero_colli' => $this->ddtNumeroColli !== '' ? (int) $this->ddtNumeroColli : null,
+            'corriere' => $this->ddtCorriere ?: null,
+            'numero_tracking' => $this->ddtNumeroTracking ?: null,
+            'trasporto_mezzo' => $this->ddtTrasportoMezzo ?: null,
+            'aspetto_beni' => $this->ddtAspettoBeni ?: null,
+            'note' => $this->ddtNote ?: null,
+        ];
+    }
+
     public function generaDdtInvio()
     {
         if (!$this->puoGestireMittente) {
@@ -1000,7 +1026,7 @@ class GestisciContoDeposito extends Component
         }
         try {
             $service = new ContoDepositoService();
-            $ddtDeposito = $service->generaDdtInvio($this->deposito);
+            $ddtDeposito = $service->generaDdtInvio($this->deposito, $this->getDatiDdt());
             
             // Aggiorna deposito
             $this->deposito->refresh();
@@ -1020,12 +1046,16 @@ class GestisciContoDeposito extends Component
             session()->flash('error', 'Solo la sede destinataria può generare il DDT di reso.');
             return;
         }
+        if ($this->ddtCausale === '') {
+            $this->ddtCausale = 'Reso conto deposito';
+        }
         $this->showGeneraDdtResoModal = true;
     }
     
     public function chiudiGeneraDdtResoModal()
     {
         $this->showGeneraDdtResoModal = false;
+        $this->resetValidation();
     }
     
     public function getAnteprimaMovimentiResoProperty()
@@ -1091,7 +1121,7 @@ class GestisciContoDeposito extends Component
             }
             
             // Genera il DDT (include solo movimenti reso non ancora in DDT)
-            $ddtDeposito = $service->generaDdtReso($this->deposito);
+            $ddtDeposito = $service->generaDdtReso($this->deposito, $this->getDatiDdt());
             
             // Aggiorna deposito
             $this->deposito->refresh();

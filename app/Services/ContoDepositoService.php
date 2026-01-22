@@ -724,7 +724,7 @@ class ContoDepositoService
      * @param ContoDeposito $contoDeposito
      * @return DdtDeposito
      */
-    public function generaDdtInvio(ContoDeposito $contoDeposito): DdtDeposito
+    public function generaDdtInvio(ContoDeposito $contoDeposito, array $datiDdt = []): DdtDeposito
     {
         return DB::transaction(function () use ($contoDeposito) {
             // Usa data_invio se disponibile, altrimenti oggi
@@ -735,6 +735,15 @@ class ContoDepositoService
             $numeroDdt = DdtDeposito::generaNumeroDdt();
 
             // Crea DDT Deposito
+            $note = !empty($datiDdt['note'])
+                ? trim($datiDdt['note'])
+                : "DDT invio conto deposito {$contoDeposito->codice}";
+
+            $configurazione = array_filter([
+                'trasporto_mezzo' => $datiDdt['trasporto_mezzo'] ?? null,
+                'aspetto_beni' => $datiDdt['aspetto_beni'] ?? null,
+            ]);
+
             $ddtDeposito = DdtDeposito::create([
                 'numero' => $numeroDdt,
                 'data_documento' => $dataDocumento,
@@ -744,10 +753,14 @@ class ContoDepositoService
                 'sede_mittente_id' => $contoDeposito->sede_mittente_id,
                 'sede_destinataria_id' => $contoDeposito->sede_destinataria_id,
                 'stato' => 'creato',
-                'causale' => 'Conto deposito',
+                'causale' => $datiDdt['causale'] ?? 'Conto deposito',
+                'numero_colli' => $datiDdt['numero_colli'] ?? null,
+                'corriere' => $datiDdt['corriere'] ?? null,
+                'numero_tracking' => $datiDdt['numero_tracking'] ?? null,
                 'valore_dichiarato' => $contoDeposito->valore_totale_invio ?? 0,
                 'articoli_totali' => $contoDeposito->articoli_inviati ?? 0,
-                'note' => "DDT invio conto deposito {$contoDeposito->codice}",
+                'note' => $note,
+                'configurazione' => !empty($configurazione) ? $configurazione : null,
                 'creato_da' => Auth::id(),
             ]);
 
@@ -815,13 +828,22 @@ class ContoDepositoService
      * @param ContoDeposito $contoDeposito
      * @return DdtDeposito
      */
-    public function generaDdtReso(ContoDeposito $contoDeposito): DdtDeposito
+    public function generaDdtReso(ContoDeposito $contoDeposito, array $datiDdt = []): DdtDeposito
     {
         return DB::transaction(function () use ($contoDeposito) {
             // Genera numero DDT progressivo automatico
             $numeroDdt = DdtDeposito::generaNumeroDdt();
 
             // Crea DDT Deposito per reso
+            $note = !empty($datiDdt['note'])
+                ? trim($datiDdt['note'])
+                : "DDT reso conto deposito {$contoDeposito->codice}";
+
+            $configurazione = array_filter([
+                'trasporto_mezzo' => $datiDdt['trasporto_mezzo'] ?? null,
+                'aspetto_beni' => $datiDdt['aspetto_beni'] ?? null,
+            ]);
+
             $ddtDeposito = DdtDeposito::create([
                 'numero' => $numeroDdt,
                 'data_documento' => now()->toDateString(),
@@ -831,8 +853,12 @@ class ContoDepositoService
                 'sede_mittente_id' => $contoDeposito->sede_destinataria_id, // Ora il destinatario diventa mittente
                 'sede_destinataria_id' => $contoDeposito->sede_mittente_id, // E il mittente diventa destinatario
                 'stato' => 'creato',
-                'causale' => 'Reso conto deposito',
-                'note' => "DDT reso conto deposito {$contoDeposito->codice}",
+                'causale' => $datiDdt['causale'] ?? 'Reso conto deposito',
+                'numero_colli' => $datiDdt['numero_colli'] ?? null,
+                'corriere' => $datiDdt['corriere'] ?? null,
+                'numero_tracking' => $datiDdt['numero_tracking'] ?? null,
+                'note' => $note,
+                'configurazione' => !empty($configurazione) ? $configurazione : null,
                 'creato_da' => Auth::id(),
             ]);
 

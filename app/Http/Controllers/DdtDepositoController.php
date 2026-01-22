@@ -22,8 +22,8 @@ class DdtDepositoController extends Controller
         // Carica relazioni necessarie per la stampa
         $ddtDeposito->load([
             'contoDeposito',
-            'sedeMittente',
-            'sedeDestinataria',
+            'sedeMittente.societa',
+            'sedeDestinataria.societa',
             'dettagli.articolo.categoriaMerceologica',
             'dettagli.prodottoFinito.categoriaMerceologica',
             'creatoDa'

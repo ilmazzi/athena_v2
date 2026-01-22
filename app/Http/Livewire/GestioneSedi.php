@@ -39,6 +39,13 @@ class GestioneSedi extends Component
     public $attivo = true;
     public $note = '';
     public $orari = [];
+    public $sede_legale = '';
+    public $sede_legale_indirizzo = '';
+    public $sede_legale_citta = '';
+    public $sede_legale_provincia = '';
+    public $sede_legale_cap = '';
+    public $partita_iva = '';
+    public $codice_fiscale = '';
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -59,6 +66,13 @@ class GestioneSedi extends Component
         'societa_id' => 'required|exists:societa,id',
         'attivo' => 'boolean',
         'note' => 'nullable|string',
+        'sede_legale' => 'nullable|string|max:255',
+        'sede_legale_indirizzo' => 'nullable|string|max:255',
+        'sede_legale_citta' => 'nullable|string|max:100',
+        'sede_legale_provincia' => 'nullable|string|max:2',
+        'sede_legale_cap' => 'nullable|string|max:10',
+        'partita_iva' => 'nullable|string|max:30',
+        'codice_fiscale' => 'nullable|string|max:30',
     ];
 
     protected $messages = [
@@ -132,6 +146,13 @@ class GestioneSedi extends Component
         $this->attivo = $sede->attivo;
         $this->note = $sede->note ?? '';
         $this->orari = $sede->orari ?? [];
+        $this->sede_legale = $sede->sede_legale ?? '';
+        $this->sede_legale_indirizzo = $sede->sede_legale_indirizzo ?? '';
+        $this->sede_legale_citta = $sede->sede_legale_citta ?? '';
+        $this->sede_legale_provincia = $sede->sede_legale_provincia ?? '';
+        $this->sede_legale_cap = $sede->sede_legale_cap ?? '';
+        $this->partita_iva = $sede->partita_iva ?? '';
+        $this->codice_fiscale = $sede->codice_fiscale ?? '';
         
         $this->modalMode = 'edit';
         $this->showModal = true;
@@ -159,6 +180,13 @@ class GestioneSedi extends Component
             'attivo' => $this->attivo,
             'note' => $this->note ?: null,
             'orari' => !empty($this->orari) ? $this->orari : null,
+            'sede_legale' => $this->sede_legale ?: null,
+            'sede_legale_indirizzo' => $this->sede_legale_indirizzo ?: null,
+            'sede_legale_citta' => $this->sede_legale_citta ?: null,
+            'sede_legale_provincia' => strtoupper($this->sede_legale_provincia ?: ''),
+            'sede_legale_cap' => $this->sede_legale_cap ?: null,
+            'partita_iva' => $this->partita_iva ?: null,
+            'codice_fiscale' => $this->codice_fiscale ?: null,
         ];
 
         if ($this->modalMode === 'create') {
@@ -223,6 +251,13 @@ class GestioneSedi extends Component
         $this->attivo = true;
         $this->note = '';
         $this->orari = [];
+        $this->sede_legale = '';
+        $this->sede_legale_indirizzo = '';
+        $this->sede_legale_citta = '';
+        $this->sede_legale_provincia = '';
+        $this->sede_legale_cap = '';
+        $this->partita_iva = '';
+        $this->codice_fiscale = '';
         $this->modalMode = 'create';
         $this->resetValidation();
     }
