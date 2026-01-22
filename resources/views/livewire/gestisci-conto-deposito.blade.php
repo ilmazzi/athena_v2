@@ -103,7 +103,7 @@
         $puoGestireDestinatario = $this->puoGestireDestinatario;
         $puoRinnovare = $this->puoRinnovare;
         $haContenutoDeposito = $articoliInDeposito->isNotEmpty() || $prodottiFinitiInDeposito->isNotEmpty();
-        $ddtInvioGenerato = (bool) $deposito->ddt_invio_id;
+        $ddtInvioGenerato = (bool) ($deposito->ddt_invio_id && $deposito->ddtInvio);
     @endphp
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 sticky-top bg-white py-2" style="z-index: 11; top: 64px;">
         <div class="d-flex align-items-center gap-3">

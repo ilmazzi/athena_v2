@@ -146,8 +146,14 @@ class GestisciContoDeposito extends Component
             return false;
         }
 
+        $ddtInvio = null;
+        if ($this->deposito->ddt_invio_id) {
+            $ddtInvio = \App\Models\DdtDeposito::withTrashed()->find($this->deposito->ddt_invio_id);
+        }
+        $ddtInvioBloccante = $ddtInvio && !$ddtInvio->trashed();
+
         return $this->deposito->stato === 'attivo'
-            && !$this->deposito->ddt_invio_id
+            && !$ddtInvioBloccante
             && $user->can('conti_deposito.manage')
             && ($this->isMittente || $this->isSuperAdmin);
     }
@@ -410,7 +416,9 @@ class GestisciContoDeposito extends Component
             DB::transaction(function () use ($ddtInvio) {
                 $ddtInvio->dettagli()->delete();
                 $ddtInvio->delete();
-                $this->deposito->update(['ddt_invio_id' => null]);
+                \App\Models\ContoDeposito::withoutGlobalScopes()
+                    ->where('id', $this->deposito->id)
+                    ->update(['ddt_invio_id' => null]);
             });
 
             $this->deposito->refresh();
