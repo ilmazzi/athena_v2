@@ -96,6 +96,15 @@
                                     <input type="password" class="form-control" wire:model.defer="password_confirmation">
                                 </div>
                             @endif
+                        @else
+                            <div class="mb-2">
+                                <label class="form-label">Nuova Password</label>
+                                <input type="password" class="form-control" wire:model.defer="password" placeholder="Lascia vuoto per non cambiare">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Conferma Password</label>
+                                <input type="password" class="form-control" wire:model.defer="password_confirmation">
+                            </div>
                         @endif
                         <div class="mb-2">
                             <label class="form-label">Sede</label>

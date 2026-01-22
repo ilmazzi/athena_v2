@@ -65,7 +65,12 @@ class GestioneUtenti extends Component
 
         if ($this->editingUser) {
             $user = User::withTrashed()->findOrFail($this->editingUser);
-            $user->update(['name' => $this->name, 'email' => $this->email, 'sede_id' => $this->sede_id]);
+            $data = ['name' => $this->name, 'email' => $this->email, 'sede_id' => $this->sede_id];
+            if ($this->password) {
+                $this->validate(['password' => 'required|min:8|confirmed']);
+                $data['password'] = bcrypt($this->password);
+            }
+            $user->update($data);
             $user->syncRoles($this->roles);
             $user->syncPermissions($this->directPermissions);
             session()->flash('success', 'Utente aggiornato');
