@@ -143,6 +143,12 @@
                         <a href="{{ route('ddt-deposito.show', $deposito->ddt_invio_id) }}" class="btn btn-info" target="_blank" rel="noopener">
                             <iconify-icon icon="solar:eye-bold" class="me-1"></iconify-icon> Vedi DDT Invio
                         </a>
+                        @if(in_array($deposito->ddtInvio->stato ?? '', ['creato', 'stampato']))
+                            <button class="btn btn-outline-danger" wire:click="apriAnnullaDdtInvioModal">
+                                <iconify-icon icon="solar:trash-bin-minimalistic-bold" class="me-1"></iconify-icon>
+                                Annulla DDT Invio
+                            </button>
+                        @endif
                     @endif
                 @endif
 
@@ -1243,6 +1249,36 @@
             </div>
         </div>
     </div>
+@endif
+
+{{-- Modal Annulla DDT Invio --}}
+@if($showAnnullaDdtInvioModal)
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <iconify-icon icon="solar:danger-triangle-bold-duotone" class="me-2"></iconify-icon>
+                        Annulla DDT di invio
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" wire:click="chiudiAnnullaDdtInvioModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2">Questa operazione:</p>
+                    <ul class="mb-0">
+                        <li>rimuove il DDT di invio generato</li>
+                        <li>permette di aggiungere articoli mancanti</li>
+                        <li>richiede di rigenerare il DDT</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" wire:click="chiudiAnnullaDdtInvioModal">Annulla</button>
+                    <button type="button" class="btn btn-danger" wire:click="annullaDdtInvio">Conferma annullamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
 @endif
 
     {{-- Modal Vendita Multipla --}}

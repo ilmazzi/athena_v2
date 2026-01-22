@@ -36,6 +36,7 @@ class GestisciContoDeposito extends Component
     public $showAggiungiArticoliModal = false;
     public $showRegistraVenditaModal = false;
     public $showResoManualeModal = false;
+    public $showAnnullaDdtInvioModal = false;
     
     // Form reso manuale
     public $articoliSelezionatiReso = [];
@@ -107,7 +108,16 @@ class GestisciContoDeposito extends Component
     public function getIsSuperAdminProperty(): bool
     {
         $user = Auth::user();
-        return $user && method_exists($user, 'hasRole') && $user->hasRole('admin');
+        if (!$user) {
+            return false;
+        }
+        if (method_exists($user, 'hasAnyRole')) {
+            return $user->hasAnyRole(['admin', 'amministrazione']);
+        }
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('admin') || $user->hasRole('amministrazione');
+        }
+        return false;
     }
 
     public function getIsMittenteProperty(): bool
@@ -334,6 +344,65 @@ class GestisciContoDeposito extends Component
     {
         $this->showAnteprimaInvioModal = false;
         $this->resetValidation();
+    }
+
+    public function apriAnnullaDdtInvioModal()
+    {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può annullare il DDT di invio.');
+            return;
+        }
+
+        $ddtInvio = $this->deposito?->ddtInvio;
+        if (!$ddtInvio) {
+            session()->flash('error', 'Nessun DDT di invio da annullare.');
+            return;
+        }
+
+        if (!in_array($ddtInvio->stato, ['creato', 'stampato'])) {
+            session()->flash('error', 'Il DDT non è annullabile nello stato attuale.');
+            return;
+        }
+
+        $this->showAnnullaDdtInvioModal = true;
+    }
+
+    public function chiudiAnnullaDdtInvioModal()
+    {
+        $this->showAnnullaDdtInvioModal = false;
+    }
+
+    public function annullaDdtInvio()
+    {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può annullare il DDT di invio.');
+            return;
+        }
+
+        $ddtInvio = $this->deposito?->ddtInvio;
+        if (!$ddtInvio) {
+            session()->flash('error', 'Nessun DDT di invio da annullare.');
+            return;
+        }
+
+        if (!in_array($ddtInvio->stato, ['creato', 'stampato'])) {
+            session()->flash('error', 'Il DDT non è annullabile nello stato attuale.');
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($ddtInvio) {
+                $ddtInvio->dettagli()->delete();
+                $ddtInvio->delete();
+                $this->deposito->update(['ddt_invio_id' => null]);
+            });
+
+            $this->deposito->refresh();
+            $this->showAnnullaDdtInvioModal = false;
+            session()->flash('success', 'DDT di invio annullato. Ora puoi aggiungere articoli e rigenerare il DDT.');
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante l\'annullamento: ' . $e->getMessage());
+        }
     }
 
     public function toggleArticolo($articoloId)
