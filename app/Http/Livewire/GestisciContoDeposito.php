@@ -152,6 +152,22 @@ class GestisciContoDeposito extends Component
             && ($this->isMittente || $this->isSuperAdmin);
     }
 
+    public function getPuoAnnullareDdtInvioProperty(): bool
+    {
+        if (!$this->deposito || !$this->deposito->ddtInvio) {
+            return false;
+        }
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+        $stato = $this->deposito->ddtInvio->stato ?? null;
+        return $this->deposito->stato === 'attivo'
+            && in_array($stato, ['creato', 'stampato'])
+            && $user->can('conti_deposito.manage')
+            && ($this->isMittente || $this->isSuperAdmin);
+    }
+
     public function getPuoGestireDestinatarioProperty(): bool
     {
         if (!$this->deposito) {
@@ -348,8 +364,8 @@ class GestisciContoDeposito extends Component
 
     public function apriAnnullaDdtInvioModal()
     {
-        if (!$this->puoGestireMittente) {
-            session()->flash('error', 'Solo la sede mittente può annullare il DDT di invio.');
+        if (!$this->puoAnnullareDdtInvio) {
+            session()->flash('error', 'Non hai i permessi per annullare il DDT di invio.');
             return;
         }
 
@@ -374,8 +390,8 @@ class GestisciContoDeposito extends Component
 
     public function annullaDdtInvio()
     {
-        if (!$this->puoGestireMittente) {
-            session()->flash('error', 'Solo la sede mittente può annullare il DDT di invio.');
+        if (!$this->puoAnnullareDdtInvio) {
+            session()->flash('error', 'Non hai i permessi per annullare il DDT di invio.');
             return;
         }
 

@@ -143,13 +143,14 @@
                         <a href="{{ route('ddt-deposito.show', $deposito->ddt_invio_id) }}" class="btn btn-info" target="_blank" rel="noopener">
                             <iconify-icon icon="solar:eye-bold" class="me-1"></iconify-icon> Vedi DDT Invio
                         </a>
-                        @if(in_array($deposito->ddtInvio->stato ?? '', ['creato', 'stampato']))
-                            <button class="btn btn-outline-danger" wire:click="apriAnnullaDdtInvioModal">
-                                <iconify-icon icon="solar:trash-bin-minimalistic-bold" class="me-1"></iconify-icon>
-                                Annulla DDT Invio
-                            </button>
-                        @endif
                     @endif
+                @endif
+
+                @if($deposito->ddt_invio_id && $this->puoAnnullareDdtInvio)
+                    <button class="btn btn-outline-danger" wire:click="apriAnnullaDdtInvioModal">
+                        <iconify-icon icon="solar:trash-bin-minimalistic-bold" class="me-1"></iconify-icon>
+                        Annulla DDT Invio
+                    </button>
                 @endif
 
                 @if($puoGestireDestinatario)
