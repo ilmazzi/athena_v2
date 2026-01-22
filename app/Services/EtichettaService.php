@@ -5,13 +5,15 @@ namespace App\Services;
 use App\Models\Articolo;
 use App\Models\Stampante;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class EtichettaService
 {
     /**
      * Genera il codice ZPL per un'etichetta
      */
-    public function generaEtichettaZPL(Articolo $articolo, $stampanteId = null): string
+    public function generaEtichettaZPL(Articolo $articolo, $stampanteId = null, string $layout = 'standard'): string
     {
         $stampante = $stampanteId ? 
             Stampante::find($stampanteId) : 
@@ -21,15 +23,15 @@ class EtichettaService
             throw new \Exception('Nessuna stampante disponibile');
         }
 
-        $template = $this->getTemplateZPL($stampante->modello);
+        $template = $this->getTemplateZPL($stampante->modello, $layout);
         
-        return $this->popolaTemplate($template, $articolo);
+        return $this->popolaTemplate($template, $articolo, $layout);
     }
     
     /**
      * Genera ZPL con prezzo personalizzato
      */
-    public function generaEtichettaZPLConPrezzo(Articolo $articolo, string $prezzo, string $formatoPrezzo, $stampanteId = null): string
+    public function generaEtichettaZPLConPrezzo(Articolo $articolo, string $prezzo, string $formatoPrezzo, $stampanteId = null, string $layout = 'standard'): string
     {
         $stampante = $stampanteId ? 
             Stampante::find($stampanteId) : 
@@ -39,9 +41,9 @@ class EtichettaService
             throw new \Exception('Nessuna stampante disponibile');
         }
 
-        $template = $this->getTemplateZPL($stampante->modello);
+        $template = $this->getTemplateZPL($stampante->modello, $layout);
         
-        return $this->popolaTemplateConPrezzo($template, $articolo, $prezzo, $formatoPrezzo);
+        return $this->popolaTemplateConPrezzo($template, $articolo, $prezzo, $formatoPrezzo, $layout);
     }
 
     /**
@@ -50,7 +52,7 @@ class EtichettaService
     public function getStampanteDefault(Articolo $articolo): ?Stampante
     {
         // Prima prova con la stampante dell'utente corrente
-        $user = auth()->user();
+        $user = Auth::user();
         if ($user && $user->stampante_default_id) {
             $stampante = Stampante::find($user->stampante_default_id);
             if ($stampante && $stampante->canPrintArticolo($articolo)) {
@@ -69,8 +71,12 @@ class EtichettaService
     /**
      * Ottieni il template ZPL per il modello di stampante
      */
-    private function getTemplateZPL(string $modello): string
+    private function getTemplateZPL(string $modello, string $layout = 'standard'): string
     {
+        if ($layout !== 'standard') {
+            return $this->getTemplateNc($modello);
+        }
+
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
             'ZT420' => $this->getTemplateZT420(),
@@ -136,11 +142,42 @@ class EtichettaService
 ^XZ';
     }
 
+    private function getTemplateNc(string $modello): string
+    {
+        $path = $modello === 'ZT620'
+            ? resource_path('zpl/etichetta_template_nc_roma.zpl')
+            : resource_path('zpl/etichetta_nc_template.zpl');
+
+        if (!file_exists($path)) {
+            Log::warning('Template NC mancante', ['modello' => $modello, 'path' => $path]);
+            return $this->getTemplateZT230();
+        }
+
+        return file_get_contents($path);
+    }
+
     /**
      * Popola il template con i dati dell'articolo
      */
-    private function popolaTemplate(string $template, Articolo $articolo): string
+    private function popolaTemplate(string $template, Articolo $articolo, string $layout = 'standard'): string
     {
+        $carico = $layout === 'standard' ? $this->getEtichettaCarico($articolo) : '';
+        $carati = $this->getEtichettaCarati($articolo);
+        $oro = $this->getEtichettaOro($articolo);
+        $brill = $this->getEtichettaBrill($articolo);
+        $pietre = $this->getEtichettaPietre($articolo);
+        $caricoQr = $layout === 'standard' ? ($articolo->getCodicePerEtichetta() ?: $carico) : '';
+        if ($layout === 'nc_prezzo') {
+            $carati = '';
+            $oro = '';
+            $brill = '';
+            $pietre = '';
+        } elseif ($layout === 'nc_prezzo_carati') {
+            $oro = '';
+            $brill = '';
+            $pietre = '';
+        }
+
         return str_replace([
             '{CARICO}',
             '{CARICOQR}',
@@ -150,23 +187,39 @@ class EtichettaService
             '{BRILL}',
             '{PIETRE}'
         ], [
-            $articolo->numero_carico ?? 'N/A',
-            $articolo->numero_carico ?? 'N/A', // Per QR code
+            $carico,
+            $caricoQr, // Per QR code
             '€' . number_format($articolo->prezzo_fornitore ?? $articolo->prezzo_acquisto ?? 0, 2),
-            $articolo->carati ?? 'N/A',
-            $articolo->materiale ?? 'N/A',
-            $articolo->brill ?? 'N/A',
-            $articolo->pietre ?? 'N/A'
+            $carati,
+            $oro,
+            $brill,
+            $pietre
         ], $template);
     }
     
     /**
      * Popola il template ZPL con prezzo personalizzato
      */
-    private function popolaTemplateConPrezzo(string $template, Articolo $articolo, string $prezzo, string $formatoPrezzo): string
+    private function popolaTemplateConPrezzo(string $template, Articolo $articolo, string $prezzo, string $formatoPrezzo, string $layout = 'standard'): string
     {
         // Formatta il prezzo in base al formato
         $prezzoFormattato = $this->formattaPrezzo($prezzo, $formatoPrezzo);
+        $carico = $layout === 'standard' ? $this->getEtichettaCarico($articolo) : '';
+        $carati = $this->getEtichettaCarati($articolo);
+        $oro = $this->getEtichettaOro($articolo);
+        $brill = $this->getEtichettaBrill($articolo);
+        $pietre = $this->getEtichettaPietre($articolo);
+        $caricoQr = $layout === 'standard' ? ($articolo->getCodicePerEtichetta() ?: $carico) : '';
+        if ($layout === 'nc_prezzo') {
+            $carati = '';
+            $oro = '';
+            $brill = '';
+            $pietre = '';
+        } elseif ($layout === 'nc_prezzo_carati') {
+            $oro = '';
+            $brill = '';
+            $pietre = '';
+        }
         
         return str_replace([
             '{CARICO}',
@@ -177,14 +230,56 @@ class EtichettaService
             '{BRILL}',
             '{PIETRE}'
         ], [
-            $articolo->numero_carico ?? 'N/A',
-            $articolo->numero_carico ?? 'N/A', // Per QR code
+            $carico,
+            $caricoQr, // Per QR code
             $prezzoFormattato,
-            $articolo->carati ?? 'N/A',
-            $articolo->materiale ?? 'N/A',
-            $articolo->brill ?? 'N/A',
-            $articolo->pietre ?? 'N/A'
+            $carati,
+            $oro,
+            $brill,
+            $pietre
         ], $template);
+    }
+
+    private function getEtichettaCarico(Articolo $articolo): string
+    {
+        return $articolo->getCodicePerEtichetta()
+            ?: $articolo->codice
+            
+            ?: 'N/A';
+    }
+
+    private function getEtichettaCarati(Articolo $articolo): string
+    {
+        $carati = $articolo->caratura
+            ?? $articolo->carati
+            ?? ($articolo->caratteristiche['caratura'] ?? null);
+
+        return $carati ?: 'N/A';
+    }
+
+    private function getEtichettaOro(Articolo $articolo): string
+    {
+        $oro = $articolo->materiale
+            ?? ($articolo->caratteristiche['materiale'] ?? null)
+            ?? $articolo->colore;
+
+        return $oro ?: 'N/A';
+    }
+
+    private function getEtichettaBrill(Articolo $articolo): string
+    {
+        $brill = $articolo->brill
+            ?? ($articolo->caratteristiche['brill'] ?? null);
+
+        return $brill ?: 'N/A';
+    }
+
+    private function getEtichettaPietre(Articolo $articolo): string
+    {
+        $pietre = $articolo->pietre
+            ?? ($articolo->caratteristiche['pietre'] ?? null);
+
+        return $pietre ?: 'N/A';
     }
     
     /**
@@ -229,7 +324,7 @@ class EtichettaService
 
             return $sent !== false;
         } catch (\Exception $e) {
-            \Log::error('Errore stampa etichetta: ' . $e->getMessage());
+            Log::error('Errore stampa etichetta: ' . $e->getMessage());
             return false;
         }
     }

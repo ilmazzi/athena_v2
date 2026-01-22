@@ -324,12 +324,21 @@
                                                 <iconify-icon icon="solar:pen-bold-duotone" class="text-primary"></iconify-icon>
                                             </button>
                                             @if($doc->tipo_carico === 'ocr' && $doc->ocrDocument)
-                                            <a href="{{ route('ocr.documents.pdf', $doc->ocrDocument) }}" 
-                                               class="btn btn-light" 
-                                               target="_blank"
-                                               title="Vedi PDF">
-                                                <iconify-icon icon="solar:file-text-bold-duotone" class="text-danger"></iconify-icon>
-                                            </a>
+                                                <a href="{{ route('ocr.documents.pdf', $doc->ocrDocument) }}" 
+                                                   class="btn btn-light" 
+                                                   target="_blank"
+                                                   title="Vedi PDF">
+                                                    <iconify-icon icon="solar:file-text-bold-duotone" class="text-danger"></iconify-icon>
+                                                </a>
+                                            @elseif(!empty($doc->allegato_path))
+                                                <a href="{{ $doc->tipo_documento === 'fattura'
+                                                        ? route('documenti-acquisto.fattura.pdf', $doc)
+                                                        : route('documenti-acquisto.ddt.pdf', $doc) }}"
+                                                   class="btn btn-light"
+                                                   target="_blank"
+                                                   title="Vedi PDF">
+                                                    <iconify-icon icon="solar:file-text-bold-duotone" class="text-danger"></iconify-icon>
+                                                </a>
                                             @endif
                                         </div>
                                     </td>

@@ -5,16 +5,20 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Artisan;
 use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
 use App\Models\Giacenza;
 use App\Models\Fornitore;
 use App\Models\Ddt;
 use App\Models\DdtDettaglio;
+use App\Models\Fattura;
 use App\Models\Sede;
 use App\Models\Vetrina;
 use App\Models\ArticoloVetrina;
 use App\Models\User;
+use App\Models\InventarioSessione;
+use App\Models\InventarioScansione;
 use App\Models\ProdottoFinito;
 use App\Models\ComponenteProdotto;
 use App\Models\Societa;
@@ -58,6 +62,41 @@ class MigrazioneProduzione2026 extends Command
         4 => 2,  // Jolly → JOLLY
         5 => 5,  // Roma → ROMA
     ];
+
+    private function normalizeAllegatoPath(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
+        }
+
+        $path = trim((string) $path);
+        if ($path === '') {
+            return null;
+        }
+
+        if (preg_match('/^https?:\\/\\//i', $path)) {
+            $parsedPath = parse_url($path, PHP_URL_PATH) ?: '';
+            $path = ltrim($parsedPath, '/');
+        }
+
+        return $path !== '' ? $path : null;
+    }
+
+    private function allegatoPriority(string $path): int
+    {
+        $normalized = strtolower($path);
+        if (str_contains($normalized, 'storage/ddt_carico/')) {
+            return 3;
+        }
+        if (str_contains($normalized, 'storage/ddt_magazzino/')) {
+            return 2;
+        }
+        if (str_contains($normalized, 'storage/')) {
+            return 1;
+        }
+
+        return 0;
+    }
     
     public function handle()
     {
@@ -101,8 +140,11 @@ class MigrazioneProduzione2026 extends Command
             $this->step4b_CreaMagazziniContoDeposito();
             $this->step5_MigrateArticoli();
             $this->step6_MigrateGiacenze();
+            $this->step6b_MigrateInventarioScansioni();
             $this->step7_MigrateDdt();
+            $this->step7b_BackfillFattureAllegati();
             $this->step8_MigrateDdtDettagli();
+            $this->step8b_RicalcolaDocumenti();
             $this->step9_MigrateVetrine();
             $this->step10_MigrateArticoliVetrine();
             $this->step11_MigrateProdottiFiniti();
@@ -424,6 +466,7 @@ class MigrazioneProduzione2026 extends Command
                 ->table('elenco_articoli_magazzino')
                 ->select('id', 'fornitore')
                 ->whereNotNull('fornitore')
+                    ->orderBy('id')
                 ->chunk(1000, function ($rows) use (&$cache) {
                     foreach ($rows as $row) {
                         $fornitoreId = $this->resolveFornitoreIdFromString($row->fornitore ?? null, $cache);
@@ -616,6 +659,125 @@ class MigrazioneProduzione2026 extends Command
         
         $this->newLine();
     }
+
+    private function step6b_MigrateInventarioScansioni()
+    {
+        $this->info('📷 [6b/12] Inventario scansioni (da mag_scansioni_inventario)...');
+
+        if ($this->dryRun) {
+            $this->line('  ⏭️  Dry-run: skip import inventario scansioni');
+            $this->newLine();
+            return;
+        }
+
+        if (!Schema::hasTable('inventario_sessioni') || !Schema::hasTable('inventario_scansioni')) {
+            $this->warn('  ⚠️  Tabelle inventario_* non presenti, skip');
+            $this->newLine();
+            return;
+        }
+
+        if (!Schema::connection('mssql_prod')->hasTable('mag_scansioni_inventario')) {
+            $this->warn('  ⚠️  Tabella mag_scansioni_inventario non trovata, skip');
+            $this->newLine();
+            return;
+        }
+
+        $magazzini = DB::connection('mssql_prod')->table('mag_magazzini')->select('id', 'nome', 'sede')->get();
+        $magazziniMap = $magazzini->keyBy('id');
+        $sediIds = Sede::pluck('id')->toArray();
+        $rows = DB::connection('mssql_prod')->table('mag_scansioni_inventario')->get();
+        if ($rows->isEmpty()) {
+            $this->warn('  ⚠️  Nessuna scansione inventario trovata, skip');
+            $this->newLine();
+            return;
+        }
+
+        $rows = $rows->sortBy('created_at');
+        $minDate = $rows->first()->created_at ?? now();
+        $maxDate = $rows->last()->created_at ?? $minDate;
+
+        $magazzinoCounts = $rows->groupBy('id_magazzino')->map->count()->sortDesc();
+        $primaryMagazzinoId = (int) $magazzinoCounts->keys()->first();
+        $primaryMagazzino = $magazziniMap->get($primaryMagazzinoId);
+        $primarySedeId = $primaryMagazzino?->sede ?? 1;
+        if (!in_array($primarySedeId, $sediIds, true)) {
+            $primarySedeId = 1;
+        }
+
+        $sessione = InventarioSessione::create([
+            'nome' => 'Import inventario legacy',
+            'sede_id' => $primarySedeId,
+            'categorie_permesse' => null,
+            'data_inizio' => $minDate,
+            'data_fine' => $maxDate,
+            'stato' => 'chiusa',
+            'utente_id' => 1,
+            'note' => 'Import da mag_scansioni_inventario',
+            'articoli_totali' => 0,
+            'articoli_trovati' => 0,
+            'articoli_eliminati' => 0,
+            'valore_eliminato' => 0,
+        ]);
+
+        foreach ($rows as $row) {
+            $articoloId = $row->id_articolo;
+            if (!Articolo::where('id', $articoloId)->exists()) {
+                continue;
+            }
+
+            $magazzino = $magazziniMap->get($row->id_magazzino);
+            $sedeId = $magazzino?->sede ?? $primarySedeId;
+            if (!in_array($sedeId, $sediIds, true)) {
+                $sedeId = $primarySedeId;
+            }
+
+            $quantitaSistema = Giacenza::where('articolo_id', $articoloId)
+                ->where('sede_id', $sedeId)
+                ->value('quantita_residua') ?? 0;
+            $quantitaTrovata = $row->qta_inventariata ?? 0;
+            $azione = $quantitaTrovata > 0 ? 'trovato' : 'eliminato';
+            $noteParts = [];
+            if (!empty($row->ubicazione)) {
+                $noteParts[] = 'Ubicazione: ' . $row->ubicazione;
+            }
+            if (!empty($row->motivo_scarto)) {
+                $noteParts[] = 'Motivo: ' . $row->motivo_scarto;
+            }
+            $note = $noteParts ? implode(' | ', $noteParts) : null;
+            $dataScansione = $row->created_at ?? now();
+
+            DB::table('inventario_scansioni')->updateOrInsert(
+                ['sessione_id' => $sessione->id, 'articolo_id' => $articoloId],
+                [
+                    'azione' => $azione,
+                    'quantita_trovata' => $quantitaTrovata,
+                    'quantita_sistema' => $quantitaSistema,
+                    'differenza' => $quantitaTrovata - $quantitaSistema,
+                    'note' => $note,
+                    'data_scansione' => $dataScansione,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
+        $stats = DB::table('inventario_scansioni')
+            ->select('azione', DB::raw('COUNT(*) as c'))
+            ->where('sessione_id', $sessione->id)
+            ->groupBy('azione')
+            ->get();
+        $trovati = (int) ($stats->firstWhere('azione', 'trovato')->c ?? 0);
+        $eliminati = (int) ($stats->firstWhere('azione', 'eliminato')->c ?? 0);
+        DB::table('inventario_sessioni')
+            ->where('id', $sessione->id)
+            ->update([
+                'articoli_trovati' => $trovati,
+                'articoli_eliminati' => $eliminati,
+            ]);
+
+        $this->line("  ✓ Inventario scansioni importate");
+        $this->newLine();
+    }
     
     private function step7_MigrateDdt()
     {
@@ -626,6 +788,34 @@ class MigrazioneProduzione2026 extends Command
             ->whereNotNull('numero_documento')
             ->where('numero_documento', '!=', '')
             ->get();
+
+        $ddtAllegatiMap = [];
+        if (!$this->dryRun) {
+            $allegati = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->select('numero_documento', 'ddt_allegato')
+                ->whereNotNull('ddt_allegato')
+                ->where('ddt_allegato', '!=', '')
+                ->get();
+
+            foreach ($allegati as $row) {
+                $numero = trim((string) $row->numero_documento);
+                if ($numero === '') {
+                    continue;
+                }
+                $path = $this->normalizeAllegatoPath($row->ddt_allegato);
+                if (!$path) {
+                    continue;
+                }
+                $score = $this->allegatoPriority($path);
+                if (!isset($ddtAllegatiMap[$numero]) || $score > $ddtAllegatiMap[$numero]['score']) {
+                    $ddtAllegatiMap[$numero] = [
+                        'path' => $path,
+                        'score' => $score,
+                    ];
+                }
+            }
+        }
         
         $fornitoriIds = $this->dryRun ? [] : Fornitore::pluck('id')->toArray();
         $fornitoreFallbackId = $this->dryRun
@@ -646,7 +836,7 @@ class MigrazioneProduzione2026 extends Command
                     $fornitoreId = $d->fornitore;
                 }
                 
-                DB::table('ddt')->insert([
+                $ddtData = [
                     'id' => $d->id,
                     'numero' => $d->numero_documento,
                     'data_documento' => $d->data_documento ?? now(),
@@ -658,7 +848,11 @@ class MigrazioneProduzione2026 extends Command
                     'data_carico' => $d->data_carico ?? null,
                     'created_at' => $d->created_at ?? now(),
                     'updated_at' => $d->updated_at ?? now(),
-                ]);
+                ];
+                if (Schema::hasColumn('ddt', 'allegato_path')) {
+                    $ddtData['allegato_path'] = $ddtAllegatiMap[$d->numero_documento]['path'] ?? null;
+                }
+                DB::table('ddt')->insert($ddtData);
                 $importati++;
             }
             $bar->advance();
@@ -668,6 +862,66 @@ class MigrazioneProduzione2026 extends Command
         $this->newLine();
         $this->stats['ddt'] = $importati;
         $this->line("  ✓ Importati: {$importati} DDT");
+        $this->newLine();
+    }
+
+    private function step7b_BackfillFattureAllegati()
+    {
+        $this->info('🧾 [7b/12] Fatture allegati (da vista elenco_articoli_magazzino)...');
+
+        if ($this->dryRun) {
+            $this->line('  ⏭️  Dry-run: skip backfill fatture allegati');
+            $this->newLine();
+            return;
+        }
+
+        if (!Schema::hasColumn('fatture', 'allegato_path')) {
+            $this->warn('  ⚠️  Colonna fatture.allegato_path non presente, skip');
+            $this->newLine();
+            return;
+        }
+
+        $fatturaNumeroColumn = null;
+        $candidateColumns = ['numero_fattura', 'fattura_numero', 'numero_documento_fattura', 'numero_documento'];
+        foreach ($candidateColumns as $col) {
+            if (Schema::connection('mssql_prod')->hasColumn('elenco_articoli_magazzino', $col)) {
+                $fatturaNumeroColumn = $col;
+                break;
+            }
+        }
+
+        if (!$fatturaNumeroColumn || !Schema::connection('mssql_prod')->hasColumn('elenco_articoli_magazzino', 'fattura_allegato')) {
+            $this->warn('  ⚠️  Colonne fattura_allegato o numero fattura non trovate nella vista, skip');
+            $this->newLine();
+            return;
+        }
+
+        $allegati = DB::connection('mssql_prod')
+            ->table('elenco_articoli_magazzino')
+            ->select($fatturaNumeroColumn, 'fattura_allegato')
+            ->whereNotNull('fattura_allegato')
+            ->where('fattura_allegato', '!=', '')
+            ->get();
+
+        $aggiornati = 0;
+        foreach ($allegati as $row) {
+            $numero = trim((string) ($row->{$fatturaNumeroColumn} ?? ''));
+            if ($numero === '') {
+                continue;
+            }
+            $path = $this->normalizeAllegatoPath($row->fattura_allegato ?? null);
+            if (!$path) {
+                continue;
+            }
+            $updated = DB::table('fatture')
+                ->where('numero', $numero)
+                ->update(['allegato_path' => $path]);
+            if ($updated) {
+                $aggiornati += $updated;
+            }
+        }
+
+        $this->line("  ✓ Allegati fatture aggiornati: {$aggiornati}");
         $this->newLine();
     }
     
@@ -712,6 +966,25 @@ class MigrazioneProduzione2026 extends Command
         $this->newLine();
         $this->stats['ddt_dettagli'] = $importati;
         $this->line("  ✓ Importati: {$importati} dettagli");
+        $this->newLine();
+    }
+
+    private function step8b_RicalcolaDocumenti()
+    {
+        $this->info('🧮 [8b/12] Ricalcolo conteggi documenti...');
+
+        if ($this->dryRun) {
+            $this->line('  ⏭️  Dry-run: skip ricalcolo conteggi');
+            $this->newLine();
+            return;
+        }
+
+        Artisan::call('documenti:ricalcola-conteggi', [
+            '--tipo' => 'all',
+            '--aggiorna-meta' => true,
+        ]);
+
+        $this->output->write(Artisan::output());
         $this->newLine();
     }
     

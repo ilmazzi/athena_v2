@@ -7,6 +7,7 @@ use App\Models\Fattura;
 use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -58,6 +59,24 @@ class DocumentiAcquistoTable extends Component
         'dataTo' => ['except' => ''],
         'nascondiVuoti' => ['except' => true],
     ];
+
+    private function applyUniqueDocumentScope($query, string $table): void
+    {
+        $idsQuery = (clone $query)
+            ->selectRaw('MIN(id) as id')
+            ->groupBy('numero', 'data_documento', 'fornitore_id');
+
+        $query->whereIn($table . '.id', $idsQuery);
+    }
+
+    private function countDistinctDocuments($query): int
+    {
+        $count = (clone $query)
+            ->selectRaw("COUNT(DISTINCT CONCAT(numero, '|', data_documento, '|', COALESCE(fornitore_id, 0))) as aggregate")
+            ->value('aggregate');
+
+        return (int) $count;
+    }
 
     public function updatingSearch()
     {
@@ -195,47 +214,93 @@ class DocumentiAcquistoTable extends Component
             DB::commit();
             
             $this->dispatch('close-edit-modal');
-            $this->dispatch('show-toast', [
-                'type' => 'success',
-                'message' => 'Documento aggiornato con successo!'
-            ]);
+            $this->dispatch('show-toast',
+                type: 'success',
+                message: 'Documento aggiornato con successo!'
+            );
             
             $this->editingDocId = null;
             $this->editingDocTipo = null;
             
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->dispatch('show-toast', [
-                'type' => 'error',
-                'message' => 'Errore durante l\'aggiornamento: ' . $e->getMessage()
-            ]);
+            $this->dispatch('show-toast',
+                type: 'error',
+                message: 'Errore durante l\'aggiornamento: ' . $e->getMessage()
+            );
         }
     }
 
     public function render()
     {
-        // Recupera DDT
+        $ddtHasAllegatoPath = Schema::hasColumn('ddt', 'allegato_path');
+        $fattureHasAllegatoPath = Schema::hasColumn('fatture', 'allegato_path');
+
+        // Recupera DDT (includi anche legacy con allegato_path se esiste)
         $ddtQuery = Ddt::with(['fornitore', 'userCarico', 'categoria', 'sede', 'ocrDocument'])
-            ->whereNotNull('tipo_carico');
+            ->where(function ($q) use ($ddtHasAllegatoPath) {
+                $q->whereNotNull('tipo_carico');
+                if ($ddtHasAllegatoPath) {
+                    $q->orWhereNotNull('allegato_path');
+                }
+            });
         
-        // Recupera Fatture
+        // Recupera Fatture (includi anche legacy con allegato_path se esiste)
         $fattureQuery = Fattura::with(['fornitore', 'categoria', 'sede', 'ocrDocument'])
-            ->whereNotNull('tipo_carico');
+            ->where(function ($q) use ($fattureHasAllegatoPath) {
+                $q->whereNotNull('tipo_carico');
+                if ($fattureHasAllegatoPath) {
+                    $q->orWhereNotNull('allegato_path');
+                }
+            });
         
         // Applica filtri comuni
         if ($this->search) {
-            $searchTerm = '%' . $this->search . '%';
-            $ddtQuery->where(function($q) use ($searchTerm) {
-                $q->where('numero', 'like', $searchTerm)
-                  ->orWhereHas('fornitore', function($subQ) use ($searchTerm) {
-                      $subQ->where('ragione_sociale', 'like', $searchTerm);
+            $searchRaw = trim($this->search);
+            $searchLike = '%' . $searchRaw . '%';
+            $searchNormalized = preg_replace('/[\s\/-]+/', '', $searchRaw);
+            $searchNormalizedLike = '%' . $searchNormalized . '%';
+            $searchLastSegment = null;
+            if (str_contains($searchRaw, '/') || str_contains($searchRaw, '\\')) {
+                $segments = preg_split('/[\/\\\\]+/', $searchRaw);
+                $searchLastSegment = trim(end($segments)) ?: null;
+            }
+            $searchYear = null;
+            if (preg_match('/\b(20\d{2})\b/', $searchRaw, $matches)) {
+                $searchYear = (int) $matches[1];
+            }
+
+            $ddtQuery->where(function($q) use ($searchLike, $searchNormalizedLike, $searchLastSegment, $searchYear) {
+                $q->where('numero', 'like', $searchLike)
+                  ->orWhereRaw("REPLACE(REPLACE(REPLACE(numero, ' ', ''), '/', ''), '-', '') like ?", [$searchNormalizedLike])
+                  ->orWhereHas('fornitore', function($subQ) use ($searchLike) {
+                      $subQ->where('ragione_sociale', 'like', $searchLike);
                   });
+                if ($searchLastSegment) {
+                    $q->orWhere('numero', 'like', '%' . $searchLastSegment . '%');
+                }
+                if ($searchYear && $searchLastSegment) {
+                    $q->orWhere(function ($sub) use ($searchYear, $searchLastSegment) {
+                        $sub->where('anno', $searchYear)
+                            ->where('numero', 'like', '%' . $searchLastSegment . '%');
+                    });
+                }
             });
-            $fattureQuery->where(function($q) use ($searchTerm) {
-                $q->where('numero', 'like', $searchTerm)
-                  ->orWhereHas('fornitore', function($subQ) use ($searchTerm) {
-                      $subQ->where('ragione_sociale', 'like', $searchTerm);
+            $fattureQuery->where(function($q) use ($searchLike, $searchNormalizedLike, $searchLastSegment, $searchYear) {
+                $q->where('numero', 'like', $searchLike)
+                  ->orWhereRaw("REPLACE(REPLACE(REPLACE(numero, ' ', ''), '/', ''), '-', '') like ?", [$searchNormalizedLike])
+                  ->orWhereHas('fornitore', function($subQ) use ($searchLike) {
+                      $subQ->where('ragione_sociale', 'like', $searchLike);
                   });
+                if ($searchLastSegment) {
+                    $q->orWhere('numero', 'like', '%' . $searchLastSegment . '%');
+                }
+                if ($searchYear && $searchLastSegment) {
+                    $q->orWhere(function ($sub) use ($searchYear, $searchLastSegment) {
+                        $sub->where('anno', $searchYear)
+                            ->where('numero', 'like', '%' . $searchLastSegment . '%');
+                    });
+                }
             });
         }
         
@@ -276,25 +341,46 @@ class DocumentiAcquistoTable extends Component
         
         // Nascondi documenti vuoti (senza articoli)
         if ($this->nascondiVuoti) {
-            $ddtQuery->where('numero_articoli', '>', 0);
-            $fattureQuery->where('numero_articoli', '>', 0);
+            $ddtQuery->where(function ($q) use ($ddtHasAllegatoPath) {
+                $q->where('numero_articoli', '>', 0);
+                // Per legacy: includi documenti con allegato o senza tipo_carico
+                if ($ddtHasAllegatoPath) {
+                    $q->orWhereNotNull('allegato_path');
+                } else {
+                    $q->orWhereNull('tipo_carico');
+                }
+            });
+            $fattureQuery->where(function ($q) use ($fattureHasAllegatoPath) {
+                $q->where('numero_articoli', '>', 0);
+                if ($fattureHasAllegatoPath) {
+                    $q->orWhereNotNull('allegato_path');
+                } else {
+                    $q->orWhereNull('tipo_carico');
+                }
+            });
         }
+
+        // Rimuovi duplicati (stesso numero/data/fornitore)
+        $this->applyUniqueDocumentScope($ddtQuery, 'ddt');
+        $this->applyUniqueDocumentScope($fattureQuery, 'fatture');
         
         // Se filtra per tipo documento, carica solo quello
         if ($this->tipoDocumento === 'ddt') {
             $ddt = $ddtQuery->orderBy($this->sortField, $this->sortDirection)
                 ->paginate($this->perPage);
-            $documenti = $ddt->map(function($doc) {
+            $ddt->getCollection()->transform(function($doc) {
                 $doc->tipo_documento = 'ddt';
                 return $doc;
             });
+            $documenti = $ddt;
         } elseif ($this->tipoDocumento === 'fattura') {
             $fatture = $fattureQuery->orderBy($this->sortField, $this->sortDirection)
                 ->paginate($this->perPage);
-            $documenti = $fatture->map(function($doc) {
+            $fatture->getCollection()->transform(function($doc) {
                 $doc->tipo_documento = 'fattura';
                 return $doc;
             });
+            $documenti = $fatture;
         } else {
             // Unisci entrambi
             $ddt = $ddtQuery->orderBy($this->sortField, $this->sortDirection)->get();
@@ -310,7 +396,11 @@ class DocumentiAcquistoTable extends Component
                 return $doc;
             });
             
-            $allDocumenti = $ddt->concat($fatture);
+            $allDocumenti = $ddt->concat($fatture)
+                ->unique(function ($doc) {
+                    return $doc->tipo_documento . '-' . $doc->id;
+                })
+                ->values();
             
             // Ordina la collezione unita
             if ($this->sortDirection === 'asc') {
@@ -320,7 +410,7 @@ class DocumentiAcquistoTable extends Component
             }
             
             // Paginazione manuale per Livewire 3
-            $currentPage = request()->get('page', 1);
+            $currentPage = $this->getPage();
             $documenti = new \Illuminate\Pagination\LengthAwarePaginator(
                 $allDocumenti->forPage($currentPage, $this->perPage)->values(),
                 $allDocumenti->count(),
@@ -328,19 +418,30 @@ class DocumentiAcquistoTable extends Component
                 $currentPage,
                 [
                     'path' => request()->url(),
+                    'query' => request()->query(),
                     'pageName' => 'page',
                 ]
             );
         }
         
         // Statistiche
+        $statsDdtQuery = Ddt::query()->whereNotNull('tipo_carico');
+        if ($ddtHasAllegatoPath) {
+            $statsDdtQuery->orWhereNotNull('allegato_path');
+        }
+        $statsFattureQuery = Fattura::query()->whereNotNull('tipo_carico');
+        if ($fattureHasAllegatoPath) {
+            $statsFattureQuery->orWhereNotNull('allegato_path');
+        }
         $stats = [
-            'totali' => Ddt::whereNotNull('tipo_carico')->count() + Fattura::whereNotNull('tipo_carico')->count(),
-            'ddt' => Ddt::whereNotNull('tipo_carico')->count(),
-            'fatture' => Fattura::whereNotNull('tipo_carico')->count(),
-            'ocr' => Ddt::where('tipo_carico', 'ocr')->count() + Fattura::where('tipo_carico', 'ocr')->count(),
-            'manuali' => Ddt::where('tipo_carico', 'manuale')->count() + Fattura::where('tipo_carico', 'manuale')->count(),
+            'ddt' => $this->countDistinctDocuments($statsDdtQuery),
+            'fatture' => $this->countDistinctDocuments($statsFattureQuery),
+            'ocr' => $this->countDistinctDocuments(Ddt::where('tipo_carico', 'ocr'))
+                + $this->countDistinctDocuments(Fattura::where('tipo_carico', 'ocr')),
+            'manuali' => $this->countDistinctDocuments(Ddt::where('tipo_carico', 'manuale'))
+                + $this->countDistinctDocuments(Fattura::where('tipo_carico', 'manuale')),
         ];
+        $stats['totali'] = $stats['ddt'] + $stats['fatture'];
         
         // Opzioni per filtri
         $fornitori = Fornitore::where('attivo', true)

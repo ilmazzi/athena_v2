@@ -10,6 +10,16 @@
                     </h4>
                     <p class="text-muted mb-0">Gestione e valorizzazione magazzini - Dashboard amministrativa</p>
                 </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="text-end">
+                        <div class="small text-muted">Ultimo aggiornamento: {{ $statisticheCachedAt ?? '—' }}</div>
+                        <div class="small text-muted">Cache 15 min</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" wire:click="refreshStatistiche">
+                        <iconify-icon icon="solar:refresh-bold-duotone" class="me-1"></iconify-icon>
+                        Aggiorna statistiche
+                    </button>
+                </div>
             </div>
         </div>
     </div>

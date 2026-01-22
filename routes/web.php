@@ -2,8 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MagazzinoViewController;
-use App\Http\Controllers\OcrController;
 use App\Http\Controllers\RoutingController;
+use App\Http\Controllers\OcrController;
 use App\Http\Livewire\CaricoDocumento;
 use App\Http\Livewire\ArticoliTable;
 use App\Http\Livewire\DocumentiAcquistoTable;
@@ -19,7 +19,6 @@ use App\Http\Livewire\ScannerInventarioAvanzato;
 use App\Http\Livewire\StoricoArticoli;
 use App\Http\Livewire\InventarioMonitor;
 use App\Http\Controllers\StampaController;
-use App\Models\OcrDocument;
 
 require __DIR__.'/auth.php';
 
@@ -149,6 +148,10 @@ Route::prefix('inventario')->group(function () {
     Route::prefix('documenti-acquisto')->group(function () {
         Route::get('/', DocumentiAcquistoTable::class)->name('documenti-acquisto.index');
         Route::get('/nuovo', CaricoDocumento::class)->name('documenti-acquisto.nuovo');
+        Route::get('/ddt/{ddt}/pdf', [\App\Http\Controllers\DdtController::class, 'showPdf'])
+            ->name('documenti-acquisto.ddt.pdf');
+        Route::get('/fatture/{fattura}/pdf', [\App\Http\Controllers\FatturaController::class, 'showPdf'])
+            ->name('documenti-acquisto.fattura.pdf');
     });
     
     // Prodotti Finiti - Livewire
@@ -170,18 +173,18 @@ Route::prefix('inventario')->group(function () {
         Route::get('/dashboard', [OcrController::class, 'dashboard'])->name('ocr.dashboard');
         Route::get('/upload', [OcrController::class, 'create'])->name('ocr.upload');
         Route::post('/upload', [OcrController::class, 'store'])->name('ocr.store');
-        
+
         Route::get('/{document}/validate', [OcrController::class, 'showValidation'])
             ->name('ocr.validate');
 
         Route::post('/{document}/validate', [OcrController::class, 'saveValidation'])
             ->name('ocr.validate.store');
-        
+
         Route::get('/{document}/pdf', [OcrController::class, 'showPdf'])->name('ocr.documents.pdf');
         Route::get('/{document}/download', [OcrController::class, 'downloadPdf'])->name('ocr.download');
         Route::delete('/{document}', [OcrController::class, 'destroy'])->name('ocr.destroy');
     });
-    
+
     // Gestione entità base (Società, Sedi, Magazzini)
     Route::prefix('gestione')->group(function () {
         Route::get('/societa', \App\Http\Livewire\GestioneSocieta::class)->name('gestione.societa');

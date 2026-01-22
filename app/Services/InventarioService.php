@@ -6,6 +6,7 @@ use App\Models\Articolo;
 use App\Models\ArticoloStorico;
 use App\Models\InventarioSessione;
 use App\Models\InventarioScansione;
+use App\Models\InventarioEvento;
 use App\Models\Sede;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -88,6 +89,19 @@ class InventarioService
             'data_scansione' => now()
         ]);
         
+        InventarioEvento::create([
+            'sessione_id' => $sessioneId,
+            'articolo_id' => $articoloId,
+            'sede_id' => $sessione->sede_id,
+            'user_id' => auth()->id(),
+            'tipo' => 'scansione',
+            'payload' => [
+                'azione' => $azione,
+                'quantita_trovata' => $quantitaTrovata,
+                'quantita_sistema' => $quantitaSistema,
+            ],
+        ]);
+
         Log::info("Scansione registrata", [
             'sessione_id' => $sessioneId,
             'articolo_id' => $articoloId,
@@ -102,15 +116,25 @@ class InventarioService
     /**
      * Elimina articoli non trovati durante l'inventario
      */
-    public function eliminaArticoliNonTrovati(int $sessioneId): array
+    public function eliminaArticoliNonTrovati(int $sessioneId, int $categoriaId = null): array
     {
         $sessione = InventarioSessione::findOrFail($sessioneId);
         
-        // Ottieni articoli trovati
-        $articoliTrovati = InventarioScansione::where('sessione_id', $sessioneId)
-            ->where('azione', 'trovato')
-            ->pluck('articolo_id')
-            ->toArray();
+        // Ottieni articoli trovati/eliminati
+        $articoliTrovatiQuery = InventarioScansione::where('sessione_id', $sessioneId)
+            ->where('azione', 'trovato');
+        $articoliEliminatiQuery = InventarioScansione::where('sessione_id', $sessioneId)
+            ->where('azione', 'eliminato');
+        if ($categoriaId) {
+            $articoliTrovatiQuery->whereHas('articolo', function ($q) use ($categoriaId) {
+                $q->where('categoria_merceologica_id', $categoriaId);
+            });
+            $articoliEliminatiQuery->whereHas('articolo', function ($q) use ($categoriaId) {
+                $q->where('categoria_merceologica_id', $categoriaId);
+            });
+        }
+        $articoliTrovati = $articoliTrovatiQuery->pluck('articolo_id')->toArray();
+        $articoliEliminati = $articoliEliminatiQuery->pluck('articolo_id')->toArray();
         
         // Ottieni tutti gli articoli da inventariare
         $query = Articolo::whereHas('giacenze', function ($q) use ($sessione) {
@@ -121,8 +145,20 @@ class InventarioService
         if ($sessione->categorie_permesse) {
             $query->whereIn('categoria_merceologica_id', $sessione->categorie_permesse);
         }
+        if ($categoriaId) {
+            $query->where('categoria_merceologica_id', $categoriaId);
+        }
         
-        $articoliDaEliminare = $query->whereNotIn('id', $articoliTrovati)->get();
+        $articoliDaEliminare = $query
+            ->where(function ($q) use ($articoliTrovati, $articoliEliminati) {
+                if (!empty($articoliTrovati)) {
+                    $q->whereNotIn('id', $articoliTrovati);
+                }
+                if (!empty($articoliEliminati)) {
+                    $q->orWhereIn('id', $articoliEliminati);
+                }
+            })
+            ->get();
         
         $eliminati = [];
         
@@ -142,6 +178,57 @@ class InventarioService
         ]);
         
         return $eliminati;
+    }
+
+    /**
+     * Allinea le quantità di sistema con le quantità trovate
+     */
+    public function allineaQuantitaScansionate(int $sessioneId, int $categoriaId = null): int
+    {
+        $sessione = InventarioSessione::findOrFail($sessioneId);
+
+        $scansioni = InventarioScansione::where('sessione_id', $sessioneId)
+            ->where('azione', 'trovato');
+        if ($categoriaId) {
+            $scansioni->whereHas('articolo', function ($q) use ($categoriaId) {
+                $q->where('categoria_merceologica_id', $categoriaId);
+            });
+        }
+        $scansioni = $scansioni->get(['articolo_id', 'quantita_trovata']);
+
+        $aggiornate = 0;
+
+        DB::transaction(function () use ($scansioni, $sessione, &$aggiornate) {
+            foreach ($scansioni as $scansione) {
+                if ($scansione->quantita_trovata === null) {
+                    continue;
+                }
+                $updated = DB::table('giacenze')
+                    ->where('articolo_id', $scansione->articolo_id)
+                    ->where('sede_id', $sessione->sede_id)
+                    ->update([
+                        'quantita_residua' => $scansione->quantita_trovata,
+                        'quantita' => $scansione->quantita_trovata,
+                        'ultimo_inventario_at' => now(),
+                    ]);
+                if ($updated) {
+                    $aggiornate += $updated;
+                }
+            }
+        });
+
+        Log::info("Allineamento quantità inventario", [
+            'sessione_id' => $sessioneId,
+            'righe_aggiornate' => $aggiornate
+        ]);
+
+        return $aggiornate;
+    }
+
+    public function finalizzaCategoria(int $sessioneId, int $categoriaId): void
+    {
+        $this->allineaQuantitaScansionate($sessioneId, $categoriaId);
+        $this->eliminaArticoliNonTrovati($sessioneId, $categoriaId);
     }
 
     /**
@@ -194,8 +281,9 @@ class InventarioService
         if (!$sessione->isAttiva()) {
             throw new \Exception("Sessione non attiva");
         }
-        
-        // Elimina articoli non trovati
+
+        // Allinea quantità trovate e rimuovi mancanti
+        $this->allineaQuantitaScansionate($sessioneId);
         $this->eliminaArticoliNonTrovati($sessioneId);
         
         // Chiudi sessione
@@ -232,6 +320,21 @@ class InventarioService
             'sessione_id' => $sessioneId
         ]);
         
+        return $sessione;
+    }
+
+    /**
+     * Riattiva una sessione di inventario
+     */
+    public function riattivaSessione(int $sessioneId): InventarioSessione
+    {
+        $sessione = InventarioSessione::findOrFail($sessioneId);
+        $sessione->riattiva();
+
+        Log::info("Sessione inventario riattivata", [
+            'sessione_id' => $sessioneId
+        ]);
+
         return $sessione;
     }
 

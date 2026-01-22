@@ -152,6 +152,17 @@ class InventarioScansione extends Model
     }
 
     /**
+     * Scope per parziali (quantità trovata < quantità sistema)
+     */
+    public function scopeParziali($query)
+    {
+        return $query->whereNotNull('quantita_trovata')
+            ->whereNotNull('quantita_sistema')
+            ->where('quantita_trovata', '>', 0)
+            ->whereColumn('quantita_trovata', '<', 'quantita_sistema');
+    }
+
+    /**
      * Scope per sessione
      */
     public function scopePerSessione($query, int $sessioneId)

@@ -192,6 +192,14 @@ class Articolo extends Model
         return $this->hasMany(Giacenza::class, 'articolo_id');
     }
 
+    /**
+     * Scansioni inventario associate all'articolo
+     */
+    public function scansioni(): HasMany
+    {
+        return $this->hasMany(InventarioScansione::class, 'articolo_id');
+    }
+
     public function giacenzePerSede(): HasMany
     {
         return $this->hasMany(GiacenzaSede::class, 'articolo_id');
@@ -609,7 +617,15 @@ class Articolo extends Model
      */
     public function getCodicePerEtichetta(): string
     {
-        return $this->getCodiceVO()->toEtichetta();
+        $vo = $this->getCodiceVO();
+        if (method_exists($vo, 'toEtichetta')) {
+            return $vo->toEtichetta();
+        }
+        if (method_exists($vo, 'toString')) {
+            return $vo->toString();
+        }
+
+        return $this->codice ?? '';
     }
     
     /**

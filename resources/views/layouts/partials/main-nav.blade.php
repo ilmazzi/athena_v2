@@ -27,101 +27,25 @@
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('articoli.index') }}">
-                         <span class="nav-icon">
+                    <span class="nav-icon">
                         <iconify-icon icon="solar:box-bold-duotone"></iconify-icon>
-                         </span>
+                    </span>
                     <span class="nav-text">Articoli</span>
                 </a>
             </li>
 
             <li class="nav-item">
-                <a class="nav-link" href="{{ route('magazzino.scarico') }}">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:trash-bin-minimalistic-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Scarico Magazzino</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('magazzino.scanner') }}">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:scanner-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Scanner Inventario</span>
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link" href="{{ route('amministrazione-magazzino.index') }}">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:chart-2-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Amministrazione Magazzini</span>
-                </a>
-            </li>
-
-        <li class="nav-item">
-            <a class="nav-link" href="{{ route('vetrine.index') }}">
-                     <span class="nav-icon">
-                    <iconify-icon icon="solar:shop-bold-duotone"></iconify-icon>
-                     </span>
-                <span class="nav-text">Vetrine</span>
-            </a>
-        </li>
-
-        @hasanyrole('admin|amministrazione')
-            <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarContiDeposito" data-bs-toggle="collapse" role="button"
-                   aria-expanded="false" aria-controls="sidebarContiDeposito">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:box-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Conti Deposito</span>
-                </a>
-                <div class="collapse" id="sidebarContiDeposito">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('conti-deposito.index') }}">
-                                <iconify-icon icon="solar:list-bold" class="me-1"></iconify-icon>
-                                Lista Depositi
-                            </a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('conti-deposito.resi') }}">
-                                <iconify-icon icon="solar:import-bold" class="me-1"></iconify-icon>
-                                Gestione Resi
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-        @endhasanyrole
-
-        <li class="nav-item">
-            <a class="nav-link" href="{{ route('movimentazioni-interne.index') }}">
-                     <span class="nav-icon">
-                    <iconify-icon icon="solar:transfer-horizontal-bold-duotone"></iconify-icon>
-                     </span>
-                <span class="nav-text">Movimentazioni Interne</span>
-            </a>
-        </li>
-
-            <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarAcquisti" data-bs-toggle="collapse" role="button"
                    aria-expanded="false" aria-controls="sidebarAcquisti">
-                         <span class="nav-icon">
+                    <span class="nav-icon">
                         <iconify-icon icon="solar:cart-large-2-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Acquisti</span>
+                    </span>
+                    <span class="nav-text">Carico Articoli</span>
                 </a>
                 <div class="collapse" id="sidebarAcquisti">
                     <ul class="nav sub-navbar-nav">
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('documenti-acquisto.nuovo') }}">Nuovo Documento</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Carico da Fornitore (DDT)</a>
                         </li>
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('documenti-acquisto.index') }}">Elenco Documenti</a>
@@ -131,11 +55,75 @@
             </li>
 
             <li class="nav-item">
+                <a class="nav-link" href="{{ route('magazzino.scarico') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:trash-bin-minimalistic-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text">Scarico Magazzino</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('movimentazioni-interne.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:transfer-horizontal-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text">Movimentazioni Interne</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('amministrazione-magazzino.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:chart-2-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text">Amministrazione Magazzini</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('vetrine.index') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:shop-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text">Vetrine</span>
+                </a>
+            </li>
+
+            @hasanyrole('admin|amministrazione')
+                <li class="nav-item">
+                    <a class="nav-link menu-arrow" href="#sidebarContiDeposito" data-bs-toggle="collapse" role="button"
+                       aria-expanded="false" aria-controls="sidebarContiDeposito">
+                        <span class="nav-icon">
+                            <iconify-icon icon="solar:box-bold-duotone"></iconify-icon>
+                        </span>
+                        <span class="nav-text">Conti Deposito</span>
+                    </a>
+                    <div class="collapse" id="sidebarContiDeposito">
+                        <ul class="nav sub-navbar-nav">
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link" href="{{ route('conti-deposito.index') }}">
+                                    <iconify-icon icon="solar:list-bold" class="me-1"></iconify-icon>
+                                    Lista Depositi
+                                </a>
+                            </li>
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link" href="{{ route('conti-deposito.resi') }}">
+                                    <iconify-icon icon="solar:import-bold" class="me-1"></iconify-icon>
+                                    Gestione Resi
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+            @endhasanyrole
+
+            <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarGiacenze" data-bs-toggle="collapse" role="button"
                    aria-expanded="false" aria-controls="sidebarGiacenze">
-                         <span class="nav-icon">
+                    <span class="nav-icon">
                         <iconify-icon icon="solar:calculator-bold-duotone"></iconify-icon>
-                         </span>
+                    </span>
                     <span class="nav-text">Giacenze</span>
                 </a>
                 <div class="collapse" id="sidebarGiacenze">
@@ -156,9 +144,9 @@
             <li class="nav-item">
                 <a class="nav-link menu-arrow" href="#sidebarProduzione" data-bs-toggle="collapse" role="button"
                    aria-expanded="false" aria-controls="sidebarProduzione">
-                         <span class="nav-icon">
+                    <span class="nav-icon">
                         <iconify-icon icon="solar:box-minimalistic-bold-duotone"></iconify-icon>
-                         </span>
+                    </span>
                     <span class="nav-text">Produzione</span>
                 </a>
                 <div class="collapse" id="sidebarProduzione">
@@ -168,77 +156,6 @@
                         </li>
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('prodotti-finiti.nuovo') }}">Nuovo Prodotto</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-
-            {{-- ============================================ --}}
-            {{-- DOCUMENTI --}}
-            {{-- ============================================ --}}
-            <li class="menu-title mt-2">Documenti</li>
-
-            <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarOCR" data-bs-toggle="collapse" role="button"
-                   aria-expanded="false" aria-controls="sidebarOCR">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:document-text-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">OCR</span>
-                </a>
-                <div class="collapse" id="sidebarOCR">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('ocr.dashboard') }}">Dashboard OCR</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('ocr.upload') }}">Carica PDF</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Carica Batch</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="{{ route('ocr.index') }}">Documenti</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarDDT" data-bs-toggle="collapse" role="button"
-                   aria-expanded="false" aria-controls="sidebarDDT">
-                         <span class="nav-icon">
-                        <iconify-icon icon="solar:delivery-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">DDT</span>
-                </a>
-                <div class="collapse" id="sidebarDDT">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Elenco DDT</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Nuovo DDT</a>
-                        </li>
-                    </ul>
-                </div>
-            </li>
-
-            <li class="nav-item">
-                <a class="nav-link menu-arrow" href="#sidebarFatture" data-bs-toggle="collapse" role="button"
-                   aria-expanded="false" aria-controls="sidebarFatture">
-                         <span class="nav-icon">
-                              <iconify-icon icon="solar:bill-list-bold-duotone"></iconify-icon>
-                         </span>
-                    <span class="nav-text">Fatture</span>
-                </a>
-                <div class="collapse" id="sidebarFatture">
-                    <ul class="nav sub-navbar-nav">
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Elenco Fatture</a>
-                        </li>
-                        <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Nuova Fattura</a>
                         </li>
                     </ul>
                 </div>

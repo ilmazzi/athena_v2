@@ -15,6 +15,7 @@ use App\Models\ArticoloStoricoCosto;
 use App\Exports\StatisticheMagazzinoExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 /**
@@ -79,6 +80,9 @@ class AmministrazioneMagazzinoDashboard extends Component
     public $limiteFornitori = 10; // Numero massimo di fornitori da mostrare di default
     public $mostraTutteMarche = false; // Per limitare le marche visibili
     public $limiteMarche = 10; // Numero massimo di marche da mostrare di default
+
+    // Cache statistiche
+    public $statisticheCachedAt = null;
     
 
     protected $queryString = [
@@ -206,6 +210,13 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     public function getStatisticheProperty()
     {
+        $cacheKey = $this->getStatisticheCacheKey();
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached)) {
+            $this->statisticheCachedAt = $cached['cached_at'] ?? null;
+            return $cached['data'] ?? [];
+        }
+
         $stats = [
             'totale_articoli' => 0,
             'totale_valore' => 0,
@@ -218,15 +229,15 @@ class AmministrazioneMagazzinoDashboard extends Component
             'per_marca' => [],
         ];
 
-        // Query base articoli giacenti
+        // Query base articoli giacenti (processata a chunk per evitare OOM)
         $articoliQuery = Articolo::with([
-            'giacenza', 
+            'giacenza',
+            'categoriaMerceologica',
             'fatturaDettaglio.fattura.fornitore',
             'ddtDettaglio.ddt.fornitore'
-        ])
-            ->whereHas('giacenza', function ($q) {
-                $q->where('quantita_residua', '>', 0);
-            });
+        ])->whereHas('giacenza', function ($q) {
+            $q->where('quantita_residua', '>', 0);
+        });
 
         // Applica filtri se presenti
         if ($this->sedeId) {
@@ -235,97 +246,103 @@ class AmministrazioneMagazzinoDashboard extends Component
             });
         }
 
-        $articoli = $articoliQuery->get();
+        $articoliQuery->orderBy('id')->chunk(1000, function ($articoli) use (&$stats) {
+            foreach ($articoli as $articolo) {
+                $qta = $articolo->giacenza->quantita_residua ?? 0;
+                $costo = $articolo->prezzo_acquisto ?? 0;
+                $valore = $qta * $costo;
 
-        foreach ($articoli as $articolo) {
-            $qta = $articolo->giacenza->quantita_residua ?? 0;
-            $costo = $articolo->prezzo_acquisto ?? 0;
-            $valore = $qta * $costo;
-
-            $stats['totale_articoli']++;
-            $stats['totale_quantita'] += $qta;
-            
-            if ($costo > 0) {
-                $stats['totale_valore'] += $valore;
-            } else {
-                $stats['articoli_senza_costo']++;
-            }
-
-            // Per sede
-            $sedeId = $articolo->giacenza->sede_id ?? 'n/a';
-            if (!isset($stats['per_sede'][$sedeId])) {
-                $stats['per_sede'][$sedeId] = [
-                    'nome' => $articolo->giacenza->sede->nome ?? 'N/A',
-                    'articoli' => 0,
-                    'quantita' => 0,
-                    'valore' => 0,
-                ];
-            }
-            $stats['per_sede'][$sedeId]['articoli']++;
-            $stats['per_sede'][$sedeId]['quantita'] += $qta;
-            $stats['per_sede'][$sedeId]['valore'] += $valore;
-
-            // Per fornitore - preferisci fattura, altrimenti DDT
-            $fornitore = $articolo->fatturaDettaglio->first()?->fattura?->fornitore 
-                        ?? $articolo->ddtDettaglio->first()?->ddt?->fornitore;
-            $fornitoreId = $fornitore ? $fornitore->id : 'n/a';
-            $fornitoreNome = $fornitore ? $fornitore->ragione_sociale : 'Senza Fornitore';
-            
-            if (!isset($stats['per_fornitore'][$fornitoreId])) {
-                $stats['per_fornitore'][$fornitoreId] = [
-                    'nome' => $fornitoreNome,
-                    'articoli' => 0,
-                    'quantita' => 0,
-                    'valore' => 0,
-                ];
-            }
-            $stats['per_fornitore'][$fornitoreId]['articoli']++;
-            $stats['per_fornitore'][$fornitoreId]['quantita'] += $qta;
-            $stats['per_fornitore'][$fornitoreId]['valore'] += $valore;
-
-            // Per categoria
-            $categoriaId = $articolo->categoria_merceologica_id ?? 'n/a';
-            if (!isset($stats['per_categoria'][$categoriaId])) {
-                $stats['per_categoria'][$categoriaId] = [
-                    'nome' => $articolo->categoriaMerceologica->nome ?? 'N/A',
-                    'articoli' => 0,
-                    'quantita' => 0,
-                    'valore' => 0,
-                ];
-            }
-            $stats['per_categoria'][$categoriaId]['articoli']++;
-            $stats['per_categoria'][$categoriaId]['quantita'] += $qta;
-            $stats['per_categoria'][$categoriaId]['valore'] += $valore;
-
-            // Per marca (estratto da caratteristiche JSON)
-            $marca = null;
-            if ($articolo->caratteristiche) {
-                $caratteristiche = is_string($articolo->caratteristiche) 
-                    ? json_decode($articolo->caratteristiche, true) 
-                    : $articolo->caratteristiche;
+                $stats['totale_articoli']++;
+                $stats['totale_quantita'] += $qta;
                 
-                if (is_array($caratteristiche)) {
-                    // Cerca 'marca' o 'brand' nelle caratteristiche (case insensitive)
-                    $marca = $caratteristiche['marca'] ?? $caratteristiche['Marca'] ?? 
-                             $caratteristiche['brand'] ?? $caratteristiche['Brand'] ?? null;
+                if ($costo > 0) {
+                    $stats['totale_valore'] += $valore;
+                } else {
+                    $stats['articoli_senza_costo']++;
                 }
+
+                // Per sede
+                $sedeId = $articolo->giacenza->sede_id ?? 'n/a';
+                if (!isset($stats['per_sede'][$sedeId])) {
+                    $stats['per_sede'][$sedeId] = [
+                        'nome' => $articolo->giacenza->sede->nome ?? 'N/A',
+                        'articoli' => 0,
+                        'quantita' => 0,
+                        'valore' => 0,
+                    ];
+                }
+                $stats['per_sede'][$sedeId]['articoli']++;
+                $stats['per_sede'][$sedeId]['quantita'] += $qta;
+                $stats['per_sede'][$sedeId]['valore'] += $valore;
+
+                // Per fornitore - preferisci fattura, altrimenti DDT
+                $fornitore = $articolo->fatturaDettaglio->first()?->fattura?->fornitore 
+                            ?? $articolo->ddtDettaglio->first()?->ddt?->fornitore;
+                $fornitoreId = $fornitore ? $fornitore->id : 'n/a';
+                $fornitoreNome = $fornitore ? $fornitore->ragione_sociale : 'Senza Fornitore';
+                
+                if (!isset($stats['per_fornitore'][$fornitoreId])) {
+                    $stats['per_fornitore'][$fornitoreId] = [
+                        'nome' => $fornitoreNome,
+                        'articoli' => 0,
+                        'quantita' => 0,
+                        'valore' => 0,
+                    ];
+                }
+                $stats['per_fornitore'][$fornitoreId]['articoli']++;
+                $stats['per_fornitore'][$fornitoreId]['quantita'] += $qta;
+                $stats['per_fornitore'][$fornitoreId]['valore'] += $valore;
+
+                // Per categoria
+                $categoriaId = $articolo->categoria_merceologica_id ?? 'n/a';
+                if (!isset($stats['per_categoria'][$categoriaId])) {
+                    $stats['per_categoria'][$categoriaId] = [
+                        'nome' => $articolo->categoriaMerceologica->nome ?? 'N/A',
+                        'articoli' => 0,
+                        'quantita' => 0,
+                        'valore' => 0,
+                    ];
+                }
+                $stats['per_categoria'][$categoriaId]['articoli']++;
+                $stats['per_categoria'][$categoriaId]['quantita'] += $qta;
+                $stats['per_categoria'][$categoriaId]['valore'] += $valore;
+
+                // Per marca (estratto da caratteristiche JSON)
+                $marca = null;
+                if ($articolo->caratteristiche) {
+                    $caratteristiche = is_string($articolo->caratteristiche) 
+                        ? json_decode($articolo->caratteristiche, true) 
+                        : $articolo->caratteristiche;
+                    
+                    if (is_array($caratteristiche)) {
+                        // Cerca 'marca' o 'brand' nelle caratteristiche (case insensitive)
+                        $marca = $caratteristiche['marca'] ?? $caratteristiche['Marca'] ?? 
+                                 $caratteristiche['brand'] ?? $caratteristiche['Brand'] ?? null;
+                    }
+                }
+                
+                $marcaId = $marca ? strtolower(trim($marca)) : 'n/a';
+                $marcaNome = $marca ? trim($marca) : 'Senza Marca';
+                
+                if (!isset($stats['per_marca'][$marcaId])) {
+                    $stats['per_marca'][$marcaId] = [
+                        'nome' => $marcaNome,
+                        'articoli' => 0,
+                        'quantita' => 0,
+                        'valore' => 0,
+                    ];
+                }
+                $stats['per_marca'][$marcaId]['articoli']++;
+                $stats['per_marca'][$marcaId]['quantita'] += $qta;
+                $stats['per_marca'][$marcaId]['valore'] += $valore;
             }
-            
-            $marcaId = $marca ? strtolower(trim($marca)) : 'n/a';
-            $marcaNome = $marca ? trim($marca) : 'Senza Marca';
-            
-            if (!isset($stats['per_marca'][$marcaId])) {
-                $stats['per_marca'][$marcaId] = [
-                    'nome' => $marcaNome,
-                    'articoli' => 0,
-                    'quantita' => 0,
-                    'valore' => 0,
-                ];
-            }
-            $stats['per_marca'][$marcaId]['articoli']++;
-            $stats['per_marca'][$marcaId]['quantita'] += $qta;
-            $stats['per_marca'][$marcaId]['valore'] += $valore;
-        }
+        });
+
+        $this->statisticheCachedAt = now()->format('d/m/Y H:i');
+        Cache::put($cacheKey, [
+            'cached_at' => $this->statisticheCachedAt,
+            'data' => $stats,
+        ], now()->addMinutes(15));
 
         return $stats;
     }
@@ -338,6 +355,19 @@ class AmministrazioneMagazzinoDashboard extends Component
     {
         $this->reset(['sedeId', 'fornitoreId', 'categoriaId', 'search', 'soloSenzaCosto']);
         $this->soloGiacenti = true;
+    }
+
+    public function refreshStatistiche()
+    {
+        Cache::forget($this->getStatisticheCacheKey());
+        $this->statisticheCachedAt = null;
+    }
+
+    private function getStatisticheCacheKey(): string
+    {
+        return 'amministrazione_magazzino_statistiche_' . md5(json_encode([
+            'sedeId' => $this->sedeId,
+        ]));
     }
 
     public function apriFatturaModal($articoloId = null)

@@ -13,6 +13,7 @@ use App\Models\Fornitore;
 use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CaricoDocumento extends Component
 {
@@ -35,6 +36,7 @@ class CaricoDocumento extends Component
     public $partitaIva;
     public $importoTotale;
     public $confidenceScore = 0;
+    public $saveError = null;
 
     // Articoli
     public $articoli = [];
@@ -45,16 +47,28 @@ class CaricoDocumento extends Component
     public $categorie = [];
 
     // Regole di validazione (Livewire 2)
-    protected $rules = [
-        'pdf' => 'required|file|mimes:pdf|max:10240',
-        'tipoDocumento' => 'required|in:ddt,fattura',
-        'numeroDocumento' => 'required|string|max:50',
-        'dataDocumento' => 'required|date',
-        'sedeId' => 'required|exists:sedi,id',
-        'categoriaId' => 'required|exists:categorie_merceologiche,id',
-        'articoli.*.codice' => 'required|string|max:50',
-        'articoli.*.quantita' => 'required|integer|min:1',
-    ];
+    protected function rules(): array
+    {
+        $base = [
+            'tipoDocumento' => 'required|in:ddt,fattura',
+            'numeroDocumento' => 'required|string|max:50',
+            'dataDocumento' => 'required|date',
+            'sedeId' => 'required|exists:sedi,id',
+            'categoriaId' => 'required|exists:categorie_merceologiche,id',
+            'articoli.*.codice' => 'required|string|max:50',
+            'articoli.*.quantita' => 'required|integer|min:1',
+            'articoli.*.categoria_id' => 'required|exists:categorie_merceologiche,id',
+            'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
+            'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
+            'importoTotale' => 'nullable|numeric|min:0',
+        ];
+
+        if ($this->step === 1) {
+            $base['pdf'] = 'required|file|mimes:pdf|max:10240';
+        }
+
+        return $base;
+    }
 
     public function mount()
     {
@@ -86,13 +100,13 @@ class CaricoDocumento extends Component
             // Vai allo step 2
             $this->step = 2;
 
-            $this->dispatchBrowserEvent('swal:success', [
+            $this->dispatch('swal:success', [
                 'title' => 'OCR Completato!',
                 'text' => 'Documento elaborato con successo. Controlla i dati estratti.',
             ]);
 
         } catch (\Exception $e) {
-            $this->dispatchBrowserEvent('swal:error', [
+            $this->dispatch('swal:error', [
                 'title' => 'Errore OCR',
                 'text' => $e->getMessage(),
             ]);
@@ -119,6 +133,11 @@ class CaricoDocumento extends Component
             $articoloEsistente = Articolo::where('codice', $articolo['codice'] ?? '')->first();
             $this->articoli[$index]['articolo_id'] = $articoloEsistente?->id;
             $this->articoli[$index]['esiste'] = !is_null($articoloEsistente);
+            $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
+            $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
+            $this->articoli[$index]['categoria_id'] = $articoloEsistente?->categoria_merceologica_id
+                ?? $articolo['categoria_id']
+                ?? $this->categoriaId;
         }
     }
 
@@ -131,11 +150,30 @@ class CaricoDocumento extends Component
             'codice' => '',
             'descrizione' => '',
             'quantita' => 1,
+            'prezzo_unitario' => null,
+            'prezzo_totale' => null,
             'numero_seriale' => '',
             'ean' => '',
             'articolo_id' => null,
             'esiste' => false,
+            'categoria_id' => $this->categoriaId,
         ];
+    }
+
+    public function updatedCategoriaId()
+    {
+        if (empty($this->categoriaId) || empty($this->articoli)) {
+            return;
+        }
+
+        foreach ($this->articoli as $index => $articolo) {
+            $this->articoli[$index]['categoria_id'] = $this->categoriaId;
+        }
+
+        $this->dispatch('swal:success', [
+            'title' => 'Magazzino aggiornato',
+            'text' => 'Tutti gli articoli sono stati impostati su questo magazzino.',
+        ]);
     }
 
     /**
@@ -152,6 +190,7 @@ class CaricoDocumento extends Component
      */
     public function salvaCarico()
     {
+        $this->saveError = null;
         // Validazione Livewire 2
         $this->validate();
 
@@ -174,7 +213,7 @@ class CaricoDocumento extends Component
                     throw new \Exception("⚠️ DUPLICATO: Esiste già un DDT n. {$this->numeroDocumento}/{$anno} per questo fornitore (ID: {$documentoEsistente->id}). Controlla prima di procedere.");
                 }
                 
-                $documento = \App\Models\Ddt::create([
+                $ddtData = [
                     'numero' => $this->numeroDocumento,
                     'anno' => $anno,
                     'data_documento' => $this->dataDocumento,
@@ -185,9 +224,12 @@ class CaricoDocumento extends Component
                     'ocr_document_id' => $this->ocrDocumentId,
                     'stato' => 'caricato',
                     'data_carico' => now(),
-                    'user_carico_id' => auth()->id(),
                     'note' => 'Caricato tramite OCR',
-                ]);
+                ];
+                if (Schema::hasColumn('ddt', 'user_carico_id')) {
+                    $ddtData['user_carico_id'] = auth()->id();
+                }
+                $documento = \App\Models\Ddt::create($ddtData);
             } else {
                 $documentoEsistente = \App\Models\Fattura::where('numero', $this->numeroDocumento)
                     ->where('anno', $anno)
@@ -198,7 +240,7 @@ class CaricoDocumento extends Component
                     throw new \Exception("⚠️ DUPLICATO: Esiste già una Fattura n. {$this->numeroDocumento}/{$anno} per questo fornitore (ID: {$documentoEsistente->id}). Controlla prima di procedere.");
                 }
                 
-                $documento = \App\Models\Fattura::create([
+                $fatturaData = [
                     'numero' => $this->numeroDocumento,
                     'anno' => $anno,
                     'data_documento' => $this->dataDocumento,
@@ -211,17 +253,27 @@ class CaricoDocumento extends Component
                     'totale' => $this->importoTotale,
                     'stato' => 'caricata',
                     'data_carico' => now(),
-                    'user_carico_id' => auth()->id(),
                     'note' => 'Caricata tramite OCR',
-                ]);
+                ];
+                if (Schema::hasColumn('fatture', 'user_carico_id')) {
+                    $fatturaData['user_carico_id'] = auth()->id();
+                }
+                $documento = \App\Models\Fattura::create($fatturaData);
             }
 
             // 2. Processa articoli
             foreach ($this->articoli as $articolo) {
+                $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
+                $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
+                if ($prezzoUnitario !== null && (!$prezzoTotale || $prezzoTotale <= 0)) {
+                    $prezzoTotale = $prezzoUnitario * ($articolo['quantita'] ?? 1);
+                }
+                $articoloCategoriaId = $articolo['categoria_id'] ?? $this->categoriaId;
+
                 // Crea o aggiorna articolo
                 if (empty($articolo['articolo_id'])) {
                     // Genera codice progressivo per magazzino
-                    $codiceService = app(\App\Domain\Magazzino\Services\CodiceService::class);
+                    $codiceService = app(\App\Services\CodiceService::class);
                     $codiceVO = $codiceService->prossimoCodiceDisponibile($this->categoriaId);
                     
                     // Prepara caratteristiche JSON con referenza fornitore
@@ -236,11 +288,18 @@ class CaricoDocumento extends Component
                     $nuovoArticolo = Articolo::create([
                         'codice' => $codiceVO->toString(), // Es: "2-123"
                         'descrizione' => $articolo['descrizione'] ?? '',
-                        'categoria_merceologica_id' => $this->categoriaId,
+                        'categoria_merceologica_id' => $articoloCategoriaId,
+                        'sede_id' => $this->sedeId,
                         'fornitore_id' => $this->fornitoreId,
+                        'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
                         'ean' => $articolo['ean'] ?? null,
                         'numero_seriale' => $articolo['numero_seriale'] ?? null,
                         'caratteristiche' => json_encode($caratteristiche),
+                        'stato' => 'disponibile',
+                        'stato_articolo' => 'disponibile',
+                        'tipo_carico' => $this->tipoDocumento,
+                        'numero_documento_carico' => $this->numeroDocumento,
+                        'data_carico' => $this->dataDocumento,
                     ]);
                     $articoloId = $nuovoArticolo->id;
                 } else {
@@ -257,6 +316,8 @@ class CaricoDocumento extends Component
                     'quantita' => $articolo['quantita'],
                     'numero_seriale' => $articolo['numero_seriale'] ?? null,
                     'ean' => $articolo['ean'] ?? null,
+                    'prezzo_unitario' => $prezzoUnitario,
+                    'prezzo_totale' => $prezzoTotale,
                     'verificato' => true,
                     'creato_nuovo' => empty($articolo['articolo_id']),
                 ]);
@@ -274,8 +335,16 @@ class CaricoDocumento extends Component
                         'fattura_id' => $documento->id,
                         'articolo_id' => $articoloId,
                         'quantita' => $articolo['quantita'],
+                        'prezzo_unitario' => $prezzoUnitario,
+                        'totale_riga' => $prezzoTotale,
+                        'codice_articolo' => $articolo['codice'] ?? null,
                         'descrizione' => $articolo['descrizione'] ?? '',
+                        'caricato' => true,
                     ]);
+                }
+
+                if ($this->tipoDocumento === 'fattura' && $prezzoUnitario !== null) {
+                    Articolo::where('id', $articoloId)->update(['prezzo_acquisto' => $prezzoUnitario]);
                 }
 
                 // Aggiorna/Crea giacenza
@@ -329,6 +398,8 @@ class CaricoDocumento extends Component
 
         } catch (\Exception $e) {
             DB::rollBack();
+
+            $this->saveError = $e->getMessage();
             
             $this->dispatch('swal:error',
                 title: 'Errore Salvataggio',
@@ -351,6 +422,20 @@ class CaricoDocumento extends Component
         return view('livewire.carico-documento', [
             'title' => 'Carico Documenti'
         ]);
+    }
+
+    protected function normalizePrice($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(['.', ','], ['', '.'], (string) $value);
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+
+        return (float) $normalized;
     }
 }
 

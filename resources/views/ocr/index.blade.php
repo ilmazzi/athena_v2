@@ -13,91 +13,63 @@
             </a>
         </div>
 
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">Elenco documenti</h5>
-                <span class="text-muted small">Totale: {{ $documents->total() }}</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-nowrap mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Documento</th>
-                                <th class="text-center">Tipo</th>
-                                <th class="text-center">Confidence</th>
-                                <th class="text-center">Stato</th>
-                                <th>Fornitore</th>
-                                <th>Caricato il</th>
-                                <th class="text-end">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($documents as $document)
+            <div class="card-body">
+                @if($documents->count())
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
                                 <tr>
-                                    <td class="text-truncate" style="max-width: 220px;">
-                                        <div class="fw-semibold">{{ $document->pdf_original_name }}</div>
-                                        <small class="text-muted">#{{ $document->id }}</small>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-light-primary text-primary">{{ strtoupper($document->tipo) }}</span>
-                                    </td>
-                                    <td class="text-center">
-                                        {{ $document->confidence_score ? number_format($document->confidence_score, 1) . '%' : '—' }}
-                                    </td>
-                                    <td class="text-center">
-                                        @php
-                                            $statusColors = [
-                                                'processing' => 'info',
-                                                'completed' => 'primary',
-                                                'validated' => 'success',
-                                                'rejected' => 'danger',
-                                                'pending' => 'warning',
-                                            ];
-                                            $statusLabel = strtoupper($document->status ?? 'pending');
-                                            $color = $statusColors[$document->status] ?? 'secondary';
-                                        @endphp
-                                        <span class="badge bg-light-{{ $color }} text-{{ $color }}">{{ $statusLabel }}</span>
-                                    </td>
-                                    <td>
-                                        {{ $document->fornitore->ragione_sociale ?? '—' }}
-                                    </td>
-                                    <td>
-                                        <small class="text-muted">{{ $document->created_at?->format('d/m/Y H:i') }}</small>
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <a href="{{ route('ocr.validate', $document) }}" class="btn btn-outline-secondary" title="Valida">
-                                                <iconify-icon icon="solar:edit-bold"></iconify-icon>
-                                            </a>
-                                            <a href="{{ route('ocr.documents.pdf', $document) }}" target="_blank" class="btn btn-outline-primary" title="Apri PDF">
-                                                <iconify-icon icon="solar:document-bold"></iconify-icon>
-                                            </a>
-                                            <a href="{{ route('ocr.download', $document) }}" class="btn btn-outline-success" title="Scarica">
-                                                <iconify-icon icon="solar:download-bold"></iconify-icon>
-                                            </a>
-                                        </div>
-                                    </td>
+                                    <th>ID</th>
+                                    <th>Tipo</th>
+                                    <th>Fornitore</th>
+                                    <th>Numero</th>
+                                    <th>Data</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Azioni</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">
-                                        Nessun documento caricato.
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                @foreach($documents as $document)
+                                    <tr>
+                                        <td>#{{ $document->id }}</td>
+                                        <td>{{ strtoupper($document->tipo) }}</td>
+                                        <td>{{ $document->fornitore->ragione_sociale ?? '-' }}</td>
+                                        <td>{{ $document->ocr_structured_data['numero'] ?? '-' }}</td>
+                                        <td>{{ $document->ocr_structured_data['data'] ?? '-' }}</td>
+                                        <td>{{ $document->status }}</td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ route('ocr.validate', $document) }}" class="btn btn-outline-secondary" title="Valida">
+                                                    <iconify-icon icon="solar:edit-bold"></iconify-icon>
+                                                </a>
+                                                <a href="{{ route('ocr.documents.pdf', $document) }}" target="_blank" class="btn btn-outline-primary" title="Apri PDF">
+                                                    <iconify-icon icon="solar:document-bold"></iconify-icon>
+                                                </a>
+                                                <a href="{{ route('ocr.download', $document) }}" class="btn btn-outline-success" title="Scarica">
+                                                    <iconify-icon icon="solar:download-bold"></iconify-icon>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="text-center py-4">
+                        <p class="text-muted mb-0">Nessun documento presente</p>
+                    </div>
+                @endif
             </div>
-            @if($documents->hasPages())
-                <div class="card-footer">
-                    {{ $documents->links() }}
-                </div>
-            @endif
+        </div>
+
+        <div class="mt-3">
+            {{ $documents->links() }}
         </div>
     </div>
 @endsection
-
-
-

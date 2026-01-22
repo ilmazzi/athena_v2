@@ -125,6 +125,16 @@ class InventarioSessione extends Model
     }
 
     /**
+     * Riattiva la sessione
+     */
+    public function riattiva(): void
+    {
+        $this->stato = 'attiva';
+        $this->data_fine = null;
+        $this->save();
+    }
+
+    /**
      * Verifica se la sessione è attiva
      */
     public function isAttiva(): bool

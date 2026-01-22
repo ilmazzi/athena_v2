@@ -7,7 +7,6 @@ use App\Services\OcrService;
 use App\Models\Fornitore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class OcrController extends Controller
 {
@@ -18,9 +17,6 @@ class OcrController extends Controller
         $this->ocrService = $ocrService;
     }
 
-    /**
-     * Mostra pagina principale OCR
-     */
     public function index()
     {
         $documents = OcrDocument::with(['fornitore', 'validator'])
@@ -30,21 +26,23 @@ class OcrController extends Controller
         return view('ocr.index', compact('documents'));
     }
 
-    /**
-     * Mostra form upload
-     */
+    public function dashboard()
+    {
+        $pending = OcrDocument::pending()->latest()->take(10)->get();
+        $recentValidated = OcrDocument::validated()->latest()->take(10)->get();
+
+        return view('ocr.dashboard', compact('pending', 'recentValidated'));
+    }
+
     public function create()
     {
         return view('ocr.upload');
     }
 
-    /**
-     * Upload e processo PDF
-     */
     public function store(Request $request)
     {
         $request->validate([
-            'pdf' => 'required|file|mimes:pdf|max:10240', // max 10MB
+            'pdf' => 'required|file|mimes:pdf|max:10240',
             'tipo' => 'required|in:ddt,fattura',
         ]);
 
@@ -54,7 +52,6 @@ class OcrController extends Controller
                 $request->tipo
             );
 
-            // Se è una richiesta AJAX (batch upload), ritorna JSON
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => true,
@@ -69,13 +66,11 @@ class OcrController extends Controller
                 ], 201);
             }
 
-            // Altrimenti redirect normale (upload singolo)
             return redirect()
                 ->route('ocr.validate', $document)
                 ->with('success', 'PDF caricato e processato con successo!');
-                
+
         } catch (\Exception $e) {
-            // Se è AJAX, ritorna errore JSON
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -83,29 +78,20 @@ class OcrController extends Controller
                 ], 422);
             }
 
-            // Altrimenti redirect con errore
             return back()
                 ->withInput()
                 ->with('error', 'Errore durante il processing: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Mostra interfaccia validazione
-     */
     public function showValidation(OcrDocument $document)
     {
         $document->load(['fornitore', 'corrections']);
-        
-        // Fornitori per dropdown
         $fornitori = Fornitore::orderBy('ragione_sociale')->get();
 
         return view('ocr.validate-livewire', compact('document', 'fornitori'));
     }
 
-    /**
-     * Salva validazione utente
-     */
     public function saveValidation(Request $request, OcrDocument $document)
     {
         $validatedData = $request->validate([
@@ -120,33 +106,29 @@ class OcrController extends Controller
             'articoli.*.codice' => 'required_with:articoli|string|max:100',
             'articoli.*.descrizione' => 'nullable|string|max:500',
             'articoli.*.quantita' => 'required_with:articoli|numeric|min:0',
+            'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
+            'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
         ]);
 
         try {
-            // Salva le correzioni per i campi principali
             $this->ocrService->validateAndSave(
                 $document,
                 $validatedData,
                 Auth::id()
             );
 
-            // Aggiorna documento con dati validati
             $structuredData = $document->ocr_structured_data ?? [];
-            
-            // Aggiorna campi principali
             $structuredData['numero'] = $validatedData['numero'];
             $structuredData['data'] = $validatedData['data'];
             $structuredData['partita_iva'] = $validatedData['partita_iva'] ?? null;
             $structuredData['importo_totale'] = $validatedData['importo_totale'] ?? null;
             $structuredData['quantita_articoli'] = $validatedData['quantita_articoli'] ?? null;
-            
-            // Aggiorna articoli se presenti
+
             if (!empty($validatedData['articoli'])) {
                 $structuredData['articoli'] = array_values($validatedData['articoli']);
                 $structuredData['numero_articoli'] = count($validatedData['articoli']);
             }
 
-            // Aggiorna documento
             $document->update([
                 'fornitore_id' => $validatedData['fornitore_id'],
                 'ocr_structured_data' => $structuredData,
@@ -158,9 +140,9 @@ class OcrController extends Controller
 
             return redirect()
                 ->route('ocr.dashboard')
-                ->with('success', 'Documento validato con successo! ' . 
+                ->with('success', 'Documento validato con successo! ' .
                     (isset($structuredData['numero_articoli']) ? $structuredData['numero_articoli'] . ' articoli salvati.' : ''));
-                
+
         } catch (\Exception $e) {
             return back()
                 ->withInput()
@@ -168,9 +150,6 @@ class OcrController extends Controller
         }
     }
 
-    /**
-     * Riprocessa documento
-     */
     public function reprocess(OcrDocument $document)
     {
         try {
@@ -179,16 +158,13 @@ class OcrController extends Controller
             return redirect()
                 ->route('ocr.validate', $document)
                 ->with('success', 'Documento riprocessato con successo!');
-                
+
         } catch (\Exception $e) {
             return back()
                 ->with('error', 'Errore durante il riprocessamento: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Visualizza PDF
-     */
     public function showPdf(OcrDocument $document)
     {
         $pdfPath = $document->getPdfFullPath();
@@ -200,9 +176,6 @@ class OcrController extends Controller
         return response()->file($pdfPath);
     }
 
-    /**
-     * Download PDF
-     */
     public function downloadPdf(OcrDocument $document)
     {
         $pdfPath = $document->getPdfFullPath();
@@ -214,77 +187,12 @@ class OcrController extends Controller
         return response()->download($pdfPath, $document->pdf_original_name);
     }
 
-    /**
-     * Elimina documento
-     */
     public function destroy(OcrDocument $document)
     {
-        try {
-            // Elimina PDF fisico
-            if (Storage::exists($document->pdf_path)) {
-                Storage::delete($document->pdf_path);
-            }
+        $document->delete();
 
-            // Elimina record (cascade eliminerà anche corrections)
-            $document->delete();
-
-            return redirect()
-                ->route('ocr.index')
-                ->with('success', 'Documento eliminato con successo!');
-                
-        } catch (\Exception $e) {
-            return back()
-                ->with('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * API: Statistiche OCR
-     */
-    public function stats()
-    {
-        $stats = [
-            'totali' => OcrDocument::count(),
-            'pending' => OcrDocument::pending()->count(),
-            'processing' => OcrDocument::processing()->count(),
-            'completed' => OcrDocument::completed()->count(),
-            'validated' => OcrDocument::validated()->count(),
-            'rejected' => OcrDocument::where('status', 'rejected')->count(),
-            'avg_confidence' => OcrDocument::completed()->avg('confidence_score'),
-            'ddt' => OcrDocument::ddt()->count(),
-            'fatture' => OcrDocument::fattura()->count(),
-        ];
-
-        return response()->json($stats);
-    }
-
-    /**
-     * Dashboard OCR
-     */
-    public function dashboard()
-    {
-        $pendingDocuments = OcrDocument::pending()
-            ->orWhere('status', 'completed')
-            ->whereNull('validated_by')
-            ->latest()
-            ->limit(10)
-            ->get();
-
-        $recentValidated = OcrDocument::validated()
-            ->with(['validator', 'fornitore'])
-            ->latest('validated_at')
-            ->limit(5)
-            ->get();
-
-        $stats = [
-            'totali' => OcrDocument::count(),
-            'da_validare' => OcrDocument::completed()->whereNull('validated_by')->count(),
-            'validati_oggi' => OcrDocument::validated()
-                ->whereDate('validated_at', today())
-                ->count(),
-            'avg_confidence' => round(OcrDocument::completed()->avg('confidence_score'), 2),
-        ];
-
-        return view('ocr.dashboard', compact('pendingDocuments', 'recentValidated', 'stats'));
+        return redirect()
+            ->route('ocr.index')
+            ->with('success', 'Documento eliminato con successo.');
     }
 }

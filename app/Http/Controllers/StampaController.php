@@ -72,7 +72,8 @@ class StampaController extends Controller
                 $articolo, 
                 $datiStampa['prezzo'], 
                 $datiStampa['formato_prezzo'],
-                $stampante ? $stampante->id : null
+                $stampante ? $stampante->id : null,
+                $datiStampa['layout'] ?? 'standard'
             );
             
             if (!$stampante) {

@@ -227,6 +227,18 @@ class OcrService
             }
         }
 
+        // Fallback: se fattura non trova numero, prova pattern DDT
+        if (!isset($data['numero']) && $tipo === 'fattura' && isset($patterns['numero_ddt'])) {
+            $ddtPatterns = is_array($patterns['numero_ddt']) ? $patterns['numero_ddt'] : [$patterns['numero_ddt']];
+            foreach ($ddtPatterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $data['numero'] = trim($matches[1]);
+                    $data['numero_confidence'] = 70;
+                    break;
+                }
+            }
+        }
+
         // Data - prova pattern multipli
         $dataPatterns = is_array($patterns['data']) ? $patterns['data'] : [$patterns['data']];
         
@@ -241,6 +253,20 @@ class OcrService
             }
         }
 
+        // Fallback: se fattura non trova data, prova pattern DDT specifici
+        if (!isset($data['data']) && $tipo === 'fattura') {
+            foreach ($dataPatterns as $pattern) {
+                if (preg_match($pattern, $text, $matches)) {
+                    $parsedDate = $this->parseDate($matches[1]);
+                    if ($parsedDate) {
+                        $data['data'] = $parsedDate;
+                        $data['data_confidence'] = 70;
+                        break;
+                    }
+                }
+            }
+        }
+
         // Partita IVA - prova pattern multipli
         $pivaPatterns = is_array($patterns['partita_iva']) ? $patterns['partita_iva'] : [$patterns['partita_iva']];
         
@@ -248,6 +274,7 @@ class OcrService
             if (preg_match($pattern, $text, $matches)) {
                 // Estrai solo i numeri (ultimi 11 caratteri se c'è prefisso paese)
                 $piva = isset($matches[2]) ? $matches[2] : $matches[1];
+                $piva = strtr($piva, ['I' => '1', 'O' => '0', 'l' => '1']);
                 $piva = preg_replace('/[^\d]/', '', $piva);
                 if (strlen($piva) === 11) {
                     $data['partita_iva'] = $piva;
@@ -275,9 +302,33 @@ class OcrService
             
             foreach ($qtaPatterns as $pattern) {
                 if (preg_match($pattern, $text, $matches)) {
-                    $data['quantita_articoli'] = (int) $matches[1];
+                    $rawQta = str_replace(['.', ','], ['.', '.'], $matches[1]);
+                    $data['quantita_articoli'] = (int) round((float) $rawQta);
                     $data['quantita_confidence'] = 70;
                     break;
+                }
+            }
+        }
+
+        // Fallback dedicato per "Totale quantità" su riga successiva
+        if (!isset($data['quantita_articoli'])) {
+            if (preg_match('/Totale\s+quantit.\s*[\r\n]+\s*([0-9]{1,5}[,\.]\d{2})/i', $text, $matches)) {
+                $rawQta = str_replace(['.', ','], ['.', '.'], $matches[1]);
+                $data['quantita_articoli'] = (int) round((float) $rawQta);
+                $data['quantita_confidence'] = 65;
+            }
+        }
+
+        // Fallback ultra-robusto: cerca "Totale quantit" e legge la riga successiva
+        if (!isset($data['quantita_articoli'])) {
+            $posTotale = stripos($text, 'Totale quantit');
+            if ($posTotale !== false) {
+                $snippet = substr($text, $posTotale, 200);
+                $lines = preg_split('/\R/', $snippet);
+                if (!empty($lines[1]) && preg_match('/([0-9]{1,5}[,\.]\d{2})/', $lines[1], $matches)) {
+                    $rawQta = str_replace(['.', ','], ['.', '.'], $matches[1]);
+                    $data['quantita_articoli'] = (int) round((float) $rawQta);
+                    $data['quantita_confidence'] = 60;
                 }
             }
         }
@@ -305,6 +356,35 @@ class OcrService
             $data['articoli_confidence'] = 70; // Confidence media per articoli trovati
         }
 
+        // Fallback quantità: somma delle quantità articolo se non presente
+        if (!isset($data['quantita_articoli']) && !empty($data['articoli'])) {
+            $data['quantita_articoli'] = array_sum(array_map(
+                static fn ($articolo) => (int) ($articolo['quantita'] ?? 0),
+                $data['articoli']
+            ));
+            $data['quantita_confidence'] = 55;
+        }
+
+        // Fallback importo totale: somma totali riga se non presente
+        if (!isset($data['importo_totale']) && !empty($data['articoli'])) {
+            $totale = 0.0;
+            $found = false;
+            foreach ($data['articoli'] as $articolo) {
+                if (isset($articolo['prezzo_totale']) && is_numeric($articolo['prezzo_totale'])) {
+                    $totale += (float) $articolo['prezzo_totale'];
+                    $found = true;
+                } elseif (isset($articolo['prezzo_unitario'], $articolo['quantita']) && is_numeric($articolo['prezzo_unitario'])) {
+                    $totale += (float) $articolo['prezzo_unitario'] * (int) $articolo['quantita'];
+                    $found = true;
+                }
+            }
+
+            if ($found) {
+                $data['importo_totale'] = $totale;
+                $data['importo_confidence'] = 60;
+            }
+        }
+
         return $data;
     }
 
@@ -314,6 +394,31 @@ class OcrService
     protected function parseDate(string $dateString): ?string
     {
         $dateString = trim($dateString);
+
+        // Gestione mesi in lettere (italiano)
+        if (preg_match('/(\d{1,2})\s+([A-Z]{3,9})\s+(\d{4})/i', $dateString, $match)) {
+            $day = str_pad($match[1], 2, '0', STR_PAD_LEFT);
+            $monthText = strtoupper($match[2]);
+            $year = $match[3];
+            $monthMap = [
+                'GEN' => '01', 'GENNAIO' => '01',
+                'FEB' => '02', 'FEBBRAIO' => '02',
+                'MAR' => '03', 'MARZO' => '03',
+                'APR' => '04', 'APRILE' => '04',
+                'MAG' => '05', 'MAGGIO' => '05',
+                'GIU' => '06', 'GIUGNO' => '06',
+                'LUG' => '07', 'LUGLIO' => '07',
+                'AGO' => '08', 'AGOSTO' => '08',
+                'SET' => '09', 'SETTEMBRE' => '09',
+                'OTT' => '10', 'OTTOBRE' => '10',
+                'NOV' => '11', 'NOVEMBRE' => '11',
+                'DIC' => '12', 'DICEMBRE' => '12',
+            ];
+
+            if (isset($monthMap[$monthText])) {
+                return "{$year}-{$monthMap[$monthText]}-{$day}";
+            }
+        }
         
         // Prova vari formati
         $formats = [
@@ -346,6 +451,8 @@ class OcrService
     protected function parseArticoli(string $text): array
     {
         $articoli = [];
+        $lines = preg_split('/\R/', $text);
+        $skipLineIndexes = [];
         
         // Blacklist: parole che NON sono articoli (intestazioni, indirizzi, ecc)
         $blacklistWords = [
@@ -358,6 +465,119 @@ class OcrService
             'milano', 'lecco', 'roma', 'via', 'viale', 'piazza', 'corso',
             'italy', 'italia', 'switzerland', 'svizzera'
         ];
+
+        // Parsing specifico IDANDI: righe tabellari con € e codici tipici
+        foreach ($lines as $idx => $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '' || (stripos($lineTrim, '€') === false && !preg_match('/\bE\s*[0-9]{1,6}[.,][0-9]{2}\b/i', $lineTrim))) {
+                continue;
+            }
+
+            if (!preg_match('/(IDAN|DANDI|ANDI|ROM|SATC|SAT|SATO)/i', $lineTrim)) {
+                continue;
+            }
+
+            $code = null;
+            $description = null;
+            $qtyRaw = null;
+
+            // Variante: due token di codice (es: "BA IDANDICO7I-17 ...")
+            if (preg_match('/^([A-Z0-9\-=\\-]{1,6})\s+([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+(?:PZ|PC|Pcs?|PE|P£|PÉ)?\s*([0-9I]{1,5})\s+€?/i', $lineTrim, $m)) {
+                $code = $m[1] . '-' . $m[2];
+                $description = $m[3];
+                $qtyRaw = $m[4];
+            } elseif (preg_match('/^([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+(?:PZ|PC|Pcs?|PE|P£|PÉ)?\s*([0-9I]{1,5})\s+€?/i', $lineTrim, $m)) {
+                $code = $m[1];
+                $description = $m[2];
+                $qtyRaw = $m[3];
+            } elseif (preg_match('/^([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+([0-9I]{1,5})\s+€?/i', $lineTrim, $m)) {
+                $code = $m[1];
+                $description = $m[2];
+                $qtyRaw = $m[3];
+            }
+
+            if ($code) {
+                $normalizedCode = $this->normalizeIdandiCode($code);
+                $qtyRaw = str_replace(['I', 'l', '|'], '1', strtoupper((string) $qtyRaw));
+                $qty = (int) $qtyRaw;
+                if ($qty <= 0) {
+                    $qty = 1;
+                }
+                $prices = $this->extractEuroAmounts($lineTrim);
+
+                $articoli[$normalizedCode] = [
+                    'codice' => $normalizedCode,
+                    'descrizione' => trim($description ?? ''),
+                    'quantita' => $qty,
+                    'prezzo_unitario' => $prices['unitario'] ?? null,
+                    'prezzo_totale' => $prices['totale'] ?? null,
+                ];
+                $skipLineIndexes[$idx] = true;
+            }
+        }
+
+        // Parsing specifico BERING: "Item no ... Delivered Ordered Remaining"
+        foreach ($lines as $idx => $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '') {
+                continue;
+            }
+
+            if (!preg_match('/\bBERING\b/i', $lineTrim) && !preg_match('/^\d{4,6}[\-A-Z0-9]*/', $lineTrim)) {
+                continue;
+            }
+
+            if (preg_match('/^([0-9]{4,6}(?:-[A-Z0-9]{2,})?)\s+(.+?)\s+(\d{1,5})\s+(\d{1,5})\s+(\d{1,5})$/i', $lineTrim, $m)) {
+                $codice = strtoupper(trim($m[1]));
+                $descrizione = trim($m[2]);
+                $qty = (int) $m[3];
+
+                $articoli[$codice] = [
+                    'codice' => $codice,
+                    'descrizione' => $descrizione,
+                    'quantita' => max(1, $qty),
+                ];
+                $skipLineIndexes[$idx] = true;
+            }
+        }
+
+        // Rimuovi righe già parse per evitare match generici (es. IVA 22)
+        if (!empty($skipLineIndexes)) {
+            $filteredLines = [];
+            foreach ($lines as $idx => $line) {
+                if (!isset($skipLineIndexes[$idx])) {
+                    $filteredLines[] = $line;
+                }
+            }
+            $text = implode("\n", $filteredLines);
+        }
+
+        // Pattern specifico Marco Bicego: riga articoli con EAN + codice + misura + collezione + quantità
+        if (preg_match_all(
+            '/^(\d{8,14})\s+([A-Z0-9_\/\-]{4,20})\s+(\d{1,3})\s+([A-Za-z][A-Za-z0-9\s\.\-]{2,40})\s+(\d{1,3}[.,]\d{2})\s*(?:PZ|PC|Pcs?)\s+[\d.,]{1,6}(?:\s*\r?\n\s*([^\r\n]{5,120}))?/im',
+            $text,
+            $mbMatches,
+            PREG_SET_ORDER
+        )) {
+            foreach ($mbMatches as $match) {
+                $codice = strtoupper(trim($match[2]));
+                $quantita = (int) str_replace(',', '.', $match[5]);
+
+                $descrizione = '';
+                if (!empty($match[6])) {
+                    $descrizione = trim($match[6]);
+                } else {
+                    $descrizione = trim($match[4] . ' ' . $match[3]);
+                }
+
+                $articoli[$codice] = [
+                    'codice' => $codice,
+                    'descrizione' => $descrizione,
+                    'quantita' => max(1, $quantita),
+                    'ean' => preg_replace('/\D/', '', $match[1]),
+                ];
+            }
+        }
         
         // Pattern per righe articolo (multi-formato)
         // PRIORITÀ: I pattern più specifici PRIMA, quelli generici DOPO
@@ -761,6 +981,83 @@ class OcrService
     }
 
     /**
+     * Normalizza codici IDANDI (correzioni OCR comuni)
+     */
+    protected function normalizeIdandiCode(string $code): string
+    {
+        $normalized = strtoupper($code);
+        $normalized = str_replace([' ', '_', '|'], '', $normalized);
+        $normalized = str_replace(['=', '—', '–'], '-', $normalized);
+        $normalized = preg_replace('/[^A-Z0-9\-]/', '', $normalized);
+
+        $chars = str_split($normalized);
+        $len = count($chars);
+        for ($i = 0; $i < $len; $i++) {
+            $prevIsDigit = $i > 0 && ctype_digit($chars[$i - 1]);
+            $nextIsDigit = $i + 1 < $len && ctype_digit($chars[$i + 1]);
+
+            if (($prevIsDigit || $nextIsDigit) && $chars[$i] === 'O') {
+                $chars[$i] = '0';
+            }
+            if (($prevIsDigit || $nextIsDigit) && $chars[$i] === 'I') {
+                $chars[$i] = '1';
+            }
+            if (($prevIsDigit || $nextIsDigit) && $chars[$i] === 'S') {
+                $chars[$i] = '5';
+            }
+        }
+
+        return implode('', $chars);
+    }
+
+    /**
+     * Estrae importi € dalla riga (unitario e totale)
+     */
+    protected function extractEuroAmounts(string $line): array
+    {
+        $amounts = [];
+        if (preg_match_all('/€\s*([0-9]{1,6}[.,][0-9]{2})/u', $line, $matches)) {
+            foreach ($matches[1] as $value) {
+                $amounts[] = $this->parsePriceToFloat($value);
+            }
+        }
+
+        if (empty($amounts) && preg_match_all('/\bE\s*([0-9]{1,6}[.,][0-9]{2})\b/i', $line, $matches)) {
+            foreach ($matches[1] as $value) {
+                $amounts[] = $this->parsePriceToFloat($value);
+            }
+        }
+
+        $amounts = array_values(array_filter($amounts, static fn ($val) => $val !== null));
+
+        if (count($amounts) >= 2) {
+            return ['unitario' => $amounts[0], 'totale' => $amounts[1]];
+        }
+        if (count($amounts) === 1) {
+            return ['unitario' => $amounts[0]];
+        }
+
+        return [];
+    }
+
+    /**
+     * Converte importo con virgola/punto in float
+     */
+    protected function parsePriceToFloat(?string $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = str_replace(['.', ','], ['', '.'], $value);
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+
+        return (float) $normalized;
+    }
+
+    /**
      * Estrae numero seriale associato a un articolo
      */
     protected function extractSerialNumber(string $text, string $codiceArticolo): ?string
@@ -1104,7 +1401,10 @@ class OcrService
     {
         // 1. Prova con P.IVA (più affidabile)
         if (!empty($structuredData['partita_iva'])) {
-            $fornitore = Fornitore::where('partita_iva', $structuredData['partita_iva'])->first();
+            $piva = preg_replace('/\D/', '', (string) $structuredData['partita_iva']);
+            $fornitore = Fornitore::where('partita_iva', $structuredData['partita_iva'])
+                ->orWhere('partita_iva', 'LIKE', "%{$piva}%")
+                ->first();
             if ($fornitore) {
                 Log::info('Fornitore trovato tramite P.IVA', ['fornitore_id' => $fornitore->id, 'piva' => $structuredData['partita_iva']]);
                 return $fornitore->id;
@@ -1114,10 +1414,12 @@ class OcrService
         // 2. Prova con Ragione Sociale estratta
         if (!empty($structuredData['ragione_sociale_estratta'])) {
             $ragioneSociale = $structuredData['ragione_sociale_estratta'];
+            $ragioneSocialeNormalized = $this->normalizeSupplierName($ragioneSociale);
             
             // Cerca match esatto
             $fornitore = Fornitore::where('ragione_sociale', $ragioneSociale)->first();
             if ($fornitore) {
+                $this->maybeBackfillFornitorePiva($fornitore, $structuredData['partita_iva'] ?? null);
                 Log::info('Fornitore trovato tramite Ragione Sociale esatta', ['fornitore_id' => $fornitore->id]);
                 return $fornitore->id;
             }
@@ -1125,12 +1427,40 @@ class OcrService
             // Cerca match parziale (LIKE)
             $fornitore = Fornitore::where('ragione_sociale', 'LIKE', "%{$ragioneSociale}%")->first();
             if ($fornitore) {
+                $this->maybeBackfillFornitorePiva($fornitore, $structuredData['partita_iva'] ?? null);
                 Log::info('Fornitore trovato tramite Ragione Sociale parziale', ['fornitore_id' => $fornitore->id]);
                 return $fornitore->id;
             }
+
+            // Match normalizzato (rimuove punteggiatura e OCR noise)
+            $fornitori = Fornitore::select(['id', 'ragione_sociale'])->get();
+            foreach ($fornitori as $candidate) {
+                $candidateNormalized = $this->normalizeSupplierName($candidate->ragione_sociale ?? '');
+                if ($candidateNormalized === '' || $ragioneSocialeNormalized === '') {
+                    continue;
+                }
+                if ($candidateNormalized === $ragioneSocialeNormalized ||
+                    str_contains($candidateNormalized, $ragioneSocialeNormalized) ||
+                    str_contains($ragioneSocialeNormalized, $candidateNormalized)
+                ) {
+                    $this->maybeBackfillFornitorePiva($candidate, $structuredData['partita_iva'] ?? null);
+                    Log::info('Fornitore trovato tramite Ragione Sociale normalizzata', [
+                        'fornitore_id' => $candidate->id,
+                        'ragione_sociale' => $candidate->ragione_sociale,
+                        'estratta' => $ragioneSociale,
+                    ]);
+                    return $candidate->id;
+                }
+            }
         }
 
-        // 3. Cerca pattern comuni nel testo grezzo (fallback)
+        // 3. Cerca ragione sociale nel testo grezzo per riga (esclude "Spett." / destinatario)
+        $fornitoreId = $this->findFornitoreFromRawText($rawText, $structuredData['partita_iva'] ?? null);
+        if ($fornitoreId) {
+            return $fornitoreId;
+        }
+
+        // 4. Cerca pattern comuni nel testo grezzo (fallback)
         $commonSuppliers = [
             'SWATCH GROUP' => ['SWATCH GROUP', 'THE SWATCH GROUP'],
             'ROLEX' => ['ROLEX'],
@@ -1141,6 +1471,7 @@ class OcrService
             'TAG HEUER' => ['TAG HEUER'],
             'LONGINES' => ['LONGINES'],
             'TISSOT' => ['TISSOT'],
+            'BERING' => ['BERING', 'BERING TIME APS'],
         ];
 
         foreach ($commonSuppliers as $keywords) {
@@ -1156,8 +1487,152 @@ class OcrService
             }
         }
 
+        // 5. Fallback: cerca ragione sociale nel testo grezzo (normalizzato)
+        $rawNormalized = $this->normalizeSupplierName($rawText);
+        if ($rawNormalized !== '') {
+            $fornitori = Fornitore::select(['id', 'ragione_sociale'])->get();
+            foreach ($fornitori as $candidate) {
+                $candidateNormalized = $this->normalizeSupplierName($candidate->ragione_sociale ?? '');
+                if ($candidateNormalized && str_contains($rawNormalized, $candidateNormalized)) {
+                    $this->maybeBackfillFornitorePiva($candidate, $structuredData['partita_iva'] ?? null);
+                    Log::info('Fornitore trovato tramite testo grezzo normalizzato', [
+                        'fornitore_id' => $candidate->id,
+                        'ragione_sociale' => $candidate->ragione_sociale,
+                    ]);
+                    return $candidate->id;
+                }
+            }
+        }
+
         Log::warning('Fornitore non trovato automaticamente', ['structured_data' => $structuredData]);
         return null;
+    }
+
+    /**
+     * Normalizza ragione sociale per matching fuzzy
+     */
+    protected function normalizeSupplierName(string $value): string
+    {
+        $ascii = Str::ascii($value);
+        $ascii = strtoupper($ascii);
+        $ascii = preg_replace('/[^A-Z0-9]+/', '', $ascii);
+        return $ascii ?? '';
+    }
+
+    /**
+     * Cerca fornitore scorrendo le righe e ignorando destinatario ("Spett.")
+     */
+    protected function findFornitoreFromRawText(string $rawText, ?string $partitaIva): ?int
+    {
+        $lines = preg_split('/\R/', $rawText);
+        if (empty($lines)) {
+            return null;
+        }
+
+        $fornitori = Fornitore::select(['id', 'ragione_sociale'])->get();
+        if ($fornitori->isEmpty()) {
+            return null;
+        }
+
+        $scores = [];
+        $inRecipientBlock = false;
+        $beforeDestinazione = true;
+
+        foreach ($lines as $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '') {
+                if ($inRecipientBlock) {
+                    $inRecipientBlock = false;
+                }
+                continue;
+            }
+
+            if (stripos($lineTrim, 'idandi') !== false) {
+                $fornitore = Fornitore::where('ragione_sociale', 'LIKE', '%IDANDI%')->first();
+                if ($fornitore) {
+                    $this->maybeBackfillFornitorePiva($fornitore, $partitaIva);
+                    Log::info('Fornitore trovato tramite keyword IDANDI', [
+                        'fornitore_id' => $fornitore->id,
+                        'ragione_sociale' => $fornitore->ragione_sociale,
+                        'line' => $lineTrim,
+                    ]);
+                    return $fornitore->id;
+                }
+            }
+
+            $lineNormalized = $this->normalizeSupplierName($lineTrim);
+            if ($lineNormalized === '') {
+                continue;
+            }
+
+            if (str_contains($lineNormalized, 'SPETT')) {
+                $inRecipientBlock = true;
+                continue;
+            }
+
+            if (str_contains($lineNormalized, 'DESTINAZIONE')) {
+                $inRecipientBlock = false;
+                $beforeDestinazione = false;
+                continue;
+            }
+
+            if ($inRecipientBlock && (str_contains($lineNormalized, 'IDANDI') || str_contains($lineNormalized, 'SASDI'))) {
+                $inRecipientBlock = false;
+            }
+
+            if ($inRecipientBlock) {
+                continue;
+            }
+
+            foreach ($fornitori as $candidate) {
+                $candidateNormalized = $this->normalizeSupplierName($candidate->ragione_sociale ?? '');
+                if ($candidateNormalized === '') {
+                    continue;
+                }
+
+                if (str_contains($lineNormalized, $candidateNormalized)) {
+                    $score = $beforeDestinazione ? 3 : 1;
+                    $scores[$candidate->id] = max($scores[$candidate->id] ?? 0, $score);
+                    Log::info('Fornitore candidato da riga testo grezzo', [
+                        'fornitore_id' => $candidate->id,
+                        'ragione_sociale' => $candidate->ragione_sociale,
+                        'line' => $lineTrim,
+                        'score' => $score,
+                    ]);
+                }
+            }
+        }
+
+        if (!empty($scores)) {
+            arsort($scores);
+            $bestId = array_key_first($scores);
+            if ($bestId && !empty($structuredData['partita_iva'])) {
+                $best = Fornitore::find($bestId);
+                if ($best && empty($best->partita_iva)) {
+                    $best->update(['partita_iva' => $structuredData['partita_iva']]);
+                }
+            }
+            return $bestId ?: null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Aggiorna P.IVA del fornitore se mancante
+     */
+    protected function maybeBackfillFornitorePiva(Fornitore $fornitore, ?string $partitaIva): void
+    {
+        if (!$partitaIva || !empty($fornitore->partita_iva)) {
+            return;
+        }
+
+        $normalized = preg_replace('/\D/', '', $partitaIva);
+        if (strlen($normalized) !== 11) {
+            return;
+        }
+
+        $fornitore->update(['partita_iva' => $normalized]);
     }
 }
 

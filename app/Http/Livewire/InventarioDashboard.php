@@ -97,7 +97,7 @@ class InventarioDashboard extends Component
 
     public function render()
     {
-        return view('livewire.dashboard-inventario')
+        return view('livewire.inventario-dashboard')
             ->layout('layouts.vertical');
     }
 }

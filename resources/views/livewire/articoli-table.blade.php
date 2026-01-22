@@ -16,131 +16,6 @@
         </div>
     @endif
 
-    <!-- Statistiche Compatte e Professionali -->
-    <div class="row g-3 mb-4">
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Articoli Totali</h6>
-                            <h4 class="mb-0 fw-bold">{{ number_format($stats['totali']) }}</h4>
-                            <small class="text-muted">Tutte le sedi</small>
-                        </div>
-                        <div class="bg-primary-subtle rounded p-2">
-                            <iconify-icon icon="solar:box-bold" class="fs-4 text-primary"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Con Giacenza</h6>
-                            <h4 class="mb-0 fw-bold text-success">{{ number_format($stats['con_giacenza']) }}</h4>
-                            <small class="text-muted">{{ number_format(($stats['con_giacenza'] / max($stats['totali'], 1)) * 100, 1) }}% del totale</small>
-                        </div>
-                        <div class="bg-success-subtle rounded p-2">
-                            <iconify-icon icon="solar:check-circle-bold" class="fs-4 text-success"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Giacenza Zero</h6>
-                            <h4 class="mb-0 fw-bold text-warning">{{ number_format($stats['giacenza_zero']) }}</h4>
-                            <small class="text-muted">{{ number_format(($stats['giacenza_zero'] / max($stats['totali'], 1)) * 100, 1) }}% del totale</small>
-                        </div>
-                        <div class="bg-warning-subtle rounded p-2">
-                            <iconify-icon icon="solar:box-minimalistic-bold" class="fs-4 text-warning"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Giacenza Negativa</h6>
-                            <h4 class="mb-0 fw-bold text-danger">{{ number_format($stats['giacenza_negativa']) }}</h4>
-                            <small class="text-muted">{{ number_format(($stats['giacenza_negativa'] / max($stats['totali'], 1)) * 100, 1) }}% del totale</small>
-                        </div>
-                        <div class="bg-danger-subtle rounded p-2">
-                            <iconify-icon icon="solar:danger-triangle-bold" class="fs-4 text-danger"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Seconda riga di statistiche -->
-    <div class="row g-3 mb-4">
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Senza Giacenze</h6>
-                            <h4 class="mb-0 fw-bold text-secondary">{{ number_format($stats['senza_giacenze']) }}</h4>
-                            <small class="text-muted">{{ number_format(($stats['senza_giacenze'] / max($stats['totali'], 1)) * 100, 1) }}% del totale</small>
-                        </div>
-                        <div class="bg-secondary-subtle rounded p-2">
-                            <iconify-icon icon="solar:box-remove-bold-duotone" class="fs-4 text-secondary"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">In Vetrina</h6>
-                            <h4 class="mb-0 fw-bold text-info">{{ number_format($stats['in_vetrina']) }}</h4>
-                            <small class="text-muted">{{ number_format(($stats['in_vetrina'] / max($stats['totali'], 1)) * 100, 1) }}% del totale</small>
-                        </div>
-                        <div class="bg-info-subtle rounded p-2">
-                            <iconify-icon icon="solar:shop-bold" class="fs-4 text-info"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-6 col-md-12">
-            <div class="card border-0  shadow-sm">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 text-muted small">Valore Totale</h6>
-                            <h4 class="mb-0 fw-bold text-success">€ {{ number_format($stats['valore_totale'], 2) }}</h4>
-                            <small class="text-muted">Valore giacenze con quantità > 0</small>
-                        </div>
-                        <div class="bg-success-subtle rounded p-2">
-                            <iconify-icon icon="solar:euro-bold" class="fs-4 text-success"></iconify-icon>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Badge Filtri Attivi -->
     @php
         $filtriAttivi = [];
@@ -203,54 +78,12 @@
         </div>
     @endif
 
-    <!-- Filtri Compatti -->
-    <div class="card border-0  shadow-sm mb-4">
-        <div class="card-header  border-0 pb-0">
-            <div class="d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0">
-                    <iconify-icon icon="solar:filter-bold" class="me-2"></iconify-icon>
-                    Filtri e Ricerca
-                    @if(count($filtriAttivi) > 0)
-                        <span class="badge bg-primary ms-2">{{ count($filtriAttivi) }}</span>
-                    @endif
-                </h6>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-info" 
-                            type="button" 
-                            data-bs-toggle="collapse" 
-                            data-bs-target="#advancedFilters"
-                            aria-expanded="true"
-                            aria-controls="advancedFilters"
-                            id="toggleAdvancedBtn">
-                        <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
-                        Avanzati
-                    </button>
-                    <button class="btn btn-sm btn-secondary" wire:click="resetFilters">
-                        <iconify-icon icon="solar:refresh-bold" class="me-1"></iconify-icon>
-                        Reset
-                    </button>
-                </div>
-            </div>
-        </div>
-        <div class="card-body pt-2">
-            <div class="row g-3">
-                <!-- Ricerca Globale -->
+    <!-- Filtro principale: solo Magazzino -->
+    <div class="card border-0 shadow-sm mb-4" style="position: sticky; top: 1rem; z-index: 1020;">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-center">
                 <div class="col-lg-4">
-                    <label class="form-label small fw-semibold">Ricerca</label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text">
-                            <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
-                        </span>
-                        <input type="text" 
-                               class="form-control" 
-                               placeholder="Codice, descrizione, fornitore..." 
-                               wire:model.live.debounce.300ms="search">
-                    </div>
-                </div>
-
-                <!-- Filtro Magazzino Multiplo -->
-                <div class="col-lg-3">
-                    <label class="form-label small fw-semibold">Magazzino</label>
+                    <label class="form-label small fw-semibold mb-1">Magazzino</label>
                     <div class="position-relative" id="magazzinoDropdown">
                         <button class="btn btn-secondary btn-sm w-100 text-start d-flex justify-content-between align-items-center" 
                                 type="button" 
@@ -299,6 +132,103 @@
                                 </div>
                             </div>
                         @endif
+                    </div>
+                </div>
+                <div class="col-lg-8 text-lg-end">
+                    <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                        <button class="btn btn-sm btn-outline-primary"
+                                type="button"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#articoliFiltersCanvas"
+                                aria-controls="articoliFiltersCanvas">
+                            <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
+                            Altri filtri
+                            @if(count($filtriAttivi) > 0)
+                                <span class="badge bg-primary ms-2">{{ count($filtriAttivi) }}</span>
+                            @endif
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                type="button"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#prezziFornitoreCanvas"
+                                aria-controls="prezziFornitoreCanvas">
+                            <iconify-icon icon="solar:dollar-minimalistic-bold" class="me-1"></iconify-icon>
+                            Prezzi fornitore
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offcanvas Filtri -->
+    <div class="offcanvas offcanvas-top" tabindex="-1" id="articoliFiltersCanvas" aria-labelledby="articoliFiltersCanvasLabel" style="height: 85vh;">
+        <div class="offcanvas-header">
+            <h6 class="offcanvas-title" id="articoliFiltersCanvasLabel">
+                <iconify-icon icon="solar:filter-bold" class="me-2"></iconify-icon>
+                Filtri e Ricerca
+            </h6>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body overflow-auto">
+            @if(count($filtriAttivi) > 0)
+                <div class="mb-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="text-muted small fw-semibold">
+                            <iconify-icon icon="solar:filter-bold" class="me-1"></iconify-icon>
+                            Filtri attivi ({{ count($filtriAttivi) }}):
+                        </span>
+                        @foreach($filtriAttivi as $filtro)
+                            <span class="badge bg-primary-subtle text-primary d-inline-flex align-items-center gap-2 px-3 py-2">
+                                <span><strong>{{ $filtro['label'] }}:</strong> {{ Str::limit($filtro['value'], 30) }}</span>
+                                <button type="button" 
+                                        class="btn-close btn-close-sm" 
+                                        style="font-size: 0.6rem;"
+                                        @if($filtro['field'] === 'magazziniSelezionati')
+                                            wire:click="deselezionaTuttiMagazzini"
+                                        @else
+                                            wire:click="$set('{{ $filtro['field'] }}', '')"
+                                        @endif
+                                        aria-label="Rimuovi filtro"></button>
+                            </span>
+                        @endforeach
+                        <button class="btn btn-sm btn-danger" wire:click="resetFilters">
+                            <iconify-icon icon="solar:trash-bin-minimalistic-bold" class="me-1"></iconify-icon>
+                            Rimuovi tutti
+                        </button>
+                    </div>
+                </div>
+            @endif
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-info" 
+                        type="button" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#advancedFilters"
+                        aria-expanded="true"
+                        aria-controls="advancedFilters"
+                        id="toggleAdvancedBtn">
+                    <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
+                    Avanzati
+                </button>
+                <button class="btn btn-sm btn-secondary" wire:click="resetFilters">
+                    <iconify-icon icon="solar:refresh-bold" class="me-1"></iconify-icon>
+                    Reset
+                </button>
+            </div>
+
+            <div class="row g-3">
+                <!-- Ricerca Globale -->
+                <div class="col-lg-4">
+                    <label class="form-label small fw-semibold">Ricerca</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">
+                            <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               placeholder="Codice, descrizione, fornitore..." 
+                               wire:model.live.debounce.300ms="search">
                     </div>
                 </div>
 
@@ -418,126 +348,132 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
-                <div class="row g-3 mt-2 border-top pt-3">
-                    <div class="col-12">
-                        <h6 class="mb-2">
-                            <iconify-icon icon="solar:dollar-minimalistic-bold" class="me-2"></iconify-icon>
-                            Prezzi Fornitore (aggiornamento massivo)
-                        </h6>
+    <!-- Offcanvas Prezzi Fornitore -->
+    <div class="offcanvas offcanvas-top" tabindex="-1" id="prezziFornitoreCanvas" aria-labelledby="prezziFornitoreCanvasLabel" style="height: 85vh;" wire:ignore.self>
+        <div class="offcanvas-header">
+            <h6 class="offcanvas-title" id="prezziFornitoreCanvasLabel">
+                <iconify-icon icon="solar:dollar-minimalistic-bold" class="me-2"></iconify-icon>
+                Prezzi Fornitore (aggiornamento massivo)
+            </h6>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body overflow-auto">
+            <div class="row g-3">
+                <div class="col-lg-3">
+                    <label class="form-label small fw-semibold">Fornitore</label>
+                    <select class="form-select form-select-sm" wire:model.live="prezziFornitoreId">
+                        <option value="">Seleziona fornitore</option>
+                        @foreach($fornitori as $fornitore)
+                            <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Criterio</label>
+                    <select class="form-select form-select-sm" wire:model.live="prezziMatchType">
+                        <option value="referenza">Referenza</option>
+                        <option value="modello">Modello</option>
+                        <option value="seriale">Seriale</option>
+                        <option value="ean">EAN</option>
+                        <option value="codice">Codice</option>
+                        <option value="descrizione">Descrizione</option>
+                    </select>
+                </div>
+                <div class="col-lg-3">
+                    <label class="form-label small fw-semibold">Valore</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Es. REF-123" wire:model.live.debounce.500ms="prezziMatchValue">
+                </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Nuovo prezzo</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="€ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
+                </div>
+                <div class="col-lg-2 d-flex align-items-end">
+                    <button class="btn btn-sm btn-outline-secondary w-100" wire:click="aggiornaPreviewPrezzi">
+                        Cerca
+                    </button>
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="prezziSoloSenzaPrezzo" wire:model.live="prezziSoloSenzaPrezzo">
+                        <label class="form-check-label small" for="prezziSoloSenzaPrezzo">Solo articoli senza prezzo</label>
                     </div>
-                    <div class="col-lg-3">
-                        <label class="form-label small fw-semibold">Fornitore</label>
-                        <select class="form-select form-select-sm" wire:model.live="prezziFornitoreId">
-                            <option value="">Seleziona fornitore</option>
-                            @foreach($fornitori as $fornitore)
-                                <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
-                            @endforeach
-                        </select>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="prezziSalvaRegola" wire:model.live="prezziSalvaRegola">
+                        <label class="form-check-label small" for="prezziSalvaRegola">Salva regola fornitore</label>
                     </div>
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Criterio</label>
-                        <select class="form-select form-select-sm" wire:model.live="prezziMatchType">
-                            <option value="referenza">Referenza</option>
-                            <option value="modello">Modello</option>
-                            <option value="seriale">Seriale</option>
-                            <option value="ean">EAN</option>
-                            <option value="codice">Codice</option>
-                            <option value="descrizione">Descrizione</option>
-                        </select>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="prezziApplicaATutti" wire:model.live="prezziApplicaATutti">
+                        <label class="form-check-label small" for="prezziApplicaATutti">Applica a tutti i risultati trovati</label>
                     </div>
-                    <div class="col-lg-3">
-                        <label class="form-label small fw-semibold">Valore</label>
-                        <input type="text" class="form-control form-control-sm" placeholder="Es. REF-123" wire:model.live.debounce.500ms="prezziMatchValue">
-                    </div>
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Nuovo prezzo</label>
-                        <input type="text" class="form-control form-control-sm" placeholder="€ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
-                    </div>
-                    <div class="col-lg-2 d-flex align-items-end">
-                        <button class="btn btn-sm btn-outline-secondary w-100" wire:click="aggiornaPreviewPrezzi">
-                            Cerca
-                        </button>
-                    </div>
-                    <div class="col-12">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="prezziSoloSenzaPrezzo" wire:model.live="prezziSoloSenzaPrezzo">
-                            <label class="form-check-label small" for="prezziSoloSenzaPrezzo">Solo articoli senza prezzo</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="prezziSalvaRegola" wire:model.live="prezziSalvaRegola">
-                            <label class="form-check-label small" for="prezziSalvaRegola">Salva regola fornitore</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="prezziApplicaATutti" wire:model.live="prezziApplicaATutti">
-                            <label class="form-check-label small" for="prezziApplicaATutti">Applica a tutti i risultati trovati</label>
-                        </div>
-                    </div>
+                </div>
 
-                    <div class="col-12">
-                        @if($prezziPreviewLoaded)
-                            <div class="alert alert-info py-2">
-                                <iconify-icon icon="solar:info-circle-bold" class="me-1"></iconify-icon>
-                                Trovati <strong>{{ $prezziPreviewTotal }}</strong> articoli. Mostro i primi <strong>{{ count($prezziPreview) }}</strong>.
-                            </div>
-                        @endif
-                    </div>
-
+                <div class="col-12">
                     @if($prezziPreviewLoaded)
-                        <div class="col-12">
-                            <div class="table-responsive border rounded">
-                                <table class="table table-sm mb-0">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th style="width: 40px;">
-                                                <input type="checkbox" class="form-check-input" wire:click="toggleSelezionaTuttiPreview">
-                                            </th>
-                                            <th>Codice</th>
-                                            <th>Descrizione</th>
-                                            <th>Referenza</th>
-                                            <th>Seriale</th>
-                                            <th>Prezzo attuale</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @forelse($prezziPreview as $row)
-                                            @php
-                                                $referenza = $row['caratteristiche']['referenza'] ?? null;
-                                            @endphp
-                                            <tr>
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input"
-                                                           wire:model.live="prezziSelezionati"
-                                                           value="{{ $row['id'] }}">
-                                                </td>
-                                                <td>{{ $row['codice'] }}</td>
-                                                <td>{{ Str::limit($row['descrizione'] ?? 'N/A', 40) }}</td>
-                                                <td>{{ $referenza ?? '-' }}</td>
-                                                <td>{{ $row['numero_seriale'] ?? '-' }}</td>
-                                                <td>
-                                                    @if(!empty($row['prezzo_fornitore']))
-                                                        €{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="6" class="text-center text-muted">Nessun risultato</td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="col-12 d-flex justify-content-end">
-                            <button class="btn btn-sm btn-primary" wire:click="applicaPrezzoFornitore">
-                                Applica prezzi selezionati
-                            </button>
+                        <div class="alert alert-info py-2">
+                            <iconify-icon icon="solar:info-circle-bold" class="me-1"></iconify-icon>
+                            Trovati <strong>{{ $prezziPreviewTotal }}</strong> articoli. Mostro i primi <strong>{{ count($prezziPreview) }}</strong>.
                         </div>
                     @endif
                 </div>
+
+                @if($prezziPreviewLoaded)
+                    <div class="col-12">
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm mb-0">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" class="form-check-input" wire:click="toggleSelezionaTuttiPreview">
+                                        </th>
+                                        <th>Codice</th>
+                                        <th>Descrizione</th>
+                                        <th>Referenza</th>
+                                        <th>Seriale</th>
+                                        <th>Prezzo attuale</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($prezziPreview as $row)
+                                        @php
+                                            $referenza = $row['caratteristiche']['referenza'] ?? null;
+                                        @endphp
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input"
+                                                       wire:model.live="prezziSelezionati"
+                                                       value="{{ $row['id'] }}">
+                                            </td>
+                                            <td>{{ $row['codice'] }}</td>
+                                            <td>{{ Str::limit($row['descrizione'] ?? 'N/A', 40) }}</td>
+                                            <td>{{ $referenza ?? '-' }}</td>
+                                            <td>{{ $row['numero_seriale'] ?? '-' }}</td>
+                                            <td>
+                                                @if(!empty($row['prezzo_fornitore']))
+                                                    €{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">Nessun risultato</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button class="btn btn-sm btn-primary" wire:click="applicaPrezzoFornitore">
+                            Applica prezzi selezionati
+                        </button>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -1024,6 +960,19 @@
                                             $badgeColor = $fattura ? 'success' : 'primary';
                                             $fornitoreArticolo = $articolo->fornitore;
                                             $fornitoreDocumento = $documento?->fornitore;
+                                            $documentoListUrl = $documento
+                                                ? route('documenti-acquisto.index', ['search' => $documento->numero, 'tipoDocumento' => $fattura ? 'fattura' : 'ddt'])
+                                                : null;
+                                            $documentoPdfUrl = null;
+                                            if ($documento) {
+                                                if ($documento->tipo_carico === 'ocr' && $documento->ocrDocument) {
+                                                    $documentoPdfUrl = route('ocr.documents.pdf', $documento->ocrDocument);
+                                                } elseif (!empty($documento->allegato_path)) {
+                                                    $documentoPdfUrl = $fattura
+                                                        ? route('documenti-acquisto.fattura.pdf', $documento)
+                                                        : route('documenti-acquisto.ddt.pdf', $documento);
+                                                }
+                                            }
                                         @endphp
                                         
                                         <!-- Fornitore -->
@@ -1040,7 +989,15 @@
                                         <div class="mb-1">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:document-bold" class="text-info"></iconify-icon>
-                                                <small class="text-muted">{{ $documento?->numero ?? 'N/A' }}</small>
+                                                @if($documento)
+                                                    <a href="{{ $documentoPdfUrl ?? $documentoListUrl }}"
+                                                       class="link-primary text-decoration-underline small"
+                                                       @if($documentoPdfUrl) target="_blank" @endif>
+                                                        {{ $documento->numero }}
+                                                    </a>
+                                                @else
+                                                    <small class="text-muted">N/A</small>
+                                                @endif
                                             </div>
                                         </div>
                                         
@@ -1064,7 +1021,23 @@
                                             <div class="mb-1 mt-2 pt-2 border-top">
                                                 <div class="d-flex align-items-center justify-content-center gap-1">
                                                     <iconify-icon icon="solar:document-bold" class="text-info small"></iconify-icon>
-                                                    <small class="text-muted">DDT: {{ $ddt->numero }}</small>
+                                                    <small class="text-muted">
+                                                        DDT:
+                                                        @php
+                                                            $ddtPdfUrl = null;
+                                                            if ($ddt->tipo_carico === 'ocr' && $ddt->ocrDocument) {
+                                                                $ddtPdfUrl = route('ocr.documents.pdf', $ddt->ocrDocument);
+                                                            } elseif (!empty($ddt->allegato_path)) {
+                                                                $ddtPdfUrl = route('documenti-acquisto.ddt.pdf', $ddt);
+                                                            }
+                                                            $ddtListUrl = route('documenti-acquisto.index', ['search' => $ddt->numero, 'tipoDocumento' => 'ddt']);
+                                                        @endphp
+                                                        <a href="{{ $ddtPdfUrl ?? $ddtListUrl }}"
+                                                           class="link-primary text-decoration-underline"
+                                                           @if($ddtPdfUrl) target="_blank" @endif>
+                                                            {{ $ddt->numero }}
+                                                        </a>
+                                                    </small>
                                                 </div>
                                             </div>
                                         @endif
@@ -1310,6 +1283,19 @@
                         </div>
 
                         <div class="mb-3">
+                            <label class="form-label fw-semibold">Tipo cartellino</label>
+                            <select class="form-select" wire:model.live="layoutEtichetta">
+                                <option value="standard">Standard (con carico)</option>
+                                <option value="nc_prezzo">NC - Solo prezzo</option>
+                                <option value="nc_prezzo_carati">NC - Prezzo + carati</option>
+                                <option value="nc_prezzo_completo">NC - Prezzo + oro + pietre</option>
+                            </select>
+                            <div class="form-text">
+                                NC = senza carico. Le voci oro/pietre sono prese dai dati articolo.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
                             <label class="form-label fw-semibold">Formato Prezzo</label>
                             <div class="d-flex gap-3">
                                 <div class="form-check">
@@ -1465,6 +1451,55 @@
                     }
                 });
             });
+
+            const cleanupOffcanvasScrollLock = () => {
+                const anyOpen = document.querySelector('.offcanvas.show');
+                if (anyOpen) {
+                    return;
+                }
+                const htmlEl = document.documentElement;
+                document.body.classList.remove('offcanvas-backdrop', 'modal-open');
+                document.body.classList.remove('overflow-hidden');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                if (htmlEl) {
+                    htmlEl.style.overflow = '';
+                    htmlEl.style.paddingRight = '';
+                }
+                const backdrops = document.querySelectorAll('.offcanvas-backdrop');
+                backdrops.forEach((backdrop) => backdrop.remove());
+            };
+
+            document.addEventListener('livewire:init', () => {
+                Livewire.on('close-filters-canvas', () => {
+                    const canvasEl = document.getElementById('articoliFiltersCanvas');
+                    if (!canvasEl) {
+                        return;
+                    }
+                    const instance = bootstrap.Offcanvas.getInstance(canvasEl) || new bootstrap.Offcanvas(canvasEl);
+                    instance.hide();
+                    setTimeout(cleanupOffcanvasScrollLock, 50);
+                });
+
+                if (Livewire.hook) {
+                    Livewire.hook('commit', ({ succeed }) => {
+                        succeed(() => cleanupOffcanvasScrollLock());
+                    });
+                }
+            });
+
+            document.addEventListener('hidden.bs.offcanvas', (event) => {
+                const target = event.target;
+                if (!target || !target.classList.contains('offcanvas')) {
+                    return;
+                }
+                cleanupOffcanvasScrollLock();
+            });
+
+            const observer = new MutationObserver(() => {
+                cleanupOffcanvasScrollLock();
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
         </script>
     @endpush
 @endonce

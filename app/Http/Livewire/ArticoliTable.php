@@ -65,6 +65,7 @@ class ArticoliTable extends Component
     public $prezzoEtichetta = '';
     public $formatoPrezzo = 'euro'; // 'euro' o 'codificato'
     public $prezzoEtichettaFonte = 'fornitore'; // fornitore|vetrina|manuale
+    public $layoutEtichetta = 'standard'; // standard|nc_prezzo|nc_prezzo_carati|nc_prezzo_completo
     public $stampanteSelezionata = '';
     public $stampantiDisponibili = [];
     
@@ -322,6 +323,7 @@ class ArticoliTable extends Component
         
         // Emit event per resettare Flatpickr
         $this->dispatch('filters-reset');
+        $this->dispatch('close-filters-canvas');
     }
     
     /**
@@ -558,6 +560,7 @@ class ArticoliTable extends Component
         $this->articoloDaStampare = null;
         $this->prezzoEtichetta = '';
         $this->formatoPrezzo = 'euro';
+        $this->layoutEtichetta = 'standard';
         $this->stampanteSelezionata = '';
         $this->stampantiDisponibili = [];
     }
@@ -588,6 +591,7 @@ class ArticoliTable extends Component
                 'articolo_id' => $this->articoloDaStampare->id,
                 'prezzo' => $this->prezzoEtichetta,
                 'formato_prezzo' => $this->formatoPrezzo,
+                'layout' => $this->layoutEtichetta,
                 'stampante_id' => $this->stampanteSelezionata
             ];
             

@@ -5,7 +5,7 @@
         <div class="col-12">
             <div class="page-title-box">
                 <div class="page-title-right">
-                    <a href="{{ route('carico.scelta') }}" class="btn btn-secondary">
+                    <a href="{{ route('documenti-acquisto.index') }}" class="btn btn-secondary">
                         <i class="ri-arrow-left-line me-1"></i> Indietro
                     </a>
                 </div>
@@ -113,28 +113,34 @@
                     <div class="mb-4">
                         <label class="form-label fw-semibold">File PDF *</label>
                         
-                        <div class="border-2 border-dashed rounded p-4 text-center {{ $photo ? 'border-success bg-success-subtle' : 'border-secondary' }}" style="min-height: 200px;">
-                            @if($photo)
+                        <div id="pdf-dropzone"
+                             class="border-2 border-dashed rounded p-4 text-center d-flex flex-column align-items-center justify-content-center {{ $pdf ? 'border-success bg-success-subtle' : 'border-secondary' }}"
+                             style="min-height: 220px;">
+                            @if($pdf)
                                 <iconify-icon icon="solar:file-check-bold-duotone" class="text-success d-block mb-3" style="font-size: 4rem;"></iconify-icon>
-                                <h6 class="mb-1">{{ $photo->getClientOriginalName() }}</h6>
-                                <p class="text-muted mb-3">{{ number_format($photo->getSize() / 1024, 2) }} KB</p>
-                                <button type="button" wire:click="$set('photo', null)" class="btn btn-sm btn-danger">
+                                <h6 class="mb-1">{{ $pdf->getClientOriginalName() }}</h6>
+                                <p class="text-muted mb-3">{{ number_format($pdf->getSize() / 1024, 2) }} KB</p>
+                                <button type="button" wire:click="$set('pdf', null)" class="btn btn-sm btn-danger">
                                     <iconify-icon icon="solar:trash-bin-trash-bold-duotone" class="me-1"></iconify-icon> Rimuovi
                                 </button>
                             @else
                                 <iconify-icon icon="solar:cloud-upload-bold-duotone" class="text-primary d-block mb-3" style="font-size: 4rem;"></iconify-icon>
-                                <h5 class="mb-2">Seleziona un file PDF</h5>
-                                <p class="text-muted mb-3">Max 10 MB</p>
-                                <input type="file" wire:model="photo" accept=".pdf" class="form-control" required>
+                                <h5 class="mb-2">Trascina qui il PDF</h5>
+                                <p class="text-muted mb-3">Oppure clicca per selezionare · Max 10 MB</p>
+                                <input id="pdf-input" type="file" wire:model="pdf" accept=".pdf" class="visually-hidden" required>
+                                <label for="pdf-input" class="btn btn-outline-primary btn-sm">
+                                    <iconify-icon icon="solar:upload-bold-duotone" class="me-1"></iconify-icon>
+                                    Seleziona file
+                                </label>
                             @endif
                         </div>
                         
-                        @error('photo')
+                        @error('pdf')
                             <div class="text-danger small mt-2">{{ $message }}</div>
                         @enderror
 
                         {{-- Loading durante upload --}}
-                        <div wire:loading wire:target="photo" class="text-center mt-3">
+                        <div wire:loading wire:target="pdf" class="text-center mt-3">
                             <div class="spinner-border spinner-border-sm text-primary me-2"></div>
                             <span class="text-primary">Caricamento file...</span>
                         </div>
@@ -165,6 +171,16 @@
     {{-- STEP 2: VALIDAZIONE --}}
     @if($step === 2)
     <form wire:submit.prevent="salvaCarico">
+        @if ($errors->any())
+            <div class="alert alert-danger">
+                <strong>Verifica i campi evidenziati.</strong>
+            </div>
+        @endif
+        @if(!empty($saveError))
+            <div class="alert alert-danger">
+                <strong>Errore salvataggio:</strong> {{ $saveError }}
+            </div>
+        @endif
         
         {{-- Intestazione Documento --}}
         <div class="card border-0 shadow-sm mb-3">
@@ -216,17 +232,37 @@
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label small text-muted mb-1">Categoria *</label>
-                        <select wire:model.defer="categoriaId" class="form-select form-select-sm @error('categoriaId') is-invalid @enderror">
+                        <label class="form-label small text-muted mb-1">Magazzino *</label>
+                        <select wire:model.live="categoriaId" class="form-select form-select-sm @error('categoriaId') is-invalid @enderror">
                             <option value="">Seleziona...</option>
                             @foreach($categorie as $categoria)
                                 <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Modifica qui per applicare il magazzino a tutti gli articoli.</div>
                     </div>
+
+                    @if($tipoDocumento === 'fattura')
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Partita IVA</label>
+                            <input type="text" wire:model.defer="partitaIva"
+                                   class="form-control form-control-sm" placeholder="ITxxxxxxxxxxx">
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted mb-1">Totale Fattura</label>
+                            <input type="text" wire:model.defer="importoTotale"
+                                   class="form-control form-control-sm text-end" placeholder="0,00">
+                        </div>
+                    @endif
                 </div>
             </div>
+        </div>
+
+        <div class="alert alert-info py-2 mb-3">
+            <iconify-icon icon="solar:info-circle-bold-duotone" class="me-1"></iconify-icon>
+            Il magazzino in testata imposta automaticamente il magazzino su tutte le righe. Puoi comunque cambiarlo per singolo articolo.
         </div>
 
         {{-- Tabella Articoli --}}
@@ -252,7 +288,12 @@
                             <th width="50">Stato</th>
                             <th width="180">Codice *</th>
                             <th>Descrizione</th>
+                            <th width="160">Magazzino *</th>
                             <th width="100">Quantità *</th>
+                            @if($tipoDocumento === 'fattura')
+                                <th width="120">Costo Unit.</th>
+                                <th width="120">Totale Riga</th>
+                            @endif
                             <th width="150">Seriale</th>
                             <th width="150">EAN</th>
                             <th width="60"></th>
@@ -279,10 +320,31 @@
                                        class="form-control form-control-sm" placeholder="Descrizione">
                             </td>
                             <td>
+                                <select wire:model.defer="articoli.{{ $index }}.categoria_id"
+                                        class="form-select form-select-sm @error('articoli.'.$index.'.categoria_id') is-invalid @enderror">
+                                    <option value="">Seleziona...</option>
+                                    @foreach($categorie as $categoria)
+                                        <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td>
                                 <input type="number" wire:model.defer="articoli.{{ $index }}.quantita"
                                        class="form-control form-control-sm text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
                                        min="1">
                             </td>
+                            @if($tipoDocumento === 'fattura')
+                                <td>
+                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_unitario"
+                                           class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
+                                           placeholder="0,00">
+                                </td>
+                                <td>
+                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_totale"
+                                           class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
+                                           placeholder="0,00">
+                                </td>
+                            @endif
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
                                        class="form-control form-control-sm" placeholder="Seriale">
@@ -300,7 +362,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="text-center py-5">
+                            <td colspan="{{ $tipoDocumento === 'fattura' ? 11 : 9 }}" class="text-center py-5">
                                 <iconify-icon icon="solar:inbox-line-bold-duotone" class="fs-1 text-muted d-block mb-2" style="font-size: 3rem;"></iconify-icon>
                                 <p class="text-muted">Nessun articolo trovato</p>
                             </td>
@@ -317,7 +379,11 @@
                 <iconify-icon icon="solar:arrow-left-bold-duotone" class="me-1"></iconify-icon> Indietro
             </button>
             
-            <button type="submit" class="btn btn-success" wire:loading.attr="disabled" wire:target="salvaCarico">
+            <button type="button"
+                    class="btn btn-success"
+                    wire:click="salvaCarico"
+                    wire:loading.attr="disabled"
+                    wire:target="salvaCarico">
                 <span wire:loading.remove wire:target="salvaCarico">
                     <iconify-icon icon="solar:diskette-bold-duotone" class="me-1"></iconify-icon> Salva Carico
                 </span>
@@ -349,7 +415,7 @@
                         <button type="button" wire:click="nuovoCarico" class="btn btn-primary">
                             <iconify-icon icon="solar:add-circle-bold-duotone" class="me-1"></iconify-icon> Nuovo Carico
                         </button>
-                        <a href="{{ route('carico.storico') }}" class="btn btn-secondary">
+                        <a href="{{ route('documenti-acquisto.index') }}" class="btn btn-secondary">
                             <iconify-icon icon="solar:list-check-bold-duotone" class="me-1"></iconify-icon> Vedi Storico
                         </a>
                     </div>
@@ -360,3 +426,37 @@
     @endif
 
 </div>
+
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const dropzone = document.getElementById('pdf-dropzone');
+            const input = document.getElementById('pdf-input');
+            if (!dropzone || !input) return;
+
+            const highlight = () => {
+                dropzone.classList.add('border-primary', 'bg-light');
+            };
+            const unhighlight = () => {
+                dropzone.classList.remove('border-primary', 'bg-light');
+            };
+
+            dropzone.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                highlight();
+            });
+            dropzone.addEventListener('dragleave', (event) => {
+                event.preventDefault();
+                unhighlight();
+            });
+            dropzone.addEventListener('drop', (event) => {
+                event.preventDefault();
+                unhighlight();
+                if (event.dataTransfer?.files?.length) {
+                    input.files = event.dataTransfer.files;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        });
+    </script>
+@endpush
