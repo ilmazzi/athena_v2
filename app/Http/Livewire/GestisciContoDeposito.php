@@ -415,7 +415,7 @@ class GestisciContoDeposito extends Component
         try {
             DB::transaction(function () use ($ddtInvio) {
                 $ddtInvio->dettagli()->delete();
-                $ddtInvio->delete();
+                $ddtInvio->forceDelete();
                 \App\Models\ContoDeposito::withoutGlobalScopes()
                     ->where('id', $this->deposito->id)
                     ->update(['ddt_invio_id' => null]);
