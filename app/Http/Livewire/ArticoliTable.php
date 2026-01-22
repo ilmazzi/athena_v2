@@ -58,6 +58,12 @@ class ArticoliTable extends Component
     public $articoloDaScaricare = null;
     public $quantitaDaScaricare = 1;
     public $giacenzaDisponibile = 0;
+
+    // Modalità ricarico quantità
+    public $showModalRicarico = false;
+    public $articoloDaRicaricare = null;
+    public $giacenzaMancante = 0;
+    public $quantitaDaRicaricare = 1;
     
     // Modalità stampa etichetta
     public $showModalStampa = false;
@@ -432,6 +438,78 @@ class ArticoliTable extends Component
         $this->articoloDaScaricare = null;
         $this->quantitaDaScaricare = 1;
         $this->giacenzaDisponibile = 0;
+    }
+
+    /**
+     * Apre modal per ricaricare quantità scaricate per errore
+     */
+    public function apriModalRicarico($articoloId)
+    {
+        try {
+            $articolo = Articolo::with('giacenza')->findOrFail($articoloId);
+            $quantita = $articolo->giacenza->quantita ?? 0;
+            $residua = $articolo->giacenza->quantita_residua ?? 0;
+            $mancante = max(0, $quantita - $residua);
+
+            if ($mancante === 0) {
+                session()->flash('error', 'Nessuna quantità da ripristinare per questo articolo');
+                return;
+            }
+
+            $this->articoloDaRicaricare = $articolo;
+            $this->giacenzaMancante = $mancante;
+            $this->quantitaDaRicaricare = 1;
+            $this->showModalRicarico = true;
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante l\'apertura del ricarico: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Conferma ricarico quantità
+     */
+    public function confermaRicarico()
+    {
+        if (!$this->articoloDaRicaricare || $this->quantitaDaRicaricare <= 0) {
+            session()->flash('error', 'Dati non validi');
+            return;
+        }
+
+        if ($this->quantitaDaRicaricare > $this->giacenzaMancante) {
+            session()->flash('error', 'Quantità superiore al massimo ripristinabile');
+            return;
+        }
+
+        try {
+            $articolo = Articolo::with('giacenza')->findOrFail($this->articoloDaRicaricare->id);
+            $residua = $articolo->giacenza->quantita_residua ?? 0;
+            $nuovaGiacenza = $residua + $this->quantitaDaRicaricare;
+
+            $articolo->giacenza()->update([
+                'quantita_residua' => $nuovaGiacenza
+            ]);
+
+            if ($articolo->stato_articolo === 'scaricato') {
+                $articolo->update([
+                    'stato_articolo' => 'disponibile',
+                    'scaricato_il' => null,
+                    'scaricato_da' => null
+                ]);
+            }
+
+            session()->flash('success', "Ripristinati {$this->quantitaDaRicaricare} pezzi di {$articolo->codice}");
+            $this->chiudiModalRicarico();
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante il ripristino: ' . $e->getMessage());
+        }
+    }
+
+    public function chiudiModalRicarico()
+    {
+        $this->showModalRicarico = false;
+        $this->articoloDaRicaricare = null;
+        $this->giacenzaMancante = 0;
+        $this->quantitaDaRicaricare = 1;
     }
     
     /**

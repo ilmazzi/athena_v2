@@ -1092,6 +1092,15 @@
                                                     Stampa Etichetta
                                                 </button>
                                             </li>
+                                            @if($articolo->giacenza && ($articolo->giacenza->quantita_residua ?? 0) < ($articolo->giacenza->quantita ?? 0))
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <button class="dropdown-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
+                                                        <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
+                                                        Ricarica Quantità
+                                                    </button>
+                                                </li>
+                                            @endif
                                             @if($articolo->stato_articolo === 'disponibile')
                                                 <li><hr class="dropdown-divider"></li>
                                                 <li>
@@ -1230,6 +1239,41 @@
                             <iconify-icon icon="solar:box-remove-bold" class="me-1"></iconify-icon>
                             Scarica {{ $quantitaDaScaricare }} pezzi
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    @endif
+
+    <!-- Modal Ricarico Quantità -->
+    @if($showModalRicarico && $articoloDaRicaricare)
+        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
+                            Ricarica Quantità
+                        </h5>
+                        <button type="button" class="btn-close" wire:click="chiudiModalRicarico"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <iconify-icon icon="solar:info-circle-bold" class="me-2"></iconify-icon>
+                            <strong>Articolo:</strong> {{ $articoloDaRicaricare->codice }} - {{ $articoloDaRicaricare->descrizione }}
+                            <br>
+                            <strong>Quantità ripristinabile:</strong> {{ $giacenzaMancante }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantità da ripristinare</label>
+                            <input type="number" class="form-control" min="1" max="{{ $giacenzaMancante }}" wire:model.defer="quantitaDaRicaricare">
+                            <small class="text-muted">Max: {{ $giacenzaMancante }}</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="chiudiModalRicarico">Annulla</button>
+                        <button type="button" class="btn btn-success" wire:click="confermaRicarico">Ripristina</button>
                     </div>
                 </div>
             </div>
