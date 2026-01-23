@@ -86,6 +86,11 @@ class ArticoliTable extends Component
 
     // Cache statistiche per evitare ricalcoli costosi durante la ricerca
     public $statsCache = null;
+
+    private function isSearchActive(): bool
+    {
+        return trim((string) $this->search) !== '';
+    }
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -1082,11 +1087,14 @@ class ArticoliTable extends Component
             'categoria',
             'sede',
             'giacenza',
-            'ddtDettaglio.ddt.fornitore',
-            'fatturaDettaglio.fattura.fornitore',
             'categoriaMerceologica',
-            'componentiUtilizzatoIn.prodottoFinito',
         ];
+
+        if (($this->visibleColumns['dati_carico'] ?? true)) {
+            $relations[] = 'ddtDettaglio.ddt.fornitore';
+            $relations[] = 'fatturaDettaglio.fattura.fornitore';
+            $relations[] = 'fornitore';
+        }
 
         $query = Articolo::with($relations);
 
@@ -1232,7 +1240,7 @@ class ArticoliTable extends Component
         // Statistiche DINAMICHE basate sui filtri applicati
         // Statistiche dinamiche: evita ricalcoli pesanti durante la ricerca
         $stats = $this->statsCache;
-        if ($search === '') {
+        if (!$this->isSearchActive()) {
             $baseQuery = $this->getFilteredQuery();
             $stats = [
                 'totali' => $baseQuery->count(),
@@ -1254,13 +1262,25 @@ class ArticoliTable extends Component
                 'valore_totale' => $this->calcolaValoreTotale($baseQuery),
             ];
             $this->statsCache = $stats;
+        } elseif ($stats === null) {
+            $stats = [
+                'totali' => $articoli->total(),
+                'con_giacenza' => 0,
+                'giacenza_zero' => 0,
+                'giacenza_negativa' => 0,
+                'senza_giacenze' => 0,
+                'in_vetrina' => 0,
+                'valore_totale' => 0,
+            ];
         }
 
         // Opzioni per i filtri - TUTTE le categorie attive con count articoli
-        $magazzini = CategoriaMerceologica::where('attivo', true)
-            ->withCount('articoli')
-            ->orderBy('id')
-            ->get();
+        $magazziniQuery = CategoriaMerceologica::where('attivo', true)
+            ->orderBy('id');
+        if (!$this->isSearchActive()) {
+            $magazziniQuery->withCount('articoli');
+        }
+        $magazzini = $magazziniQuery->get();
         
         // Opzioni per filtri avanzati
         $fornitori = Fornitore::where('attivo', true)
@@ -1268,14 +1288,17 @@ class ArticoliTable extends Component
             ->get(['id', 'ragione_sociale']);
         
         // Marche estratte da JSON caratteristiche
-        $marche = DB::table('articoli')
-            ->whereNotNull('caratteristiche')
-            ->whereRaw("JSON_EXTRACT(caratteristiche, '$.marca') IS NOT NULL")
-            ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.marca')) as marca")
-            ->orderBy('marca')
-            ->pluck('marca')
-            ->filter()
-            ->values();
+        $marche = collect();
+        if (!$this->isSearchActive()) {
+            $marche = DB::table('articoli')
+                ->whereNotNull('caratteristiche')
+                ->whereRaw("JSON_EXTRACT(caratteristiche, '$.marca') IS NOT NULL")
+                ->selectRaw("DISTINCT JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.marca')) as marca")
+                ->orderBy('marca')
+                ->pluck('marca')
+                ->filter()
+                ->values();
+        }
         
         // Sedi per filtro (ex-ubicazioni)
         $sedi = Sede::orderBy('nome')->get();

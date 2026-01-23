@@ -351,8 +351,6 @@
                     <th style="width: 100px;">Codice</th>
                     <th>Descrizione</th>
                     <th style="width: 60px;" class="text-center">Q.tà</th>
-                    <th style="width: 90px;" class="text-right">Valore Unit.</th>
-                    <th style="width: 100px;" class="text-right">Valore Tot.</th>
                 </tr>
             </thead>
             <tbody>
@@ -371,25 +369,17 @@
                         <td class="text-center">
                             <strong>{{ $dettaglio->quantita }}</strong>
                         </td>
-                        <td class="text-right">€{{ number_format($dettaglio->valore_unitario, 2, ',', '.') }}</td>
-                        <td class="text-right">
-                            <strong>€{{ number_format($dettaglio->valore_totale, 2, ',', '.') }}</strong>
-                        </td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
     </div>
 
-    {{-- Riassunto valori --}}
+    {{-- Riassunto --}}
     <div class="summary-box">
         <div class="summary-row">
             <span>Totale Articoli:</span>
             <strong>{{ $ddtDeposito->articoli_totali }}</strong>
-        </div>
-        <div class="summary-row summary-total">
-            <span>Valore Totale Dichiarato:</span>
-            <strong>€{{ number_format($ddtDeposito->valore_dichiarato, 2, ',', '.') }}</strong>
         </div>
     </div>
 
