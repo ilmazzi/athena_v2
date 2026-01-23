@@ -365,7 +365,22 @@
                             @endif
                         </td>
                         <td><strong class="text-primary">{{ $dettaglio->codice_item }}</strong></td>
-                        <td>{{ $dettaglio->descrizione }}</td>
+                        <td>
+                            {{ $dettaglio->descrizione }}
+                            @if($dettaglio->prodotto_finito_id && $dettaglio->prodottoFinito)
+                                @php
+                                    $componenti = $dettaglio->prodottoFinito->componentiArticoli ?? collect();
+                                @endphp
+                                @if($componenti->count() > 0)
+                                    <div style="margin-top: 4px; font-size: 9px; color: var(--bs-secondary);">
+                                        Componenti:
+                                        @foreach($componenti as $idxComp => $comp)
+                                            {{ $comp->articolo->codice ?? 'N/D' }} x{{ $comp->quantita ?? 1 }}@if(!$loop->last), @endif
+                                        @endforeach
+                                    </div>
+                                @endif
+                            @endif
+                        </td>
                         <td class="text-center">
                             <strong>{{ $dettaglio->quantita }}</strong>
                         </td>

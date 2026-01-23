@@ -26,6 +26,7 @@ class DdtDepositoController extends Controller
             'sedeDestinataria.societa',
             'dettagli.articolo.categoriaMerceologica',
             'dettagli.prodottoFinito.categoriaMerceologica',
+            'dettagli.prodottoFinito.componentiArticoli.articolo',
             'creatoDa'
         ]);
 
