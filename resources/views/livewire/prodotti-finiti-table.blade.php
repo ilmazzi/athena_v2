@@ -1,4 +1,4 @@
-﻿<div>
+<div>
     <!-- Success Message -->
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -75,7 +75,7 @@
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
                             <h6 class="mb-1 text-muted small">Valore Totale</h6>
-                            <h4 class="mb-0 fw-bold">â‚¬ {{ number_format($stats['valore_totale'], 2, ',', '.') }}</h4>
+                            <h4 class="mb-0 fw-bold">€ {{ number_format($stats['valore_totale'], 2, ',', '.') }}</h4>
                             <small class="text-muted">{{ $stats['venduti'] }} venduti</small>
                         </div>
                         <div class="bg-info-subtle rounded p-2">
@@ -217,9 +217,7 @@
                             @foreach($prodotti as $prodotto)
                                 <tr>
                                     <td>
-                                        <strong class="text-primary">
-                                            {{ $prodotto->articoloRisultante?->codice ?? $prodotto->codice }}
-                                        </strong>
+                                        <strong class="text-primary">{{ $prodotto->codice }}</strong>
                                     </td>
                                     <td>
                                         <div>
@@ -248,7 +246,7 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <strong>â‚¬ {{ number_format($prodotto->costo_totale ?? 0, 2, ',', '.') }}</strong>
+                                        <strong>€ {{ number_format($prodotto->costo_totale ?? 0, 2, ',', '.') }}</strong>
                                     </td>
                                     <td>
                                         @switch($prodotto->stato)
@@ -300,7 +298,7 @@
                                             @endif
                                             @if(in_array($prodotto->stato, ['in_lavorazione', 'completato']) && !$prodotto->in_conto_deposito)
                                                 <button class="btn btn-light" 
-                                                        type="button" wire:click.prevent="apriSmontaModal({{ $prodotto->id }})"
+                                                        wire:click="apriSmontaModal({{ $prodotto->id }})"
                                                         title="Smonta / Disfa">
                                                     <iconify-icon icon="solar:undo-left-bold" class="text-danger"></iconify-icon>
                                                 </button>
@@ -359,7 +357,7 @@
                 <div class="modal-body">
                     <div class="alert alert-warning">
                         <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
-                        Questa operazione annulla l'assemblaggio e ripristina le giacenze dei componenti.
+                        Questa operazione annulla l’assemblaggio e ripristina le giacenze dei componenti.
                     </div>
                     <div class="mb-2">
                         <strong>Codice:</strong> {{ $prodottoDaSmontare->codice }}
@@ -371,7 +369,7 @@
                         <strong>Componenti:</strong> {{ $prodottoDaSmontare->componentiArticoli->count() }}
                     </div>
                     <div class="text-muted small">
-                        Il prodotto finito verra marcato come annullato e non sara piÃ¹ visibile in elenco.
+                        Il prodotto finito verrà marcato come annullato e non sarà più visibile in elenco.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -387,7 +385,3 @@
     <div class="modal-backdrop fade show"></div>
 @endif
 </div>
-
-
-
-
