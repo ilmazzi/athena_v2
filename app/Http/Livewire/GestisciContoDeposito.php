@@ -275,10 +275,14 @@ class GestisciContoDeposito extends Component
             ->whereHas('giacenza', function ($query) {
                 $query->where('quantita_residua', '>', 0);
             })
-            ->where('in_vetrina', false)
+            ->where(function ($query) {
+                $query->where('in_vetrina', false)
+                      ->orWhereNull('in_vetrina');
+            })
             ->where(function ($query) {
                 $query->whereNull('conto_deposito_corrente_id')
-                      ->orWhere('quantita_in_deposito', 0);
+                      ->orWhere('quantita_in_deposito', 0)
+                      ->orWhereNull('quantita_in_deposito');
             })
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
