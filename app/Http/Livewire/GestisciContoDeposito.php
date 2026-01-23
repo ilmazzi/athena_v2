@@ -519,6 +519,40 @@ class GestisciContoDeposito extends Component
         }
     }
 
+    public function rimuoviArticoloDaDeposito($articoloId)
+    {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può rimuovere articoli prima del DDT di invio.');
+            return;
+        }
+
+        try {
+            $service = new ContoDepositoService();
+            $service->rimuoviArticoloDaDepositoPrimaDdt($this->deposito, $articoloId);
+            $this->deposito->refresh();
+            session()->flash('success', 'Articolo rimosso dal deposito.');
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante la rimozione: ' . $e->getMessage());
+        }
+    }
+
+    public function rimuoviProdottoFinitoDaDeposito($prodottoFinitoId)
+    {
+        if (!$this->puoGestireMittente) {
+            session()->flash('error', 'Solo la sede mittente può rimuovere prodotti finiti prima del DDT di invio.');
+            return;
+        }
+
+        try {
+            $service = new ContoDepositoService();
+            $service->rimuoviProdottoFinitoDaDepositoPrimaDdt($this->deposito, $prodottoFinitoId);
+            $this->deposito->refresh();
+            session()->flash('success', 'Prodotto finito rimosso dal deposito.');
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante la rimozione: ' . $e->getMessage());
+        }
+    }
+
     // ==========================================
     // ACTIONS - VENDITE
     // ==========================================

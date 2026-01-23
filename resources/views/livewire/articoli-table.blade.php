@@ -225,10 +225,10 @@
                         <span class="input-group-text">
                             <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
                         </span>
-                        <input type="text" 
+                            <input type="text" 
                                class="form-control" 
                                placeholder="Codice, descrizione, fornitore..." 
-                               wire:model.live.debounce.300ms="search">
+                               wire:model.live.debounce.600ms="search">
                     </div>
                 </div>
 
@@ -1447,8 +1447,6 @@
         <div class="modal-backdrop fade show"></div>
     @endif
     
-</div>
-
 @once
     <div class="modal fade" id="articoloFotoModal" tabindex="-1" aria-labelledby="articoloFotoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -1547,3 +1545,4 @@
         </script>
     @endpush
 @endonce
+</div>

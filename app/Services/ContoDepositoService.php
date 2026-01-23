@@ -240,6 +240,81 @@ class ContoDepositoService
     }
 
     /**
+     * Rimuove un articolo dal conto deposito PRIMA della creazione DDT invio.
+     */
+    public function rimuoviArticoloDaDepositoPrimaDdt(ContoDeposito $contoDeposito, int $articoloId): void
+    {
+        if ($contoDeposito->ddt_invio_id && $contoDeposito->ddtInvio) {
+            throw new \Exception('Impossibile rimuovere: il DDT di invio è già stato generato.');
+        }
+
+        DB::transaction(function () use ($contoDeposito, $articoloId) {
+            $articolo = Articolo::findOrFail($articoloId);
+
+            $movimentiInvio = $contoDeposito->movimenti()
+                ->where('articolo_id', $articoloId)
+                ->where('tipo_movimento', 'invio')
+                ->whereNull('ddt_id')
+                ->get();
+
+            if ($movimentiInvio->isEmpty()) {
+                throw new \Exception("Articolo {$articolo->codice} non presente nel deposito (invio non trovato).");
+            }
+
+            $quantita = (int) $movimentiInvio->sum('quantita');
+
+            if ($contoDeposito->isInterSocieta() && $quantita > 0) {
+                $magazzinoOriginaleId = $movimentiInvio->first()->dettagli['magazzino_originale_id'] ?? null;
+                if ($magazzinoOriginaleId) {
+                    $articolo->categoria_merceologica_id = $magazzinoOriginaleId;
+                }
+
+                $mittenteId = $contoDeposito->sede_mittente_id;
+                $destId = $contoDeposito->sede_destinataria_id;
+                $from = GiacenzaSede::firstOrCreate(['articolo_id' => $articolo->id, 'sede_id' => $destId]);
+                $to = GiacenzaSede::firstOrCreate(['articolo_id' => $articolo->id, 'sede_id' => $mittenteId]);
+                $from->decrement('quantita_residua', $quantita);
+                $to->increment('quantita_residua', $quantita);
+            }
+
+            $movimentiInvio->each->delete();
+            $articolo->save();
+            $articolo->aggiornaQuantitaInDeposito();
+        });
+
+        $contoDeposito->aggiornaStatistiche();
+    }
+
+    /**
+     * Rimuove un prodotto finito dal conto deposito PRIMA della creazione DDT invio.
+     */
+    public function rimuoviProdottoFinitoDaDepositoPrimaDdt(ContoDeposito $contoDeposito, int $prodottoFinitoId): void
+    {
+        if ($contoDeposito->ddt_invio_id && $contoDeposito->ddtInvio) {
+            throw new \Exception('Impossibile rimuovere: il DDT di invio è già stato generato.');
+        }
+
+        DB::transaction(function () use ($contoDeposito, $prodottoFinitoId) {
+            $prodottoFinito = ProdottoFinito::findOrFail($prodottoFinitoId);
+
+            $movimentiInvio = $contoDeposito->movimenti()
+                ->where('prodotto_finito_id', $prodottoFinitoId)
+                ->where('tipo_movimento', 'invio')
+                ->whereNull('ddt_id')
+                ->get();
+
+            if ($movimentiInvio->isEmpty()) {
+                throw new \Exception("Prodotto finito {$prodottoFinito->codice} non presente nel deposito (invio non trovato).");
+            }
+
+            $movimentiInvio->each->delete();
+            $prodottoFinito->aggiornaStatoDeposito();
+        });
+
+        $contoDeposito->aggiornaStatistiche();
+    }
+
+    /**
      * Registra una vendita dal conto deposito
      */
     public function registraVendita(

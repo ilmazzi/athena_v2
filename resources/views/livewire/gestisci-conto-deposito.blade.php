@@ -252,6 +252,15 @@
                                                         <iconify-icon icon="solar:cart-check-bold"></iconify-icon>
                                                     </button>
                                                 @endif
+                                                @if($puoGestireMittente && !$ddtInvioGenerato)
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger btn-sm"
+                                                            wire:click="rimuoviArticoloDaDeposito({{ $articoloData['articolo']->id }})"
+                                                            onclick="return confirm('Rimuovere questo articolo dal deposito?')"
+                                                            title="Rimuovi dal deposito">
+                                                        <iconify-icon icon="solar:trash-bin-trash-bold"></iconify-icon>
+                                                    </button>
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
@@ -300,6 +309,15 @@
                                                                 wire:click="apriRegistraVenditaModal('prodotto_finito', {{ $pfData['prodotto_finito']->id }})"
                                                                 title="Registra vendita">
                                                             <iconify-icon icon="solar:cart-check-bold"></iconify-icon>
+                                                        </button>
+                                                    @endif
+                                                    @if($puoGestireMittente && !$ddtInvioGenerato)
+                                                        <button type="button"
+                                                                class="btn btn-outline-danger btn-sm"
+                                                                wire:click="rimuoviProdottoFinitoDaDeposito({{ $pfData['prodotto_finito']->id }})"
+                                                                onclick="return confirm('Rimuovere questo prodotto finito dal deposito?')"
+                                                                title="Rimuovi dal deposito">
+                                                            <iconify-icon icon="solar:trash-bin-trash-bold"></iconify-icon>
                                                         </button>
                                                     @endif
                                                 </div>

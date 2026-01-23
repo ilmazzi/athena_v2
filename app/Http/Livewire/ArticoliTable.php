@@ -83,6 +83,9 @@ class ArticoliTable extends Component
     // Colonne visibili in tabella
     public $visibleColumns = [];
     public $showColumnsDropdown = false;
+
+    // Cache statistiche per evitare ricalcoli costosi durante la ricerca
+    public $statsCache = null;
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -731,36 +734,36 @@ class ArticoliTable extends Component
      */
     private function getFilteredQuery()
     {
-        $query = Articolo::with([
-            'categoria', 
-            'sede', 
-            'giacenza', 
-            'ddtDettaglio.ddt.fornitore',
-            'fatturaDettaglio.fattura.fornitore'
-        ]);
+        $query = Articolo::query();
 
         // Applica tutti i filtri (stessa logica del render)
-        if ($this->search) {
-            $searchTerm = '%' . $this->search . '%';
-            $query->where(function($q) use ($searchTerm) {
+        $search = trim((string) $this->search);
+        if ($search !== '') {
+            $searchTerm = '%' . $search . '%';
+            $query->where(function($q) use ($searchTerm, $search) {
+                // Ricerca veloce su campi principali
                 $q->where('articoli.codice', 'like', $searchTerm)
-                  ->orWhere('articoli.descrizione', 'like', $searchTerm)
-                  ->orWhere('articoli.descrizione_estesa', 'like', $searchTerm)
-                  ->orWhere('articoli.numero_documento_carico', 'like', $searchTerm)
-                  ->orWhere('articoli.materiale', 'like', $searchTerm)
-                  ->orWhere('articoli.colore', 'like', $searchTerm)
-                  ->orWhere('articoli.numero_seriale', 'like', $searchTerm)
-                  ->orWhere('articoli.ean', 'like', $searchTerm)
-                  ->orWhere('articoli.modello', 'like', $searchTerm)
-                  ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
-                  ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.marca') LIKE ?", [$searchTerm])
-                  ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
-                      $subQ->where('nome', 'like', $searchTerm)
-                           ->orWhere('codice', 'like', $searchTerm);
-                  })
-                  ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
-                      $subQ->where('ragione_sociale', 'like', $searchTerm);
-                  });
+                  ->orWhere('articoli.descrizione', 'like', $searchTerm);
+
+                // Ricerca estesa solo se il termine e' abbastanza lungo
+                if (mb_strlen($search) >= 3) {
+                    $q->orWhere('articoli.descrizione_estesa', 'like', $searchTerm)
+                      ->orWhere('articoli.numero_documento_carico', 'like', $searchTerm)
+                      ->orWhere('articoli.materiale', 'like', $searchTerm)
+                      ->orWhere('articoli.colore', 'like', $searchTerm)
+                      ->orWhere('articoli.numero_seriale', 'like', $searchTerm)
+                      ->orWhere('articoli.ean', 'like', $searchTerm)
+                      ->orWhere('articoli.modello', 'like', $searchTerm)
+                      ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                      ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.marca') LIKE ?", [$searchTerm])
+                      ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
+                          $subQ->where('nome', 'like', $searchTerm)
+                               ->orWhere('codice', 'like', $searchTerm);
+                      })
+                      ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
+                          $subQ->where('ragione_sociale', 'like', $searchTerm);
+                      });
+                }
             });
         }
 
@@ -1075,38 +1078,44 @@ class ArticoliTable extends Component
 
     public function render()
     {
-        // Query Eloquent per tutti gli articoli con relazioni
-        $query = Articolo::with([
-            'categoria', 
-            'sede', 
-            'giacenza', 
+        $relations = [
+            'categoria',
+            'sede',
+            'giacenza',
             'ddtDettaglio.ddt.fornitore',
             'fatturaDettaglio.fattura.fornitore',
-            'categoriaMerceologica'
-        ]);
+            'categoriaMerceologica',
+            'componentiUtilizzatoIn.prodottoFinito',
+        ];
+
+        $query = Articolo::with($relations);
 
         // Applica filtri
-        if ($this->search) {
-            $searchTerm = '%' . $this->search . '%';
-            $query->where(function($q) use ($searchTerm) {
+        $search = trim((string) $this->search);
+        if ($search !== '') {
+            $searchTerm = '%' . $search . '%';
+            $query->where(function($q) use ($searchTerm, $search) {
                 $q->where('codice', 'like', $searchTerm)
-                  ->orWhere('descrizione', 'like', $searchTerm)
-                  ->orWhere('descrizione_estesa', 'like', $searchTerm)
-                  ->orWhere('numero_documento_carico', 'like', $searchTerm)
-                  ->orWhere('materiale', 'like', $searchTerm)
-                  ->orWhere('colore', 'like', $searchTerm)
-                  ->orWhere('numero_seriale', 'like', $searchTerm)
-                  ->orWhere('ean', 'like', $searchTerm)
-                  ->orWhere('modello', 'like', $searchTerm)
-                  ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
-                  ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') LIKE ?", [$searchTerm])
-                  ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
-                      $subQ->where('nome', 'like', $searchTerm)
-                           ->orWhere('codice', 'like', $searchTerm);
-                  })
-                  ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
-                      $subQ->where('ragione_sociale', 'like', $searchTerm);
-                  });
+                  ->orWhere('descrizione', 'like', $searchTerm);
+
+                if (mb_strlen($search) >= 3) {
+                    $q->orWhere('descrizione_estesa', 'like', $searchTerm)
+                      ->orWhere('numero_documento_carico', 'like', $searchTerm)
+                      ->orWhere('materiale', 'like', $searchTerm)
+                      ->orWhere('colore', 'like', $searchTerm)
+                      ->orWhere('numero_seriale', 'like', $searchTerm)
+                      ->orWhere('ean', 'like', $searchTerm)
+                      ->orWhere('modello', 'like', $searchTerm)
+                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') LIKE ?", [$searchTerm])
+                      ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
+                          $subQ->where('nome', 'like', $searchTerm)
+                               ->orWhere('codice', 'like', $searchTerm);
+                      })
+                      ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
+                          $subQ->where('ragione_sociale', 'like', $searchTerm);
+                      });
+                }
             });
         }
 
@@ -1218,39 +1227,34 @@ class ArticoliTable extends Component
         // Applica sorting
         $query->orderBy($this->sortField, $this->sortDirection);
 
-        // Eager loading per performance
-        $articoli = $query->with([
-            'categoria', 
-            'sede', 
-            'giacenza', 
-            'ddtDettaglio.ddt.fornitore',
-            'fatturaDettaglio.fattura.fornitore',
-            'componentiUtilizzatoIn.prodottoFinito'
-        ])
-            ->paginate($this->perPage);
+        $articoli = $query->paginate($this->perPage);
 
         // Statistiche DINAMICHE basate sui filtri applicati
-        $baseQuery = $this->getFilteredQuery();
-        
-        $stats = [
-            'totali' => $baseQuery->count(),
-            'con_giacenza' => (clone $baseQuery)
-                ->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '>', 0);
-                })->count(),
-            'giacenza_zero' => (clone $baseQuery)
-                ->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '=', 0);
-                })->count(),
-            'giacenza_negativa' => (clone $baseQuery)
-                ->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '<', 0);
-                })->count(),
-            'senza_giacenze' => (clone $baseQuery)
-                ->whereDoesntHave('giacenze')->count(),
-            'in_vetrina' => (clone $baseQuery)->where('in_vetrina', true)->count(),
-            'valore_totale' => $this->calcolaValoreTotale($baseQuery),
-        ];
+        // Statistiche dinamiche: evita ricalcoli pesanti durante la ricerca
+        $stats = $this->statsCache;
+        if ($search === '') {
+            $baseQuery = $this->getFilteredQuery();
+            $stats = [
+                'totali' => $baseQuery->count(),
+                'con_giacenza' => (clone $baseQuery)
+                    ->whereHas('giacenze', function($q) {
+                        $q->where('quantita_residua', '>', 0);
+                    })->count(),
+                'giacenza_zero' => (clone $baseQuery)
+                    ->whereHas('giacenze', function($q) {
+                        $q->where('quantita_residua', '=', 0);
+                    })->count(),
+                'giacenza_negativa' => (clone $baseQuery)
+                    ->whereHas('giacenze', function($q) {
+                        $q->where('quantita_residua', '<', 0);
+                    })->count(),
+                'senza_giacenze' => (clone $baseQuery)
+                    ->whereDoesntHave('giacenze')->count(),
+                'in_vetrina' => (clone $baseQuery)->where('in_vetrina', true)->count(),
+                'valore_totale' => $this->calcolaValoreTotale($baseQuery),
+            ];
+            $this->statsCache = $stats;
+        }
 
         // Opzioni per i filtri - TUTTE le categorie attive con count articoli
         $magazzini = CategoriaMerceologica::where('attivo', true)
