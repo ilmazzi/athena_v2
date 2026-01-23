@@ -369,13 +369,20 @@
                             {{ $dettaglio->descrizione }}
                             @if($dettaglio->prodotto_finito_id && $dettaglio->prodottoFinito)
                                 @php
-                                    $componenti = $dettaglio->prodottoFinito->componentiArticoli ?? collect();
+                                    $componenti = ($dettaglio->prodottoFinito->componentiArticoli ?? collect())
+                                        ->sortBy(function ($comp) {
+                                            return $comp->articolo->codice ?? '';
+                                        });
                                 @endphp
                                 @if($componenti->count() > 0)
                                     <div style="margin-top: 4px; font-size: 9px; color: var(--bs-secondary);">
-                                        Componenti:
-                                        @foreach($componenti as $idxComp => $comp)
-                                            {{ $comp->articolo->codice ?? 'N/D' }} x{{ $comp->quantita ?? 1 }}@if(!$loop->last), @endif
+                                        <div><strong>Componenti:</strong></div>
+                                        @foreach($componenti as $comp)
+                                            <div>
+                                                {{ $comp->articolo->codice ?? 'N/D' }} -
+                                                {{ $comp->articolo->descrizione ?? 'N/D' }}
+                                                x{{ $comp->quantita ?? 1 }}
+                                            </div>
                                         @endforeach
                                     </div>
                                 @endif

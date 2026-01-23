@@ -264,7 +264,6 @@ class ModificaProdottoFinito extends Component
         // Articoli disponibili per componenti
         if ($this->sedeId) {
             $query = Articolo::with(['categoria', 'giacenza'])
-                ->where('stato', 'disponibile')
                 ->whereHas('giacenza', function($q) {
                     $q->where('sede_id', $this->sedeId);
                 });

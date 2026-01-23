@@ -289,7 +289,7 @@
                                                title="Dettaglio">
                                                 <iconify-icon icon="solar:eye-bold-duotone" class="text-primary"></iconify-icon>
                                             </a>
-                                            @if($prodotto->stato === 'in_lavorazione')
+                                            @if(in_array($prodotto->stato, ['in_lavorazione', 'completato']) && !$prodotto->in_conto_deposito)
                                                 <a href="{{ route('prodotti-finiti.modifica', $prodotto->id) }}" 
                                                    class="btn btn-light" 
                                                    title="Modifica">
