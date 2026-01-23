@@ -4,6 +4,7 @@ namespace App\Http\Livewire;
 
 use App\Models\ProdottoFinito;
 use App\Models\CategoriaMerceologica;
+use App\Services\ProdottoFinitoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
@@ -27,6 +28,10 @@ class ProdottiFinitiTable extends Component
     public $perPage = 25;
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
+
+    // Smontaggio / disfacimento
+    public $showSmontaModal = false;
+    public $prodottoDaSmontare = null;
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -91,6 +96,59 @@ class ProdottiFinitiTable extends Component
         $this->dataFrom = '';
         $this->dataTo = '';
         $this->resetPage();
+    }
+
+    public function apriSmontaModal($prodottoId)
+    {
+        $prodotto = ProdottoFinito::with(['componentiArticoli.articolo', 'articoloRisultante.giacenza'])
+            ->findOrFail($prodottoId);
+
+        if (in_array($prodotto->stato, ['venduto', 'scartato', 'annullato'])) {
+            session()->flash('error', 'Il prodotto finito non è smontabile nello stato attuale.');
+            return;
+        }
+
+        if ($prodotto->isInContoDeposito()) {
+            session()->flash('error', 'Il prodotto finito è in conto deposito e non può essere smontato.');
+            return;
+        }
+
+        if ($prodotto->articoloRisultante && $prodotto->articoloRisultante->giacenza) {
+            if ($prodotto->articoloRisultante->giacenza->quantita_residua <= 0) {
+                session()->flash('error', 'Il prodotto finito risulta già scaricato/venduto.');
+                return;
+            }
+        }
+
+        $this->prodottoDaSmontare = $prodotto;
+        $this->showSmontaModal = true;
+    }
+
+    public function chiudiSmontaModal()
+    {
+        $this->showSmontaModal = false;
+        $this->prodottoDaSmontare = null;
+    }
+
+    public function confermaSmonta()
+    {
+        if (!$this->prodottoDaSmontare) {
+            return;
+        }
+
+        try {
+            $service = app(ProdottoFinitoService::class);
+            $service->annullaAssemblaggio($this->prodottoDaSmontare->id);
+
+            session()->flash('success', 'Prodotto finito smontato e componenti ripristinati.');
+            $this->chiudiSmontaModal();
+        } catch (\Exception $e) {
+            Log::error('Errore smontaggio prodotto finito', [
+                'prodotto_id' => $this->prodottoDaSmontare->id,
+                'error' => $e->getMessage(),
+            ]);
+            session()->flash('error', 'Errore durante lo smontaggio: ' . $e->getMessage());
+        }
     }
 
     public function render()

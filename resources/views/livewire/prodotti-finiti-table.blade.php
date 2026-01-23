@@ -1,4 +1,4 @@
-<div>
+﻿<div>
     <!-- Success Message -->
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -75,7 +75,7 @@
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
                             <h6 class="mb-1 text-muted small">Valore Totale</h6>
-                            <h4 class="mb-0 fw-bold">€ {{ number_format($stats['valore_totale'], 2, ',', '.') }}</h4>
+                            <h4 class="mb-0 fw-bold">â‚¬ {{ number_format($stats['valore_totale'], 2, ',', '.') }}</h4>
                             <small class="text-muted">{{ $stats['venduti'] }} venduti</small>
                         </div>
                         <div class="bg-info-subtle rounded p-2">
@@ -246,7 +246,7 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <strong>€ {{ number_format($prodotto->costo_totale ?? 0, 2, ',', '.') }}</strong>
+                                        <strong>â‚¬ {{ number_format($prodotto->costo_totale ?? 0, 2, ',', '.') }}</strong>
                                     </td>
                                     <td>
                                         @switch($prodotto->stato)
@@ -296,6 +296,13 @@
                                                     <iconify-icon icon="solar:pen-bold-duotone" class="text-warning"></iconify-icon>
                                                 </a>
                                             @endif
+                                            @if(in_array($prodotto->stato, ['in_lavorazione', 'completato']) && !$prodotto->in_conto_deposito)
+                                                <button class="btn btn-light" 
+                                                        type="button" wire:click.prevent="apriSmontaModal({{ $prodotto->id }})"
+                                                        title="Smonta / Disfa">
+                                                    <iconify-icon icon="solar:undo-left-bold" class="text-danger"></iconify-icon>
+                                                </button>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -333,6 +340,46 @@
                 </div>
             </div>
         @endif
-    </div>
-</div>
 
+@if($showSmontaModal && $prodottoDaSmontare)
+    <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <iconify-icon icon="solar:undo-left-bold" class="text-danger me-2"></iconify-icon>
+                        Smonta prodotto finito
+                    </h5>
+                    <button type="button" class="btn-close" wire:click="chiudiSmontaModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
+                        Questa operazione annulla l'assemblaggio e ripristina le giacenze dei componenti.
+                    </div>
+                    <div class="mb-2">
+                        <strong>Codice:</strong> {{ $prodottoDaSmontare->codice }}
+                    </div>
+                    <div class="mb-2">
+                        <strong>Descrizione:</strong> {{ $prodottoDaSmontare->descrizione }}
+                    </div>
+                    <div class="mb-2">
+                        <strong>Componenti:</strong> {{ $prodottoDaSmontare->componentiArticoli->count() }}
+                    </div>
+                    <div class="text-muted small">
+                        Il prodotto finito verra marcato come annullato e non sara piu visibile in elenco.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" wire:click="chiudiSmontaModal">Annulla</button>
+                    <button type="button" class="btn btn-danger" wire:click="confermaSmonta">
+                        <iconify-icon icon="solar:undo-left-bold" class="me-1"></iconify-icon>
+                        Smonta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+@endif
+</div>

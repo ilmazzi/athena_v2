@@ -755,6 +755,12 @@
                         <button type="button" wire:click="chiudiAggiungiArticoliModal" class="btn-close"></button>
                     </div>
                     <div class="modal-body">
+                        @if(session('error'))
+                            <div class="alert alert-danger">
+                                <iconify-icon icon="solar:close-circle-bold" class="me-2"></iconify-icon>
+                                {{ session('error') }}
+                            </div>
+                        @endif
                         {{-- Filtri --}}
                         <div class="row mb-3">
                             <div class="col-md-6">
@@ -806,14 +812,14 @@
                                                         {{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}
                                                     </span>
                                                 </td>
-                                                <td>{{ $articolo->getQuantitaDisponibile() }}</td>
+                                                <td>{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}</td>
                                                 <td>
                                                     @if($this->isArticoloSelezionato($articolo->id))
                                                         <input type="number" class="form-control form-control-sm" 
                                                                style="width: 80px;"
                                                                wire:model="articoliSelezionati.{{ $articolo->id }}.quantita"
                                                                min="1" 
-                                                               max="{{ $articolo->getQuantitaDisponibile() }}">
+                                                               max="{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}">
                                                     @else
                                                         -
                                                     @endif

@@ -312,7 +312,7 @@ class ProdottoFinitoService
         DB::beginTransaction();
         
         try {
-            $prodottoFinito = ProdottoFinito::with('componentiArticoli', 'articoloRisultante')->findOrFail($prodottoFinitoId);
+            $prodottoFinito = ProdottoFinito::with('componentiArticoli.articolo', 'articoloRisultante')->findOrFail($prodottoFinitoId);
             
             // Ripristina giacenze componenti
             foreach ($prodottoFinito->componentiArticoli as $componente) {
@@ -321,6 +321,10 @@ class ProdottoFinitoService
                     $componente->quantita,
                     $componente->articolo->sede_id ?? 1
                 );
+
+                if ($componente->articolo) {
+                    $componente->articolo->update(['stato_articolo' => 'disponibile']);
+                }
             }
             
             // Elimina articolo risultante se esiste

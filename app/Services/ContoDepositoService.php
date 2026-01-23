@@ -11,11 +11,13 @@ use App\Models\DdtDeposito;
 use App\Models\DdtDepositoDettaglio;
 use App\Models\Fattura; // Fatture di acquisto (legacy)
 use App\Models\ProformaDeposito;
+use App\Models\ArticoloVetrina;
 use App\Services\NotificaService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 /**
  * ContoDepositoService - Gestione business logic conti deposito
@@ -107,14 +109,41 @@ class ContoDepositoService
         $articolo = Articolo::with('giacenza')->findOrFail($articoloId);
 
         // Validazioni
-        $qtaDisponibile = $articolo->getQuantitaDisponibile();
+        // Per il conto deposito consideriamo disponibile anche se in vetrina
+        $qtaDisponibile = $articolo->getQuantitaDisponibilePerMovimentazione();
         if ($quantita > $qtaDisponibile) {
-            throw new \InvalidArgumentException("Quantità richiesta ({$quantita}) superiore alla disponibile ({$qtaDisponibile})");
+            throw new \InvalidArgumentException(
+                "Quantità richiesta ({$quantita}) superiore alla disponibile ({$qtaDisponibile}) per {$articolo->codice}"
+            );
         }
 
         $costoUnitario = $costoUnitario ?? $articolo->prezzo_acquisto ?? 0;
 
         return DB::transaction(function () use ($contoDeposito, $articolo, $quantita, $costoUnitario) {
+            // Se l'articolo è in vetrina, lo rimuoviamo automaticamente
+            if ($articolo->in_vetrina) {
+                $articolo->update([
+                    'in_vetrina' => false,
+                    'stato' => 'disponibile',
+                ]);
+
+                $articoliVetrina = ArticoloVetrina::where('articolo_id', $articolo->id)
+                    ->whereNull('data_rimozione')
+                    ->get();
+
+                foreach ($articoliVetrina as $articoloVetrina) {
+                    $dataInserimento = $articoloVetrina->data_inserimento
+                        ? Carbon::parse($articoloVetrina->data_inserimento)
+                        : null;
+                    $giorniEsposizione = $dataInserimento ? $dataInserimento->diffInDays(now()) : null;
+
+                    $articoloVetrina->update([
+                        'data_rimozione' => now()->toDateString(),
+                        'giorni_esposizione' => $giorniEsposizione,
+                    ]);
+                }
+            }
+
             // Se deposito inter-società, muovi quantità tra giacenze_sedi
             // SALVA il magazzino originale nei dettagli del movimento
             $magazzinoOriginaleId = $articolo->categoria_merceologica_id;

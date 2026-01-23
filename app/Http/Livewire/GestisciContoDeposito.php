@@ -452,7 +452,7 @@ class GestisciContoDeposito extends Component
             $this->articoliSelezionati[$articoloId] = [
                 'articolo_id' => $articoloId,
                 'quantita' => 1,
-                'max_quantita' => $articolo->getQuantitaDisponibile(),
+                'max_quantita' => $articolo->getQuantitaDisponibilePerMovimentazione(),
                 'costo_unitario' => $articolo->prezzo_acquisto ?? 0
             ];
         }
