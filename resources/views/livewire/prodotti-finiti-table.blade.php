@@ -217,7 +217,9 @@
                             @foreach($prodotti as $prodotto)
                                 <tr>
                                     <td>
-                                        <strong class="text-primary">{{ $prodotto->codice }}</strong>
+                                        <strong class="text-primary">
+                                            {{ $prodotto->articoloRisultante?->codice ?? $prodotto->codice }}
+                                        </strong>
                                     </td>
                                     <td>
                                         <div>
@@ -385,6 +387,7 @@
     <div class="modal-backdrop fade show"></div>
 @endif
 </div>
+
 
 
 

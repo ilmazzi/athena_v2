@@ -59,12 +59,12 @@ class ProdottoFinitoService
             // 2. Calcola dati gioielleria dai componenti
             $datiGioielleria = $this->calcolaDatiGioielleria($componenti);
             
-            // 3. Genera codice prodotto finito basato sulla sede
-            $codicePF = $this->generaCodice($sedeId);
+            // 3. Genera codice articolo finale (magazzino PF) e usa lo stesso codice sul PF
+            $codiceArticolo = $this->codiceService->prossimoCodiceDisponibile($categoriaId);
             
             // 4. Crea prodotto finito (sempre completato quando creato)
             $prodottoFinito = ProdottoFinito::create([
-                'codice' => $codicePF,
+                'codice' => $codiceArticolo->toString(),
                 'descrizione' => $dati['descrizione'],
                 'tipologia' => $dati['tipologia'] ?? 'prodotto_finito',
                 'magazzino_id' => $categoriaId,
@@ -80,7 +80,7 @@ class ProdottoFinitoService
                 'creato_da' => Auth::id(),
             ]);
             
-            // 5. Aggiungi componenti
+            // 5. Aggiungi componenti (nessuno scarico: verranno scalati alla vendita)
             $costoMateriali = 0;
             foreach ($componenti as $comp) {
                 $articolo = Articolo::findOrFail($comp['articolo_id']);
@@ -93,18 +93,10 @@ class ProdottoFinitoService
                     'quantita' => $quantita,
                     'costo_unitario' => $costoUnitario,
                     'costo_totale' => $costoUnitario * $quantita,
-                    'stato' => 'prelevato',
-                    'prelevato_il' => now(),
-                    'prelevato_da' => Auth::id(),
+                    'stato' => 'prenotato',
                 ]);
                 
                 $costoMateriali += ($costoUnitario * $quantita);
-                
-                // Scarica componente da giacenza
-                $this->scaricarComponente($articolo->id, $quantita, $sedeId, $prodottoFinito->id);
-                
-                // Aggiorna stato articolo (SENZA data_scarico!)
-                $articolo->update(['stato_articolo' => 'in_prodotto_finito']);
             }
             
             // 6. Aggiorna costi totali
@@ -112,6 +104,39 @@ class ProdottoFinitoService
             $prodottoFinito->update([
                 'costo_materiali' => $costoMateriali,
                 'costo_totale' => $costoTotale,
+            ]);
+            
+            // 7. Crea articolo finale in magazzino e giacenza
+            $articoloFinale = Articolo::create([
+                'codice' => $codiceArticolo->toString(),
+                'descrizione' => $prodottoFinito->descrizione,
+                'categoria_merceologica_id' => $categoriaId,
+                'sede_id' => $sedeId,
+                'prodotto_finito_id' => $prodottoFinito->id,
+                'tipo_carico' => 'produzione_interna',
+                'numero_documento_carico' => '0',
+                'data_carico' => now(),
+                'prezzo_acquisto' => $costoTotale,
+                'stato' => 'disponibile',
+                'assemblato_il' => now(),
+                'assemblato_da' => Auth::id(),
+                'caratteristiche' => [
+                    'oro' => $datiGioielleria['oro'],
+                    'brill' => $datiGioielleria['brillanti'],
+                    'pietre' => $datiGioielleria['pietre'],
+                ],
+            ]);
+            
+            Giacenza::create([
+                'articolo_id' => $articoloFinale->id,
+                'sede_id' => $sedeId,
+                'quantita' => 1,
+                'quantita_residua' => 1,
+                'quantita_iniziale' => 1,
+            ]);
+            
+            $prodottoFinito->update([
+                'articolo_risultante_id' => $articoloFinale->id,
             ]);
             
             DB::commit();
@@ -134,6 +159,10 @@ class ProdottoFinitoService
         try {
             $prodottoFinito = ProdottoFinito::with('componentiArticoli.articolo')->findOrFail($prodottoFinitoId);
             
+            if ($prodottoFinito->articolo_risultante_id) {
+                return $prodottoFinito->articoloRisultante;
+            }
+            
             if ($prodottoFinito->stato === 'completato') {
                 throw new \Exception('Prodotto finito già completato');
             }
@@ -143,8 +172,10 @@ class ProdottoFinitoService
             $codiceArticolo = $this->codiceService->prossimoCodiceDisponibile($prodottoFinito->magazzino_id);
             
             // Crea articolo finale in magazzino
+            $codiceFinale = $codiceArticolo->toString();
+            
             $articoloFinale = Articolo::create([
-                'codice' => $codiceArticolo->toString(),
+                'codice' => $codiceFinale,
                 'descrizione' => $prodottoFinito->descrizione,
                 'categoria_merceologica_id' => $prodottoFinito->magazzino_id,
                 'sede_id' => $prodottoFinito->componentiArticoli->first()->articolo->sede_id ?? 1,
@@ -172,13 +203,14 @@ class ProdottoFinitoService
                 'quantita_iniziale' => 1,
             ]);
             
-            // Aggiorna stato componenti
+            // Aggiorna stato componenti (restano prenotati finché non si vende il PF)
             $prodottoFinito->componentiArticoli()->update([
-                'stato' => 'utilizzato'
+                'stato' => 'prenotato'
             ]);
             
             // Aggiorna prodotto finito
             $prodottoFinito->update([
+                'codice' => $codiceFinale,
                 'stato' => 'completato',
                 'data_completamento' => now(),
                 'assemblato_da' => Auth::id(),
@@ -219,24 +251,7 @@ class ProdottoFinitoService
             // IMPORTANTE: Prima ripristina i componenti esistenti, POI verifica disponibilità
             // Questo permette di riutilizzare gli stessi componenti in modifica
             
-            // 1. Ripristina giacenze e stati dei componenti esistenti
-            Log::info('♻️ Ripristino giacenze componenti esistenti');
-            foreach ($prodottoFinito->componentiArticoli as $componente) {
-                Log::info('  ↩️ Ripristino', [
-                    'articolo_id' => $componente->articolo_id,
-                    'quantita' => $componente->quantita,
-                ]);
-                $this->ripristinaComponente(
-                    $componente->articolo_id,
-                    $componente->quantita,
-                    $sedeId
-                );
-                
-                // Ripristina stato articolo a 'disponibile'
-                $componente->articolo->update(['stato_articolo' => 'disponibile']);
-            }
-            
-            // 2. Ora verifica disponibilità nuovi componenti (dopo aver ripristinato)
+            // 1. Verifica disponibilità nuovi componenti
             Log::info('✅ Verifica disponibilità nuovi componenti');
             foreach ($componenti as $comp) {
                 $this->verificaDisponibilitaComponente($comp['articolo_id'], $comp['quantita'], $sedeId);
@@ -257,10 +272,10 @@ class ProdottoFinitoService
                 'note' => $dati['note'] ?? null,
             ]);
             
-            // 5. Elimina componenti esistenti (già ripristinati sopra)
+            // 4. Elimina componenti esistenti (nessuna variazione giacenze)
             $prodottoFinito->componentiArticoli()->delete();
             
-            // Aggiungi nuovi componenti
+            // Aggiungi nuovi componenti (senza scarico)
             $costoMateriali = 0;
             foreach ($componenti as $comp) {
                 $articolo = Articolo::findOrFail($comp['articolo_id']);
@@ -273,18 +288,10 @@ class ProdottoFinitoService
                     'quantita' => $quantita,
                     'costo_unitario' => $costoUnitario,
                     'costo_totale' => $costoUnitario * $quantita,
-                    'stato' => 'prelevato',
-                    'prelevato_il' => now(),
-                    'prelevato_da' => Auth::id(),
+                    'stato' => 'prenotato',
                 ]);
                 
                 $costoMateriali += ($costoUnitario * $quantita);
-                
-                // Scarica nuovo componente da giacenza
-                $this->scaricarComponente($articolo->id, $quantita, $sedeId, $prodottoFinito->id);
-                
-                // Aggiorna stato articolo (SENZA data_scarico!)
-                $articolo->update(['stato_articolo' => 'in_prodotto_finito']);
             }
             
             // Aggiorna costi totali
@@ -314,18 +321,7 @@ class ProdottoFinitoService
         try {
             $prodottoFinito = ProdottoFinito::with('componentiArticoli.articolo', 'articoloRisultante')->findOrFail($prodottoFinitoId);
             
-            // Ripristina giacenze componenti
-            foreach ($prodottoFinito->componentiArticoli as $componente) {
-                $this->ripristinaComponente(
-                    $componente->articolo_id,
-                    $componente->quantita,
-                    $componente->articolo->sede_id ?? 1
-                );
-
-                if ($componente->articolo) {
-                    $componente->articolo->update(['stato_articolo' => 'disponibile']);
-                }
-            }
+            // Nessun ripristino giacenze: i componenti vengono scalati solo in vendita
             
             // Elimina articolo risultante se esiste
             if ($prodottoFinito->articoloRisultante) {

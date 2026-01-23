@@ -348,11 +348,11 @@ class ContoDepositoService
                     ]);
                 }
             } else {
-                // Vendita ProdottoFinito - scaricare componenti
+                // Vendita ProdottoFinito - scaricare componenti (consumo a vendita)
                 Log::info("🏆 Vendita PF ID {$item->id}: scarico componenti...");
                 
                 // Carica componenti con articoli
-                $item->load(['componentiArticoli.articolo']);
+                $item->load(['componentiArticoli.articolo', 'articoloRisultante.giacenza']);
                 
                 // Scarica ogni componente dal deposito
                 foreach ($item->componentiArticoli as $componente) {
@@ -380,6 +380,13 @@ class ContoDepositoService
                             'quantita_residua' => max(0, $articoloComponente->giacenza->quantita_residua - $quantitaDaScaricare)
                         ]);
                     }
+                }
+                
+                // Scarica anche la giacenza del PF (articolo risultante) se presente
+                if ($item->articoloRisultante && $item->articoloRisultante->giacenza) {
+                    $item->articoloRisultante->giacenza->update([
+                        'quantita_residua' => max(0, $item->articoloRisultante->giacenza->quantita_residua - $quantita)
+                    ]);
                 }
                 
                 // Marca il PF come venduto
