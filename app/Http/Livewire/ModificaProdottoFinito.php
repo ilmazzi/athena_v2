@@ -22,6 +22,7 @@ class ModificaProdottoFinito extends Component
     public $sedeId = '';
     public $costoLavorazione = 0;
     public $note = '';
+    public $forceEdit = false;
     
     // Componenti
     public $componenti = [];
@@ -52,6 +53,7 @@ class ModificaProdottoFinito extends Component
     public function mount($id)
     {
         $this->prodottoId = $id;
+        $this->forceEdit = (bool) request()->boolean('force');
         $this->caricaProdottoPerModifica($id);
         $this->caricaDatiDropdown();
     }

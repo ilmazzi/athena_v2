@@ -33,10 +33,6 @@ class ProdottiFinitiTable extends Component
     public $showSmontaModal = false;
     public $prodottoDaSmontare = null;
     
-    // Sblocco modifica PF in deposito (override puntuale)
-    public $showSbloccaModificaModal = false;
-    public $pfDaSbloccare = null;
-    public $allowEditPfId = null;
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -135,28 +131,6 @@ class ProdottiFinitiTable extends Component
         $this->prodottoDaSmontare = null;
     }
     
-    public function apriSbloccaModificaModal($prodottoId)
-    {
-        $this->pfDaSbloccare = $prodottoId;
-        $this->showSbloccaModificaModal = true;
-    }
-    
-    public function chiudiSbloccaModificaModal()
-    {
-        $this->showSbloccaModificaModal = false;
-        $this->pfDaSbloccare = null;
-    }
-    
-    public function confermaSbloccaModifica()
-    {
-        if (!$this->pfDaSbloccare) {
-            return;
-        }
-        $this->allowEditPfId = $this->pfDaSbloccare;
-        $this->showSbloccaModificaModal = false;
-        $this->pfDaSbloccare = null;
-        session()->flash('success', 'Modifica sbloccata solo per il PF selezionato.');
-    }
 
     public function confermaSmonta()
     {

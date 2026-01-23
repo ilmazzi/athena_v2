@@ -2,6 +2,12 @@
     <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
+            @if($forceEdit)
+                <div class="alert alert-warning">
+                    <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
+                    Modifica forzata abilitata per questo PF in conto deposito.
+                </div>
+            @endif
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h1 class="h3 mb-0">Modifica Prodotto Finito</h1>

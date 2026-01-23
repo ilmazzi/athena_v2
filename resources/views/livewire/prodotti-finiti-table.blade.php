@@ -215,7 +215,7 @@
                         </thead>
                         <tbody>
                             @foreach($prodotti as $prodotto)
-                                <tr>
+                                <tr wire:key="pf-row-{{ $prodotto->id }}">
                                     <td>
                                         <strong class="text-primary">{{ $prodotto->codice }}</strong>
                                     </td>
@@ -283,10 +283,9 @@
                                         @endif
                                     </td>
                                     @php
-                                        $overrideModifica = $prodotto->in_conto_deposito && $this->allowEditPfId === $prodotto->id;
                                         $modificabile = in_array($prodotto->stato, ['in_lavorazione', 'completato']) 
-                                            && (!$prodotto->in_conto_deposito || $overrideModifica);
-                                        if ($prodotto->in_conto_deposito && !$overrideModifica) {
+                                            && !$prodotto->in_conto_deposito;
+                                        if ($prodotto->in_conto_deposito) {
                                             $motivoModifica = 'In conto deposito';
                                         } elseif (in_array($prodotto->stato, ['venduto', 'scartato', 'annullato'])) {
                                             $motivoModifica = 'Stato: ' . $prodotto->stato;
@@ -312,11 +311,12 @@
                                                     <iconify-icon icon="solar:pen-bold-duotone" class="text-muted"></iconify-icon>
                                                 </button>
                                                 @if($prodotto->in_conto_deposito)
-                                                    <button class="btn btn-light" type="button" 
-                                                            wire:click.prevent="apriSbloccaModificaModal({{ $prodotto->id }})"
-                                                            title="Sblocca modifica solo per questo PF">
-                                                        <iconify-icon icon="solar:unlock-bold" class="text-secondary"></iconify-icon>
-                                                    </button>
+                                                    <a class="btn btn-warning"
+                                                       href="{{ route('prodotti-finiti.modifica', $prodotto->id) }}?force=1"
+                                                       onclick="return confirm('Sbloccare la modifica per questo PF in conto deposito?')"
+                                                       title="Sblocca modifica solo per questo PF">
+                                                        Sblocca
+                                                    </a>
                                                 @endif
                                             @endif
                                             @if($modificabile)
@@ -407,36 +407,5 @@
     </div>
     <div class="modal-backdrop fade show"></div>
 @endif
-</div>
 
-@if($showSbloccaModificaModal)
-    <div class="modal fade show" style="display: block;" tabindex="-1" wire:ignore.self>
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <iconify-icon icon="solar:unlock-bold" class="me-2"></iconify-icon>
-                        Sblocca modifica PF
-                    </h5>
-                    <button type="button" class="btn-close" wire:click="chiudiSbloccaModificaModal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
-                        La modifica verra sbloccata solo per questo prodotto finito, anche se e in conto deposito.
-                    </div>
-                    <div class="text-muted small">
-                        Usa questa opzione solo per correggere un errore di allineamento.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-light" wire:click="chiudiSbloccaModificaModal">Annulla</button>
-                    <button class="btn btn-warning" wire:click="confermaSbloccaModifica">
-                        Sblocca modifica
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal-backdrop fade show"></div>
-@endif
+</div>
