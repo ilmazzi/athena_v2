@@ -282,6 +282,18 @@
                                             <span class="badge bg-light text-muted">-</span>
                                         @endif
                                     </td>
+                                    @php
+                                        $overrideModifica = $prodotto->in_conto_deposito && $this->allowEditPfId === $prodotto->id;
+                                        $modificabile = in_array($prodotto->stato, ['in_lavorazione', 'completato']) 
+                                            && (!$prodotto->in_conto_deposito || $overrideModifica);
+                                        if ($prodotto->in_conto_deposito && !$overrideModifica) {
+                                            $motivoModifica = 'In conto deposito';
+                                        } elseif (in_array($prodotto->stato, ['venduto', 'scartato', 'annullato'])) {
+                                            $motivoModifica = 'Stato: ' . $prodotto->stato;
+                                        } else {
+                                            $motivoModifica = 'Non modificabile';
+                                        }
+                                    @endphp
                                     <td class="text-end">
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ route('prodotti-finiti.dettaglio', $prodotto->id) }}" 
@@ -289,14 +301,25 @@
                                                title="Dettaglio">
                                                 <iconify-icon icon="solar:eye-bold-duotone" class="text-primary"></iconify-icon>
                                             </a>
-                                            @if(in_array($prodotto->stato, ['in_lavorazione', 'completato']) && !$prodotto->in_conto_deposito)
+                                            @if($modificabile)
                                                 <a href="{{ route('prodotti-finiti.modifica', $prodotto->id) }}" 
                                                    class="btn btn-light" 
                                                    title="Modifica">
                                                     <iconify-icon icon="solar:pen-bold-duotone" class="text-warning"></iconify-icon>
                                                 </a>
+                                            @else
+                                                <button class="btn btn-light" type="button" disabled title="{{ $motivoModifica }}">
+                                                    <iconify-icon icon="solar:pen-bold-duotone" class="text-muted"></iconify-icon>
+                                                </button>
+                                                @if($prodotto->in_conto_deposito)
+                                                    <button class="btn btn-light" type="button" 
+                                                            wire:click="apriSbloccaModificaModal({{ $prodotto->id }})"
+                                                            title="Sblocca modifica solo per questo PF">
+                                                        <iconify-icon icon="solar:unlock-bold" class="text-secondary"></iconify-icon>
+                                                    </button>
+                                                @endif
                                             @endif
-                                            @if(in_array($prodotto->stato, ['in_lavorazione', 'completato']) && !$prodotto->in_conto_deposito)
+                                            @if($modificabile)
                                                 <button class="btn btn-light" 
                                                         wire:click="apriSmontaModal({{ $prodotto->id }})"
                                                         title="Smonta / Disfa">
@@ -385,3 +408,35 @@
     <div class="modal-backdrop fade show"></div>
 @endif
 </div>
+
+@if($showSbloccaModificaModal)
+    <div class="modal fade show" style="display: block;" tabindex="-1" wire:ignore.self>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <iconify-icon icon="solar:unlock-bold" class="me-2"></iconify-icon>
+                        Sblocca modifica PF
+                    </h5>
+                    <button type="button" class="btn-close" wire:click="chiudiSbloccaModificaModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
+                        La modifica verra sbloccata solo per questo prodotto finito, anche se e in conto deposito.
+                    </div>
+                    <div class="text-muted small">
+                        Usa questa opzione solo per correggere un errore di allineamento.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" wire:click="chiudiSbloccaModificaModal">Annulla</button>
+                    <button class="btn btn-warning" wire:click="confermaSbloccaModifica">
+                        Sblocca modifica
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+@endif
