@@ -235,7 +235,8 @@ class ProdottoFinitoService
         array $dati,
         array $componenti,
         int $sedeId,
-        int $categoriaId = 9
+        int $categoriaId = 9,
+        bool $forceEdit = false
     ): ProdottoFinito {
         DB::beginTransaction();
         
@@ -254,7 +255,11 @@ class ProdottoFinitoService
             // 1. Verifica disponibilità nuovi componenti
             Log::info('✅ Verifica disponibilità nuovi componenti');
             foreach ($componenti as $comp) {
-                $this->verificaDisponibilitaComponente($comp['articolo_id'], $comp['quantita'], $sedeId);
+                $this->verificaDisponibilitaComponente(
+                    $comp['articolo_id'],
+                    $comp['quantita'],
+                    $forceEdit ? null : $sedeId
+                );
             }
             
             // 3. Calcola dati gioielleria dai nuovi componenti
@@ -348,15 +353,20 @@ class ProdottoFinitoService
     /**
      * Verifica disponibilità componente
      */
-    private function verificaDisponibilitaComponente(int $articoloId, int $quantita, int $sedeId): void
+    private function verificaDisponibilitaComponente(int $articoloId, int $quantita, ?int $sedeId): void
     {
-        $giacenza = Giacenza::where('articolo_id', $articoloId)
-            ->where('sede_id', $sedeId)
-            ->first();
+        $giacenzaQuery = Giacenza::where('articolo_id', $articoloId);
+        if ($sedeId) {
+            $giacenzaQuery->where('sede_id', $sedeId);
+        }
+        $giacenza = $giacenzaQuery->first();
         
         if (!$giacenza) {
             $articolo = Articolo::find($articoloId);
-            throw new \Exception("Articolo {$articolo->codice} non presente nella sede selezionata");
+            if ($sedeId) {
+                throw new \Exception("Articolo {$articolo->codice} non presente nella sede selezionata");
+            }
+            throw new \Exception("Articolo {$articolo->codice} non presente in nessuna sede");
         }
         
         if ($giacenza->quantita_residua < $quantita) {

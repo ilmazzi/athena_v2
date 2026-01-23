@@ -234,7 +234,8 @@ class ModificaProdottoFinito extends Component
                 $dati,
                 $componentiData,
                 $this->sedeId,
-                $this->categoriaId
+                $this->categoriaId,
+                $this->forceEdit
             );
             
             Log::info('✅ Prodotto finito aggiornato con successo', [
