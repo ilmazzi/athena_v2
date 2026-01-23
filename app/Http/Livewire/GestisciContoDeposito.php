@@ -270,14 +270,24 @@ class GestisciContoDeposito extends Component
             return collect();
         }
 
+        $sedeMittenteId = $this->deposito->sede_mittente_id;
+
         return Articolo::with(['categoriaMerceologica', 'sede', 'giacenza'])
-            ->where('sede_id', $this->deposito->sede_mittente_id)
-            ->whereHas('giacenza', function ($query) {
-                $query->where('quantita_residua', '>', 0);
+            ->where(function ($query) use ($sedeMittenteId) {
+                $query->where('sede_id', $sedeMittenteId)
+                      ->orWhereHas('giacenzePerSede', function ($sub) use ($sedeMittenteId) {
+                          $sub->where('sede_id', $sedeMittenteId)
+                              ->where('quantita_residua', '>', 0);
+                      });
             })
-            ->where(function ($query) {
-                $query->where('in_vetrina', false)
-                      ->orWhereNull('in_vetrina');
+            ->where(function ($query) use ($sedeMittenteId) {
+                $query->whereHas('giacenza', function ($sub) {
+                    $sub->where('quantita_residua', '>', 0);
+                })
+                ->orWhereHas('giacenzePerSede', function ($sub) use ($sedeMittenteId) {
+                    $sub->where('sede_id', $sedeMittenteId)
+                        ->where('quantita_residua', '>', 0);
+                });
             })
             ->where(function ($query) {
                 $query->whereNull('conto_deposito_corrente_id')
