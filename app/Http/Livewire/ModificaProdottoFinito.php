@@ -264,11 +264,15 @@ class ModificaProdottoFinito extends Component
     public function render()
     {
         // Articoli disponibili per componenti
-        if ($this->sedeId) {
-            $query = Articolo::with(['categoria', 'giacenza'])
-                ->whereHas('giacenza', function($q) {
+        if ($this->sedeId || $this->forceEdit) {
+            $query = Articolo::with(['categoria', 'giacenza']);
+            if ($this->forceEdit) {
+                $query->withoutGlobalScopes();
+            } else {
+                $query->whereHas('giacenza', function($q) {
                     $q->where('sede_id', $this->sedeId);
                 });
+            }
             
             Log::info('🔍 Ricerca articoli per modifica', [
                 'sede_id' => $this->sedeId,
@@ -290,8 +294,10 @@ class ModificaProdottoFinito extends Component
             // Filtra solo disponibili se checkbox attivo
             if ($this->soloDisponibili) {
                 $query->whereHas('giacenza', function($q) {
-                    $q->where('sede_id', $this->sedeId)
-                      ->where('quantita_residua', '>', 0);
+                    if (!$this->forceEdit) {
+                        $q->where('sede_id', $this->sedeId);
+                    }
+                    $q->where('quantita_residua', '>', 0);
                 });
             }
             
