@@ -78,17 +78,14 @@
         </div>
     @endif
 
-    <!-- Filtro principale: solo Magazzino -->
-    <div class="card border-0 shadow-sm mb-4" style="position: sticky; top: 1rem; z-index: 1020;">
+    <!-- Filtro principale: Magazzino + Ricerca -->
+    <div class="card border-0 shadow-sm mb-4" style="position: sticky; top: 64px; z-index: 1000;">
         <div class="card-body py-2">
             <div class="row g-2 align-items-center">
-                <div class="col-lg-4">
+                <div class="col-lg-5">
                     <label class="form-label small fw-semibold mb-1">Magazzino</label>
-                    <div class="position-relative" id="magazzinoDropdown">
-                        <button class="btn btn-secondary btn-sm w-100 text-start d-flex justify-content-between align-items-center" 
-                                type="button" 
-                                wire:click="toggleMagazzinoDropdown"
-                                id="magazzinoToggle">
+                    <details class="position-relative" id="magazzinoDropdown">
+                        <summary class="btn btn-secondary btn-sm w-100 text-start d-flex justify-content-between align-items-center">
                             <span>
                                 @if(empty($magazziniSelezionati))
                                     Tutti i Magazzini
@@ -97,44 +94,53 @@
                                 @endif
                             </span>
                             <iconify-icon icon="solar:alt-arrow-down-bold" class="ms-2"></iconify-icon>
-                        </button>
-                        
-                        @if($showMagazzinoDropdown)
-                            <div class="position-absolute w-100 bg-white border rounded shadow-lg" 
-                                 style="top: 100%; left: 0; z-index: 1050; max-height: 300px; overflow-y: auto;">
-                                <div class="p-2">
-                                    <div class="d-flex gap-2 mb-2">
-                                        <button class="btn btn-sm btn-success flex-fill" wire:click="selezionaTuttiMagazzini">
-                                            <iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon>
-                                            Tutti
-                                        </button>
-                                        <button class="btn btn-sm btn-danger flex-fill" wire:click="deselezionaTuttiMagazzini">
-                                            <iconify-icon icon="solar:close-circle-bold-duotone"></iconify-icon>
-                                            Nessuno
-                                        </button>
-                                    </div>
-                                    <hr class="my-2">
-                                    @foreach($magazzini as $magazzino)
-                                        <div class="form-check py-1">
-                                            <input type="checkbox" 
-                                                   class="form-check-input" 
-                                                   id="magazzino_{{ $magazzino->id }}"
-                                                   wire:click="toggleMagazzino({{ $magazzino->id }})"
-                                                   @if(in_array($magazzino->id, $magazziniSelezionati)) checked @endif>
-                                            <label class="form-check-label w-100" for="magazzino_{{ $magazzino->id }}">
-                                                {{ $magazzino->id }} - {{ $magazzino->nome }}
-                                                @if(isset($magazzino->articoli_count))
-                                                    <small class="text-muted">({{ $magazzino->articoli_count }})</small>
-                                                @endif
-                                            </label>
-                                        </div>
-                                    @endforeach
+                        </summary>
+                        <div class="position-absolute w-100 bg-white border rounded shadow-lg" 
+                             style="top: 100%; left: 0; z-index: 1050; max-height: 300px; overflow-y: auto;">
+                            <div class="p-2">
+                                <div class="d-flex gap-2 mb-2">
+                                    <button class="btn btn-sm btn-success flex-fill" wire:click="selezionaTuttiMagazzini">
+                                        <iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon>
+                                        Tutti
+                                    </button>
+                                    <button class="btn btn-sm btn-danger flex-fill" wire:click="deselezionaTuttiMagazzini">
+                                        <iconify-icon icon="solar:close-circle-bold-duotone"></iconify-icon>
+                                        Nessuno
+                                    </button>
                                 </div>
+                                <hr class="my-2">
+                                @foreach($magazzini as $magazzino)
+                                    <div class="form-check py-1">
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               id="magazzino_{{ $magazzino->id }}"
+                                               wire:change="toggleMagazzino({{ $magazzino->id }})"
+                                               @if(in_array($magazzino->id, $magazziniSelezionati)) checked @endif>
+                                        <label class="form-check-label w-100" for="magazzino_{{ $magazzino->id }}">
+                                            {{ $magazzino->id }} - {{ $magazzino->nome }}
+                                            @if(isset($magazzino->articoli_count))
+                                                <small class="text-muted">({{ $magazzino->articoli_count }})</small>
+                                            @endif
+                                        </label>
+                                    </div>
+                                @endforeach
                             </div>
-                        @endif
+                        </div>
+                    </details>
+                </div>
+                <div class="col-lg-4">
+                    <label class="form-label small fw-semibold mb-1">Ricerca</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text">
+                            <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
+                        </span>
+                        <input type="text" 
+                               class="form-control" 
+                               placeholder="Codice, descrizione, fornitore..." 
+                               wire:model.live.debounce.600ms="search">
                     </div>
                 </div>
-                <div class="col-lg-8 text-lg-end">
+                <div class="col-lg-3 text-lg-end">
                     <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
@@ -218,20 +224,6 @@
             </div>
 
             <div class="row g-3">
-                <!-- Ricerca Globale -->
-                <div class="col-lg-4">
-                    <label class="form-label small fw-semibold">Ricerca</label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text">
-                            <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
-                        </span>
-                            <input type="text" 
-                               class="form-control" 
-                               placeholder="Codice, descrizione, fornitore..." 
-                               wire:model.live.debounce.600ms="search">
-                    </div>
-                </div>
-
                 <!-- Filtro Fornitore -->
                 <div class="col-lg-3">
                     <label class="form-label small fw-semibold">Fornitore</label>

@@ -337,6 +337,21 @@ class GestisciContoDeposito extends Component
         return $service->getProdottiFinitiRimanentiInDeposito($this->deposito);
     }
 
+    public function getTotaleQuantitaArticoliInDepositoProperty(): int
+    {
+        return $this->articoliInDeposito->sum('quantita');
+    }
+
+    public function getTotaleProdottiFinitiInDepositoProperty(): int
+    {
+        return $this->prodottiFinitiInDeposito->count();
+    }
+
+    public function getTotaleItemsInDepositoProperty(): int
+    {
+        return $this->totaleQuantitaArticoliInDeposito + $this->totaleProdottiFinitiInDeposito;
+    }
+
     // ==========================================
     // ACTIONS - GESTIONE ARTICOLI
     // ==========================================
@@ -451,6 +466,8 @@ class GestisciContoDeposito extends Component
             $articolo = Articolo::with('giacenza')->find($articoloId);
             $this->articoliSelezionati[$articoloId] = [
                 'articolo_id' => $articoloId,
+                'codice' => $articolo->codice,
+                'descrizione' => $articolo->descrizione,
                 'quantita' => 1,
                 'max_quantita' => $articolo->getQuantitaDisponibilePerMovimentazione(),
                 'costo_unitario' => $articolo->prezzo_acquisto ?? 0
@@ -466,6 +483,8 @@ class GestisciContoDeposito extends Component
             $pf = ProdottoFinito::find($pfId);
             $this->prodottiFinitiSelezionati[$pfId] = [
                 'prodotto_finito_id' => $pfId,
+                'codice' => $pf->codice,
+                'descrizione' => $pf->descrizione,
                 'costo_unitario' => $pf->costo_totale ?? 0
             ];
         }
