@@ -313,7 +313,7 @@
                                                 </button>
                                                 @if($prodotto->in_conto_deposito)
                                                     <button class="btn btn-light" type="button" 
-                                                            wire:click="apriSbloccaModificaModal({{ $prodotto->id }})"
+                                                            wire:click.prevent="apriSbloccaModificaModal({{ $prodotto->id }})"
                                                             title="Sblocca modifica solo per questo PF">
                                                         <iconify-icon icon="solar:unlock-bold" class="text-secondary"></iconify-icon>
                                                     </button>
