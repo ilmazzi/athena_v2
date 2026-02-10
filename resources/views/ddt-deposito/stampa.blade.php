@@ -396,15 +396,12 @@
                         <td><strong class="text-primary">{{ $dettaglio->codice_item }}</strong></td>
                         <td>
                             {{ $dettaglio->descrizione }}
-                            @php
-                                $componenti = collect();
-                                if ($dettaglio->prodotto_finito_id && $dettaglio->prodottoFinito) {
-                                    $componenti = ($dettaglio->prodottoFinito->componentiArticoli ?? collect())
-                                        ->sortBy(function ($comp) {
-                                            return $comp->articolo->codice ?? '';
-                                        });
-                                }
-                            @endphp
+                            @php($componenti = ($dettaglio->prodotto_finito_id && $dettaglio->prodottoFinito)
+                                ? ($dettaglio->prodottoFinito->componentiArticoli ?? collect())
+                                    ->sortBy(function ($comp) {
+                                        return $comp->articolo->codice ?? '';
+                                    })
+                                : collect())
                             @if($componenti->count() > 0)
                                 <div style="margin-top: 4px; font-size: 9px; color: var(--bs-secondary);">
                                     <div><strong>Componenti:</strong></div>
