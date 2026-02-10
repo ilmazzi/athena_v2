@@ -23,11 +23,17 @@
                     </nav>
                 </div>
                 <div>
-                    <a href="{{ route('ddt-deposito.stampa', $ddtDeposito->id) }}" 
-                       class="btn btn-primary" 
+                    <a href="{{ route('ddt-deposito.stampa', $ddtDeposito->id) }}"
+                       class="btn btn-primary"
                        target="_blank">
                         <iconify-icon icon="solar:printer-bold" class="me-1"></iconify-icon>
                         Stampa DDT
+                    </a>
+                    <a href="{{ route('ddt-deposito.stampa', ['ddtDeposito' => $ddtDeposito->id, 'include_costi' => 1]) }}"
+                       class="btn btn-outline-primary"
+                       target="_blank">
+                        <iconify-icon icon="solar:printer-bold" class="me-1"></iconify-icon>
+                        Stampa DDT con costi
                     </a>
                     <a href="{{ route('conti-deposito.gestisci', $ddtDeposito->contoDeposito->id) }}" 
                        class="btn btn-outline-secondary">

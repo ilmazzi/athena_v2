@@ -17,7 +17,7 @@ class DdtDepositoController extends Controller
     /**
      * Stampa DDT Deposito
      */
-    public function stampa(DdtDeposito $ddtDeposito)
+    public function stampa(Request $request, DdtDeposito $ddtDeposito)
     {
         // Carica relazioni necessarie per la stampa
         $ddtDeposito->load([
@@ -35,17 +35,19 @@ class DdtDepositoController extends Controller
             $ddtDeposito->marcaStampato();
         }
 
-        return view('ddt-deposito.stampa', compact('ddtDeposito'));
+        $includeCosti = $request->boolean('include_costi');
+
+        return view('ddt-deposito.stampa', compact('ddtDeposito', 'includeCosti'));
     }
 
     /**
      * Scarica PDF del DDT Deposito
      */
-    public function scaricaPdf(DdtDeposito $ddtDeposito)
+    public function scaricaPdf(Request $request, DdtDeposito $ddtDeposito)
     {
         // TODO: Implementare generazione PDF se necessaria
         // Per ora redirect alla stampa normale
-        return $this->stampa($ddtDeposito);
+        return $this->stampa($request, $ddtDeposito);
     }
 
     /**

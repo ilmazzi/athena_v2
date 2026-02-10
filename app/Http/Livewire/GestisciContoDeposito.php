@@ -1193,7 +1193,8 @@ class GestisciContoDeposito extends Component
             $this->showAnteprimaInvioModal = false;
 
             $url = route('ddt-deposito.stampa', $ddtDeposito->id);
-            session()->flash('success', "DDT di invio {$ddtDeposito->numero} generato con successo.<br><a class='btn btn-sm btn-outline-dark mt-2' target='_blank' rel='noopener' href='{$url}'>Apri stampa DDT</a>");
+            $urlCosti = route('ddt-deposito.stampa', ['ddtDeposito' => $ddtDeposito->id, 'include_costi' => 1]);
+            session()->flash('success', "DDT di invio {$ddtDeposito->numero} generato con successo.<br><a class='btn btn-sm btn-outline-dark mt-2 me-2' target='_blank' rel='noopener' href='{$url}'>Apri stampa DDT</a><a class='btn btn-sm btn-outline-primary mt-2' target='_blank' rel='noopener' href='{$urlCosti}'>Stampa con costi</a>");
 
         } catch (\Exception $e) {
             session()->flash('error', 'Errore durante la generazione DDT: ' . $e->getMessage());

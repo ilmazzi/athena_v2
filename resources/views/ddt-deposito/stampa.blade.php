@@ -32,10 +32,16 @@
             font-size: 10px;
             line-height: 1.25;
         }
-        .print-button {
+        .print-actions {
             position: fixed;
             top: 10px;
             right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 1000;
+        }
+        .print-button {
             padding: 10px 20px;
             cursor: pointer;
             background-color: var(--bs-primary);
@@ -43,7 +49,11 @@
             border: none;
             border-radius: 5px;
             font-size: 14px;
-            z-index: 1000;
+            text-decoration: none;
+            text-align: center;
+        }
+        .print-button-secondary {
+            background-color: var(--bs-secondary);
         }
         .header {
             text-align: center;
@@ -241,9 +251,24 @@
     </style>
 </head>
 <body>
-    <button class="print-button no-print" onclick="window.print()">
-        🖨️ Stampa
-    </button>
+    @php($includeCosti = $includeCosti ?? false)
+
+    <div class="print-actions no-print">
+        <button class="print-button" onclick="window.print()">
+            🖨️ Stampa
+        </button>
+        @if($includeCosti)
+            <a class="print-button print-button-secondary" target="_blank" rel="noopener"
+               href="{{ route('ddt-deposito.stampa', ['ddtDeposito' => $ddtDeposito->id]) }}">
+                🧾 Stampa senza costi
+            </a>
+        @else
+            <a class="print-button print-button-secondary" target="_blank" rel="noopener"
+               href="{{ route('ddt-deposito.stampa', ['ddtDeposito' => $ddtDeposito->id, 'include_costi' => 1]) }}">
+                🧾 Stampa con costi
+            </a>
+        @endif
+    </div>
 
     {{-- Header --}}
     <div class="header">
@@ -351,6 +376,10 @@
                     <th style="width: 100px;">Codice</th>
                     <th>Descrizione</th>
                     <th style="width: 60px;" class="text-center">Q.tà</th>
+                    @if($includeCosti)
+                        <th style="width: 80px;" class="text-right">Valore Unit.</th>
+                        <th style="width: 90px;" class="text-right">Valore Tot.</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -395,6 +424,12 @@
                         <td class="text-center">
                             <strong>{{ $dettaglio->quantita }}</strong>
                         </td>
+                        @if($includeCosti)
+                            <td class="text-right">€{{ number_format($dettaglio->valore_unitario, 2, ',', '.') }}</td>
+                            <td class="text-right">
+                                <strong>€{{ number_format($dettaglio->valore_totale, 2, ',', '.') }}</strong>
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>
@@ -407,6 +442,12 @@
             <span>Totale Articoli:</span>
             <strong>{{ $ddtDeposito->articoli_totali }}</strong>
         </div>
+        @if($includeCosti)
+            <div class="summary-row summary-total">
+                <span>Valore Totale Dichiarato:</span>
+                <strong>€{{ number_format($ddtDeposito->valore_dichiarato, 2, ',', '.') }}</strong>
+            </div>
+        @endif
     </div>
 
     {{-- Note --}}
