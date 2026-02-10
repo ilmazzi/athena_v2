@@ -53,6 +53,7 @@ return [
     'patterns' => [
         // Numero DDT - pattern multipli più flessibili
         'numero_ddt' => [
+            '/NR\.?\s*DOCUM\.?\s*MAGAZZINO\s+([A-Z0-9\/\-]+)/i', // NR. Docum. Magazzino EWFP01/2024/03/19115 (POMELLATO)
             '/^([A-Z0-9]{6,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}\b/m', // Nr + Data sulla stessa riga (es: 24CWS04815 04/12/2024)
             '/DISPATCH\s+NO\.?\s*[:#]?\s*(\d{4,10})/i', // Dispatch No. 1163597 (BERING)
             '/DOCUMENTO\s+DI\s+TRASPORTO[^\r\n]*\|\s*(\d{1,6})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}/i', // Documento di trasporto | 352 23/04/2024
@@ -79,6 +80,7 @@ return [
         
         // Data - formati multipli (italiano, europeo, americano)
         'data' => [
+            '/DEL\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})/i', // del 04/09/2024
             '/SPEDITO\s+(\d{1,2}\s+[A-Z]{3}\s+\d{4})/i', // SPEDITO 04 DIC 2024
             '/SPEDITO\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})/i', // SPEDITO 04/12/2024
             '/DATE[:\s]*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})/i', // Date: 19.10.2023
@@ -125,6 +127,7 @@ return [
         
         // Ragione Sociale Fornitore (per matching)
         'ragione_sociale' => [
+            '/^\s*(POMELLATO\s+SPA)\b/im', // POMELLATO SPA
             '/^\s*([A-Z][A-Z\s\.&\-]{3,})\s*\n\s*Indirizzo\s+spedizione/im', // Intestazione fornitore (es: MARCO BICEGO)
             '/^\s*([A-Z][A-Z\s\.&\-]+S\.P\.A\.?)\s*-\s*Unipersonale/im', // Footer società (S.P.A.)
             '/^\s*([A-Z][A-Z\s\.&\-]+S\.R\.L\.?)\s*-\s*/im', // Footer società (S.R.L.)

@@ -57,6 +57,7 @@ class CaricoDocumento extends Component
             'categoriaId' => 'required|exists:categorie_merceologiche,id',
             'articoli.*.codice' => 'required|string|max:50',
             'articoli.*.quantita' => 'required|integer|min:1',
+            'articoli.*.caratura' => 'nullable|string|max:50',
             'articoli.*.categoria_id' => 'required|exists:categorie_merceologiche,id',
             'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
             'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
@@ -150,6 +151,7 @@ class CaricoDocumento extends Component
             'codice' => '',
             'descrizione' => '',
             'quantita' => 1,
+            'caratura' => '',
             'prezzo_unitario' => null,
             'prezzo_totale' => null,
             'numero_seriale' => '',
@@ -292,8 +294,10 @@ class CaricoDocumento extends Component
                         'sede_id' => $this->sedeId,
                         'fornitore_id' => $this->fornitoreId,
                         'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
+                        'prezzo_fornitore' => $this->tipoDocumento === 'ddt' ? $prezzoUnitario : null,
                         'ean' => $articolo['ean'] ?? null,
                         'numero_seriale' => $articolo['numero_seriale'] ?? null,
+                        'caratura' => $articolo['caratura'] ?? null,
                         'caratteristiche' => json_encode($caratteristiche),
                         'stato' => 'disponibile',
                         'stato_articolo' => 'disponibile',
@@ -304,6 +308,18 @@ class CaricoDocumento extends Component
                     $articoloId = $nuovoArticolo->id;
                 } else {
                     $articoloId = $articolo['articolo_id'];
+                    if (!empty($articolo['caratura'])) {
+                        Articolo::where('id', $articoloId)
+                            ->where(function ($q) {
+                                $q->whereNull('caratura')->orWhere('caratura', '');
+                            })
+                            ->update(['caratura' => $articolo['caratura']]);
+                    }
+                    if ($this->tipoDocumento === 'ddt' && $prezzoUnitario !== null) {
+                        Articolo::where('id', $articoloId)->update([
+                            'prezzo_fornitore' => $prezzoUnitario,
+                        ]);
+                    }
                 }
 
                 // Crea dettaglio carico (punta direttamente a DDT o Fattura)

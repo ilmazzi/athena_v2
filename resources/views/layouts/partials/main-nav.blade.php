@@ -50,6 +50,11 @@
                         <li class="sub-nav-item">
                             <a class="sub-nav-link" href="{{ route('documenti-acquisto.index') }}">Elenco Documenti</a>
                         </li>
+                        @hasanyrole('admin|amministrazione')
+                            <li class="sub-nav-item">
+                                <a class="sub-nav-link" href="{{ route('ocr.index') }}">Test OCR (admin)</a>
+                            </li>
+                        @endhasanyrole
                     </ul>
                 </div>
             </li>

@@ -4,6 +4,7 @@
     $structured = $document->ocr_structured_data ?? [];
     $rawText = $document->ocr_raw_data['text'] ?? '';
     $articoli = $structured['articoli'] ?? [];
+    $isDdt = ($document->tipo ?? '') === 'ddt';
 @endphp
 
 @section('content')
@@ -126,8 +127,9 @@
                                         <th style="width: 180px;">Codice</th>
                                         <th>Descrizione</th>
                                         <th style="width: 110px;">Qtà</th>
-                                        <th style="width: 140px;">Costo Unit.</th>
-                                        <th style="width: 140px;">Totale Riga</th>
+                                        <th style="width: 120px;">Carati</th>
+                                        <th style="width: 140px;">{{ $isDdt ? 'Prezzo Fornitore' : 'Costo Unit.' }}</th>
+                                        <th style="width: 140px;">{{ $isDdt ? 'Valore' : 'Totale Riga' }}</th>
                                         <th style="width: 180px;">Seriale</th>
                                         <th style="width: 180px;">EAN</th>
                                         <th style="width: 40px;"></th>
@@ -148,6 +150,10 @@
                                             <td>
                                                 <input type="number" min="1" name="articoli[{{ $index }}][quantita]" class="form-control"
                                                        value="{{ $articolo['quantita'] ?? 1 }}" required>
+                                            </td>
+                                            <td>
+                                                <input type="text" name="articoli[{{ $index }}][caratura]" class="form-control"
+                                                       value="{{ $articolo['caratura'] ?? '' }}" placeholder="ct">
                                             </td>
                                             <td>
                                                 <input type="text" name="articoli[{{ $index }}][prezzo_unitario]" class="form-control"
@@ -221,6 +227,7 @@
                         <td><input type="text" name="articoli[${currentIndex}][codice]" class="form-control" required></td>
                         <td><input type="text" name="articoli[${currentIndex}][descrizione]" class="form-control"></td>
                         <td><input type="number" min="1" name="articoli[${currentIndex}][quantita]" class="form-control" value="1" required></td>
+                        <td><input type="text" name="articoli[${currentIndex}][caratura]" class="form-control" placeholder="ct"></td>
                         <td><input type="text" name="articoli[${currentIndex}][prezzo_unitario]" class="form-control" placeholder="0,00"></td>
                         <td><input type="text" name="articoli[${currentIndex}][prezzo_totale]" class="form-control" placeholder="0,00"></td>
                         <td><input type="text" name="articoli[${currentIndex}][numero_seriale]" class="form-control"></td>

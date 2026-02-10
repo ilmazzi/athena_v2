@@ -106,6 +106,7 @@ class OcrController extends Controller
             'articoli.*.codice' => 'required_with:articoli|string|max:100',
             'articoli.*.descrizione' => 'nullable|string|max:500',
             'articoli.*.quantita' => 'required_with:articoli|numeric|min:0',
+            'articoli.*.caratura' => 'nullable|string|max:50',
             'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
             'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
         ]);

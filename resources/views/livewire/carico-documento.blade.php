@@ -290,10 +290,13 @@
                             <th>Descrizione</th>
                             <th width="160">Magazzino *</th>
                             <th width="100">Quantità *</th>
-                            @if($tipoDocumento === 'fattura')
-                                <th width="120">Costo Unit.</th>
-                                <th width="120">Totale Riga</th>
-                            @endif
+                            <th width="90">Carati</th>
+                            <th width="140">
+                                {{ $tipoDocumento === 'ddt' ? 'Prezzo Fornitore' : 'Costo Unit.' }}
+                            </th>
+                            <th width="140">
+                                {{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}
+                            </th>
                             <th width="150">Seriale</th>
                             <th width="150">EAN</th>
                             <th width="60"></th>
@@ -333,18 +336,20 @@
                                        class="form-control form-control-sm text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
                                        min="1">
                             </td>
-                            @if($tipoDocumento === 'fattura')
-                                <td>
-                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_unitario"
-                                           class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
-                                           placeholder="0,00">
-                                </td>
-                                <td>
-                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_totale"
-                                           class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
-                                           placeholder="0,00">
-                                </td>
-                            @endif
+                            <td>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.caratura"
+                                       class="form-control form-control-sm" placeholder="ct">
+                            </td>
+                            <td>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_unitario"
+                                       class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
+                                       placeholder="0,00">
+                            </td>
+                            <td>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_totale"
+                                       class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
+                                       placeholder="0,00">
+                            </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
                                        class="form-control form-control-sm" placeholder="Seriale">
@@ -362,7 +367,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="{{ $tipoDocumento === 'fattura' ? 11 : 9 }}" class="text-center py-5">
+                            <td colspan="12" class="text-center py-5">
                                 <iconify-icon icon="solar:inbox-line-bold-duotone" class="fs-1 text-muted d-block mb-2" style="font-size: 3rem;"></iconify-icon>
                                 <p class="text-muted">Nessun articolo trovato</p>
                             </td>

@@ -466,6 +466,51 @@ class OcrService
             'italy', 'italia', 'switzerland', 'svizzera'
         ];
 
+        // Parsing specifico POMELLATO: riga tabellare con codice + variante + quantità + NR
+        foreach ($lines as $idx => $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '') {
+                continue;
+            }
+
+            if (preg_match('/^\s*\d{1,3}\s+([A-Z0-9]{4,10})\s+([A-Z0-9]{3,6})\s+[A-Z0-9]{3,6}\s+\d{1,3}\s+(?:[\d.,]+\s+)?([\d.,]+)\s+(\d{1,3}[,\.]\d{2})\s+(?:NR|PZ|PC)\b/i', $lineTrim, $m)) {
+                $codiceBase = strtoupper(trim($m[1]));
+                $codiceVariante = strtoupper(trim($m[2]));
+                $caratiRaw = $m[3] ?? '';
+                $quantita = (float) str_replace(',', '.', $m[4]);
+                $caratura = $caratiRaw !== '' ? str_replace(',', '.', $caratiRaw) : null;
+
+                $prezzoUnitario = null;
+                $prezzoTotale = null;
+                if (preg_match('/\bEUR\s+([0-9\.\,]+)\s+([0-9\.\,]+)/i', $lineTrim, $priceMatch)) {
+                    $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
+                    $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
+                } elseif (preg_match('/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*$/', $lineTrim, $priceMatch)) {
+                    $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
+                    $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
+                }
+
+                $descrizione = '';
+                $nextLine = isset($lines[$idx + 1]) ? trim($lines[$idx + 1]) : '';
+                if ($nextLine !== '' && !preg_match('/^(MADE\s+IN|LOTTO:|CAT\.?DOG\.?:?|TOTALE\b)/i', $nextLine)) {
+                    $descrizione = $nextLine;
+                }
+
+                $articoli[$codiceBase . '-' . $codiceVariante] = [
+                    'codice' => $codiceBase . '-' . $codiceVariante,
+                    'descrizione' => $descrizione,
+                    'quantita' => max(1, (int) round($quantita)),
+                    'caratura' => $caratura,
+                    'prezzo_unitario' => $prezzoUnitario,
+                    'prezzo_totale' => $prezzoTotale,
+                ];
+                $skipLineIndexes[$idx] = true;
+                if ($nextLine !== '') {
+                    $skipLineIndexes[$idx + 1] = true;
+                }
+            }
+        }
+
         // Parsing specifico IDANDI: righe tabellari con € e codici tipici
         foreach ($lines as $idx => $line) {
             $lineTrim = trim($line);

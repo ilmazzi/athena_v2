@@ -1073,10 +1073,10 @@
                                                 </a>
                                             </li>
                                             <li>
-                                                <a class="dropdown-item" href="#">
+                                                <button type="button" class="dropdown-item" wire:click="apriModalModifica({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:pen-bold" class="text-warning me-2"></iconify-icon>
                                                     Modifica
-                                                </a>
+                                                </button>
                                             </li>
                                             <li>
                                                 <button class="dropdown-item" wire:click="apriModalStampa({{ $articolo->id }})">
@@ -1431,6 +1431,153 @@
                                 @if(empty($prezzoEtichetta) || empty($stampanteSelezionata) || empty($stampantiDisponibili)) disabled @endif>
                             <iconify-icon icon="solar:printer-bold" class="me-1"></iconify-icon>
                             Stampa Etichetta
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    @endif
+
+    <!-- Modal Modifica Articolo -->
+    @if($showModalModifica && $articoloDaModificare)
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <iconify-icon icon="solar:pen-bold" class="me-2"></iconify-icon>
+                            Modifica Articolo
+                        </h5>
+                        <button type="button" class="btn-close" wire:click="chiudiModalModifica"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Codice</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.codice" readonly>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Descrizione</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.descrizione">
+                                @error('modifica.descrizione')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Descrizione estesa</label>
+                                <textarea class="form-control" rows="2" wire:model.defer="modifica.descrizione_estesa"></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Categoria</label>
+                                <select class="form-select" wire:model.defer="modifica.categoria_merceologica_id">
+                                    <option value="">Seleziona categoria</option>
+                                    @foreach($magazzini as $magazzino)
+                                        <option value="{{ $magazzino->id }}">{{ $magazzino->id }} - {{ $magazzino->nome }}</option>
+                                    @endforeach
+                                </select>
+                                @error('modifica.categoria_merceologica_id')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Fornitore</label>
+                                <select class="form-select" wire:model.defer="modifica.fornitore_id">
+                                    <option value="">Nessuno</option>
+                                    @foreach($fornitori as $fornitore)
+                                        <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Prezzo acquisto</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Prezzo fornitore</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="€ 0,00">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Modello</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.modello">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Materiale</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.materiale">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Colore</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.colore">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Titolo</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.titolo">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Caratura</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.caratura">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Peso lordo (g)</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.peso_lordo">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Peso netto (g)</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.peso_netto">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Marca</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.marca">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Referenza</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.referenza">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">EAN</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.ean">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Numero seriale</label>
+                                <input type="text" class="form-control" wire:model.defer="modifica.numero_seriale">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Note</label>
+                                <textarea class="form-control" rows="2" wire:model.defer="modifica.note"></textarea>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Opzioni</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modificaInVetrina" wire:model.defer="modifica.in_vetrina">
+                                        <label class="form-check-label" for="modificaInVetrina">In vetrina</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modificaInventariato" wire:model.defer="modifica.inventariato">
+                                        <label class="form-check-label" for="modificaInventariato">Inventariato</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="modificaCatalogo" wire:model.defer="modifica.visibile_catalogo">
+                                        <label class="form-check-label" for="modificaCatalogo">Visibile catalogo</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="chiudiModalModifica">
+                            <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                            Annulla
+                        </button>
+                        <button type="button" class="btn btn-primary" wire:click="salvaModificaArticolo">
+                            <iconify-icon icon="solar:diskette-bold" class="me-1"></iconify-icon>
+                            Salva modifiche
                         </button>
                     </div>
                 </div>

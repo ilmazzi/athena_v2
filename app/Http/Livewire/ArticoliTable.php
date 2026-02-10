@@ -6,6 +6,8 @@ use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
 use App\Models\FornitorePrezzo;
+use App\Models\Ddt;
+use App\Models\Fattura;
 use App\Models\Sede;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +76,35 @@ class ArticoliTable extends Component
     public $layoutEtichetta = 'standard'; // standard|nc_prezzo|nc_prezzo_carati|nc_prezzo_completo
     public $stampanteSelezionata = '';
     public $stampantiDisponibili = [];
+
+    // Modalità modifica articolo
+    public $showModalModifica = false;
+    public $articoloDaModificare = null;
+    public $modifica = [
+        'id' => null,
+        'codice' => '',
+        'descrizione' => '',
+        'descrizione_estesa' => '',
+        'categoria_merceologica_id' => '',
+        'fornitore_id' => '',
+        'materiale' => '',
+        'colore' => '',
+        'peso_lordo' => '',
+        'peso_netto' => '',
+        'titolo' => '',
+        'caratura' => '',
+        'prezzo_acquisto' => '',
+        'prezzo_fornitore' => '',
+        'note' => '',
+        'ean' => '',
+        'numero_seriale' => '',
+        'modello' => '',
+        'marca' => '',
+        'referenza' => '',
+        'in_vetrina' => false,
+        'inventariato' => false,
+        'visibile_catalogo' => false,
+    ];
     
     // Paginazione e ordinamento
     public $perPage = 25;
@@ -649,6 +680,187 @@ class ArticoliTable extends Component
         $this->layoutEtichetta = 'standard';
         $this->stampanteSelezionata = '';
         $this->stampantiDisponibili = [];
+    }
+
+    public function apriModalModifica($articoloId)
+    {
+        try {
+            $articolo = Articolo::with(['categoriaMerceologica', 'fornitore'])->findOrFail($articoloId);
+            $caratteristiche = $articolo->caratteristiche ?? [];
+            if (is_string($caratteristiche)) {
+                $decoded = json_decode($caratteristiche, true);
+                $caratteristiche = is_array($decoded) ? $decoded : [];
+            } elseif (!is_array($caratteristiche)) {
+                $caratteristiche = [];
+            }
+
+            $this->articoloDaModificare = $articolo;
+            $this->modifica = [
+                'id' => $articolo->id,
+                'codice' => $articolo->codice,
+                'descrizione' => $articolo->descrizione,
+                'descrizione_estesa' => $articolo->descrizione_estesa,
+                'categoria_merceologica_id' => $articolo->categoria_merceologica_id,
+                'fornitore_id' => $articolo->fornitore_id,
+                'materiale' => $articolo->materiale,
+                'colore' => $articolo->colore,
+                'peso_lordo' => $articolo->peso_lordo,
+                'peso_netto' => $articolo->peso_netto,
+                'titolo' => $articolo->titolo,
+                'caratura' => $articolo->caratura,
+                'prezzo_acquisto' => $articolo->prezzo_acquisto,
+                'prezzo_fornitore' => $articolo->prezzo_fornitore,
+                'note' => $articolo->note,
+                'ean' => $articolo->ean,
+                'numero_seriale' => $articolo->numero_seriale,
+                'modello' => $articolo->modello,
+                'marca' => $caratteristiche['marca'] ?? '',
+                'referenza' => $caratteristiche['referenza'] ?? '',
+                'in_vetrina' => (bool) $articolo->in_vetrina,
+                'inventariato' => (bool) $articolo->inventariato,
+                'visibile_catalogo' => (bool) $articolo->visibile_catalogo,
+            ];
+
+            $this->showModalModifica = true;
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante l\'apertura modifica: ' . $e->getMessage());
+        }
+    }
+
+    public function chiudiModalModifica()
+    {
+        $this->showModalModifica = false;
+        $this->articoloDaModificare = null;
+        $this->reset('modifica');
+    }
+
+    public function salvaModificaArticolo()
+    {
+        if (!$this->articoloDaModificare) {
+            session()->flash('error', 'Nessun articolo selezionato');
+            return;
+        }
+
+        $this->validate([
+            'modifica.descrizione' => 'required|string|max:255',
+            'modifica.descrizione_estesa' => 'nullable|string',
+            'modifica.categoria_merceologica_id' => 'required|exists:categorie_merceologiche,id',
+            'modifica.fornitore_id' => 'nullable|exists:fornitori,id',
+            'modifica.materiale' => 'nullable|string|max:100',
+            'modifica.colore' => 'nullable|string|max:100',
+            'modifica.peso_lordo' => 'nullable',
+            'modifica.peso_netto' => 'nullable',
+            'modifica.titolo' => 'nullable|string|max:50',
+            'modifica.caratura' => 'nullable|string|max:50',
+            'modifica.prezzo_fornitore' => 'nullable',
+            'modifica.note' => 'nullable|string',
+            'modifica.ean' => 'nullable|string|max:60',
+            'modifica.numero_seriale' => 'nullable|string|max:100',
+            'modifica.modello' => 'nullable|string|max:100',
+            'modifica.marca' => 'nullable|string|max:100',
+            'modifica.referenza' => 'nullable|string|max:100',
+            'modifica.in_vetrina' => 'boolean',
+            'modifica.inventariato' => 'boolean',
+            'modifica.visibile_catalogo' => 'boolean',
+        ]);
+
+        try {
+            $articolo = Articolo::findOrFail($this->articoloDaModificare->id);
+
+            $prezzoFornitore = $this->normalizePrezzo($this->modifica['prezzo_fornitore'] ?? null);
+            $pesoLordo = $this->normalizePrezzo($this->modifica['peso_lordo'] ?? null);
+            $pesoNetto = $this->normalizePrezzo($this->modifica['peso_netto'] ?? null);
+
+            if (($this->modifica['prezzo_fornitore'] ?? '') !== '' && $prezzoFornitore === null) {
+                session()->flash('error', 'Prezzo fornitore non valido.');
+                return;
+            }
+            if (($this->modifica['peso_lordo'] ?? '') !== '' && $pesoLordo === null) {
+                session()->flash('error', 'Peso lordo non valido.');
+                return;
+            }
+            if (($this->modifica['peso_netto'] ?? '') !== '' && $pesoNetto === null) {
+                session()->flash('error', 'Peso netto non valido.');
+                return;
+            }
+
+            $caratteristiche = $articolo->caratteristiche ?? [];
+            if (is_string($caratteristiche)) {
+                $decoded = json_decode($caratteristiche, true);
+                $caratteristiche = is_array($decoded) ? $decoded : [];
+            } elseif (!is_array($caratteristiche)) {
+                $caratteristiche = [];
+            }
+            $marca = trim((string) ($this->modifica['marca'] ?? ''));
+            $referenza = trim((string) ($this->modifica['referenza'] ?? ''));
+            if ($marca !== '') {
+                $caratteristiche['marca'] = $marca;
+            } else {
+                unset($caratteristiche['marca']);
+            }
+            if ($referenza !== '') {
+                $caratteristiche['referenza'] = $referenza;
+            } else {
+                unset($caratteristiche['referenza']);
+            }
+
+            $articolo->update([
+                'descrizione' => $this->modifica['descrizione'],
+                'descrizione_estesa' => $this->modifica['descrizione_estesa'] ?: null,
+                'categoria_merceologica_id' => $this->modifica['categoria_merceologica_id'],
+                'fornitore_id' => $this->modifica['fornitore_id'] ?: null,
+                'materiale' => $this->modifica['materiale'] ?: null,
+                'colore' => $this->modifica['colore'] ?: null,
+                'peso_lordo' => $pesoLordo,
+                'peso_netto' => $pesoNetto,
+                'titolo' => $this->modifica['titolo'] ?: null,
+                'caratura' => $this->modifica['caratura'] ?: null,
+                'prezzo_fornitore' => $prezzoFornitore,
+                'note' => $this->modifica['note'] ?: null,
+                'ean' => $this->modifica['ean'] ?: null,
+                'numero_seriale' => $this->modifica['numero_seriale'] ?: null,
+                'modello' => $this->modifica['modello'] ?: null,
+                'caratteristiche' => empty($caratteristiche) ? null : $caratteristiche,
+                'in_vetrina' => (bool) ($this->modifica['in_vetrina'] ?? false),
+                'inventariato' => (bool) ($this->modifica['inventariato'] ?? false),
+                'visibile_catalogo' => (bool) ($this->modifica['visibile_catalogo'] ?? false),
+            ]);
+
+            $fornitoreId = $this->modifica['fornitore_id'] ?: null;
+            if ($fornitoreId) {
+                $ddtIds = $articolo->ddtDettaglio()
+                    ->whereNotNull('ddt_id')
+                    ->pluck('ddt_id')
+                    ->unique()
+                    ->filter()
+                    ->values();
+
+                if ($ddtIds->isNotEmpty()) {
+                    Ddt::whereIn('id', $ddtIds)->update([
+                        'fornitore_id' => $fornitoreId,
+                    ]);
+                }
+
+                $fatturaIds = $articolo->fatturaDettaglio()
+                    ->whereNotNull('fattura_id')
+                    ->pluck('fattura_id')
+                    ->unique()
+                    ->filter()
+                    ->values();
+
+                if ($fatturaIds->isNotEmpty()) {
+                    Fattura::whereIn('id', $fatturaIds)->update([
+                        'fornitore_id' => $fornitoreId,
+                    ]);
+                }
+            }
+
+            $this->statsCache = null;
+            session()->flash('success', "Articolo {$articolo->codice} aggiornato con successo");
+            $this->chiudiModalModifica();
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante il salvataggio: ' . $e->getMessage());
+        }
     }
     
     /**
