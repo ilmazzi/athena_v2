@@ -410,7 +410,7 @@
                                             <div>
                                                 {{ $comp->articolo->codice ?? 'N/D' }} -
                                                 {{ $comp->articolo->descrizione ?? 'N/D' }}
-                                                @if(!empty($comp->articolo?->caratura))
+                                                @if(!empty($comp->articolo) && !empty($comp->articolo->caratura))
                                                     <span style="margin-left: 6px; font-weight: bold;">Carati:</span>
                                                     {{ $comp->articolo->caratura }} ct
                                                 @endif
