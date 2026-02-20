@@ -286,6 +286,14 @@
         </div>
     </div>
 
+    @php
+        $configurazioneDdt = $ddtDeposito->configurazione ?? [];
+        $trasportoMezzo = $configurazioneDdt['trasporto_a_mezzo'] ?? $configurazioneDdt['trasporto_mezzo'] ?? null;
+        $aspettoBeni = $configurazioneDdt['aspetto_beni'] ?? $configurazioneDdt['aspetto'] ?? null;
+        $vettore = $configurazioneDdt['vettore'] ?? $ddtDeposito->corriere ?? null;
+        $colliTrasporto = $ddtDeposito->numero_colli ?? $configurazioneDdt['numero_colli'] ?? $configurazioneDdt['colli'] ?? null;
+    @endphp
+
     {{-- Informazioni documento --}}
     <div class="document-info">
         <div class="info-section">
@@ -341,19 +349,19 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Aspetto beni:</span>
-                {{ $ddtDeposito->configurazione['aspetto_beni'] ?? '—' }}
+                {{ $aspettoBeni ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Colli:</span>
-                {{ $ddtDeposito->numero_colli ?? '—' }}
+                {{ $colliTrasporto ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Trasporto:</span>
-                {{ $ddtDeposito->configurazione['trasporto_a_mezzo'] ?? $ddtDeposito->configurazione['trasporto_mezzo'] ?? '—' }}
+                {{ $trasportoMezzo ?? '—' }}
             </div>
             <div class="info-row">
-                <span class="info-label">Corriere:</span>
-                {{ $ddtDeposito->corriere ?? '—' }}
+                <span class="info-label">Vettore:</span>
+                {{ $vettore ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Tracking:</span>
@@ -551,6 +559,36 @@
             @endif
             <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma per ricevuta:</div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Dati creazione e ritiro --}}
+    <div class="ddt-footer" style="margin-top: 8px;">
+        <div class="ddt-footer-section">
+            <div class="info-title">🕒 Creazione documento</div>
+            @php($createdAt = $ddtDeposito->created_at)
+            <div class="info-row">
+                <span class="info-label">Creato il:</span>
+                {{ $createdAt ? $createdAt->format('d/m/Y H:i') : '—' }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Stampato:</span>
+                {{ $ddtDeposito->data_stampa ? $ddtDeposito->data_stampa->format('d/m/Y H:i') : '—' }}
+            </div>
+        </div>
+        <div class="ddt-footer-section">
+            <div class="info-title">🚚 Ritiro corriere</div>
+            <div class="info-row">
+                <span class="info-label">Data ritiro:</span>
+                ____________________
+            </div>
+            <div class="info-row">
+                <span class="info-label">Ora ritiro:</span>
+                ____________________
+            </div>
+            <div class="ddt-signature-box">
+                <div style="font-size: 9px; color: var(--bs-secondary);">Timbro corriere:</div>
             </div>
         </div>
     </div>

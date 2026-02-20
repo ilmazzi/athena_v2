@@ -744,6 +744,12 @@
                                                     <span class="fw-semibold">Ref:</span> {{ $articolo->caratteristiche['referenza'] }}
                                                 </span>
                                             @endif
+                                            @if(!empty($articolo->numero_seriale))
+                                                <span class="ms-2">
+                                                    <iconify-icon icon="solar:shield-keyhole-bold" class="text-info me-1"></iconify-icon>
+                                                    <span class="fw-semibold">SN:</span> {{ $articolo->numero_seriale }}
+                                                </span>
+                                            @endif
                                         </small>
                                     </div>
                                 </td>
