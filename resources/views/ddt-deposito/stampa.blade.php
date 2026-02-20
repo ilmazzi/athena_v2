@@ -286,14 +286,6 @@
         </div>
     </div>
 
-    @php
-        $configurazioneDdt = $ddtDeposito->configurazione ?? [];
-        $trasportoMezzo = $configurazioneDdt['trasporto_a_mezzo'] ?? $configurazioneDdt['trasporto_mezzo'] ?? null;
-        $aspettoBeni = $configurazioneDdt['aspetto_beni'] ?? $configurazioneDdt['aspetto'] ?? null;
-        $vettore = $configurazioneDdt['vettore'] ?? $ddtDeposito->corriere ?? null;
-        $colliTrasporto = $ddtDeposito->numero_colli ?? $configurazioneDdt['numero_colli'] ?? $configurazioneDdt['colli'] ?? null;
-    @endphp
-
     {{-- Informazioni documento --}}
     <div class="document-info">
         <div class="info-section">
@@ -349,19 +341,19 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Aspetto beni:</span>
-                {{ $aspettoBeni ?? '—' }}
+                {{ $ddtTrasporto['aspetto_beni'] ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Colli:</span>
-                {{ $colliTrasporto ?? '—' }}
+                {{ $ddtTrasporto['colli'] ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Trasporto:</span>
-                {{ $trasportoMezzo ?? '—' }}
+                {{ $ddtTrasporto['trasporto_mezzo'] ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Vettore:</span>
-                {{ $vettore ?? '—' }}
+                {{ $ddtTrasporto['vettore'] ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Tracking:</span>

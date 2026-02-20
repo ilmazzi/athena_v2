@@ -36,8 +36,24 @@ class DdtDepositoController extends Controller
         }
 
         $includeCosti = $request->boolean('include_costi');
+        $configurazioneDdt = $ddtDeposito->configurazione ?? [];
+        $ddtTrasporto = [
+            'trasporto_mezzo' => $configurazioneDdt['trasporto_a_mezzo']
+                ?? $configurazioneDdt['trasporto_mezzo']
+                ?? null,
+            'aspetto_beni' => $configurazioneDdt['aspetto_beni']
+                ?? $configurazioneDdt['aspetto']
+                ?? null,
+            'vettore' => $configurazioneDdt['vettore']
+                ?? $ddtDeposito->corriere
+                ?? null,
+            'colli' => $ddtDeposito->numero_colli
+                ?? $configurazioneDdt['numero_colli']
+                ?? $configurazioneDdt['colli']
+                ?? null,
+        ];
 
-        return view('ddt-deposito.stampa', compact('ddtDeposito', 'includeCosti'));
+        return view('ddt-deposito.stampa', compact('ddtDeposito', 'includeCosti', 'ddtTrasporto'));
     }
 
     /**
