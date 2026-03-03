@@ -121,6 +121,10 @@
                                     </td>
                                     <td>{{ \Illuminate\Support\Str::limit($movimentazione->note, 40) }}</td>
                                     <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-warning"
+                                           href="{{ route('movimentazioni-interne.modifica', $movimentazione->id) }}">
+                                            <iconify-icon icon="solar:pen-bold"></iconify-icon>
+                                        </a>
                                         <a class="btn btn-sm btn-outline-secondary"
                                            href="{{ route('movimentazioni-interne.stampa', $movimentazione->id) }}"
                                            target="_blank" rel="noopener">
