@@ -67,7 +67,7 @@ class MovimentazioneService
                 'note' => $dto->note,
             ]);
             
-            return $movimentazione->fresh(['articolo', 'magazzinoOrigine', 'magazzinoDestinazione']);
+            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa']);
         });
     }
 
@@ -121,7 +121,7 @@ class MovimentazioneService
                 ]);
             }
             
-            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione']);
+            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa']);
         });
     }
 
@@ -137,8 +137,10 @@ class MovimentazioneService
      */
     public function getStoricoArticolo(int $articoloId): \Illuminate\Database\Eloquent\Collection
     {
-        return Movimentazione::with(['magazzinoOrigine', 'magazzinoDestinazione', 'user'])
-            ->where('articolo_id', $articoloId)
+        return Movimentazione::with(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa'])
+            ->whereHas('dettagli', function ($q) use ($articoloId) {
+                $q->where('articolo_id', $articoloId);
+            })
             ->orderBy('data_movimentazione', 'desc')
             ->get();
     }
@@ -151,7 +153,7 @@ class MovimentazioneService
         ?\DateTime $da = null,
         ?\DateTime $a = null
     ): \Illuminate\Database\Eloquent\Collection {
-        $query = Movimentazione::with(['articolo', 'magazzinoOrigine', 'magazzinoDestinazione'])
+        $query = Movimentazione::with(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione'])
             ->delMagazzino($magazzinoId);
         
         if ($da && $a) {

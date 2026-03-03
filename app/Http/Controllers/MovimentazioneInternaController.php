@@ -98,10 +98,10 @@ class MovimentazioneInternaController extends Controller
     public function stampaDdt($movimentazioneId)
     {
         $movimentazione = \App\Models\Movimentazione::with([
-            'articolo',
-            'magazzinoOrigine.sede',
+            'dettagli.articolo',
+            'magazzinoPartenza.sede',
             'magazzinoDestinazione.sede',
-            'user'
+            'creataDa'
         ])->findOrFail($movimentazioneId);
         
         return view('movimentazioni-interne.stampa-ddt', compact('movimentazione'));
@@ -113,10 +113,10 @@ class MovimentazioneInternaController extends Controller
     public function downloadDdt($movimentazioneId)
     {
         $movimentazione = \App\Models\Movimentazione::with([
-            'articolo',
-            'magazzinoOrigine.sede', 
+            'dettagli.articolo',
+            'magazzinoPartenza.sede', 
             'magazzinoDestinazione.sede',
-            'user'
+            'creataDa'
         ])->findOrFail($movimentazioneId);
         
         $pdf = app('dompdf.wrapper');

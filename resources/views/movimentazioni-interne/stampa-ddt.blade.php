@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DDT Movimentazione - {{ $movimentazione->numero_ddt ?? 'MOV-' . $movimentazione->id }}</title>
+    <title>DDT Movimentazione - {{ $movimentazione->numero_documento ?? 'MOV-' . $movimentazione->id }}</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -87,11 +87,11 @@
     <div class="info-row">
         <div class="info-box">
             <h4>SEDE ORIGINE</h4>
-            <strong>{{ $movimentazione->magazzinoOrigine->sede->nome ?? 'N/A' }}</strong><br>
-            {{ $movimentazione->magazzinoOrigine->sede->indirizzo ?? '' }}<br>
-            {{ $movimentazione->magazzinoOrigine->sede->citta ?? '' }} {{ $movimentazione->magazzinoOrigine->sede->provincia ?? '' }} {{ $movimentazione->magazzinoOrigine->sede->cap ?? '' }}<br>
-            @if($movimentazione->magazzinoOrigine->sede->telefono)
-                Tel: {{ $movimentazione->magazzinoOrigine->sede->telefono }}
+            <strong>{{ $movimentazione->magazzinoPartenza->sede->nome ?? 'N/A' }}</strong><br>
+            {{ $movimentazione->magazzinoPartenza->sede->indirizzo ?? '' }}<br>
+            {{ $movimentazione->magazzinoPartenza->sede->citta ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->provincia ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->cap ?? '' }}<br>
+            @if($movimentazione->magazzinoPartenza->sede->telefono)
+                Tel: {{ $movimentazione->magazzinoPartenza->sede->telefono }}
             @endif
         </div>
         <div class="info-box">
@@ -109,13 +109,13 @@
     <table class="table">
         <tr>
             <td><strong>Numero DDT:</strong></td>
-            <td>{{ $movimentazione->numero_ddt ?? 'MOV-' . str_pad($movimentazione->id, 6, '0', STR_PAD_LEFT) }}</td>
+            <td>{{ $movimentazione->numero_documento ?? 'MOV-' . str_pad($movimentazione->id, 6, '0', STR_PAD_LEFT) }}</td>
             <td><strong>Data:</strong></td>
             <td>{{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : now()->format('d/m/Y') }}</td>
         </tr>
         <tr>
             <td><strong>Operatore:</strong></td>
-            <td>{{ $movimentazione->user->name ?? 'Sistema' }}</td>
+            <td>{{ $movimentazione->creataDa->name ?? 'Sistema' }}</td>
             <td><strong>Ora:</strong></td>
             <td>{{ now()->format('H:i') }}</td>
         </tr>
@@ -143,7 +143,7 @@
                         <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
                         <td style="text-align: center;">{{ $riga->quantita }}</td>
                         <td style="text-align: center;">PZ</td>
-                        <td>{{ $movimentazione->magazzinoOrigine->nome ?? 'N/A' }}</td>
+                        <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
                     </tr>
                 @endforeach
             @else
@@ -153,7 +153,7 @@
                     <td>{{ $movimentazione->articolo->descrizione ?? 'N/A' }}</td>
                     <td style="text-align: center;">{{ $movimentazione->quantita }}</td>
                     <td style="text-align: center;">PZ</td>
-                    <td>{{ $movimentazione->magazzinoOrigine->nome ?? 'N/A' }}</td>
+                    <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
                 </tr>
             @endif
         </tbody>
@@ -173,7 +173,7 @@
             <div>
                 <strong>Firma Mittente</strong><br><br>
                 <div class="signature-box"></div><br>
-                {{ $movimentazione->magazzinoOrigine->sede->nome ?? 'Sede Origine' }}
+                {{ $movimentazione->magazzinoPartenza->sede->nome ?? 'Sede Origine' }}
             </div>
             <div>
                 <strong>Firma Destinatario</strong><br><br>
