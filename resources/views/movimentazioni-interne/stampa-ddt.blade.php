@@ -134,18 +134,67 @@
             </tr>
         </thead>
         <tbody>
-            @php $righe = $movimentazione->dettagli ?? collect(); @endphp
+            @php
+                $righe = $movimentazione->dettagli ?? collect();
+                $pfOrder = [];
+                $pfRighe = [];
+                $righeSingole = [];
+
+                foreach ($righe as $riga) {
+                    $pfCode = null;
+                    if (!empty($riga->note)) {
+                        if (preg_match('/Spostamento componente PF\s+([^\s\-]+)/i', $riga->note, $matches)) {
+                            $pfCode = $matches[1];
+                        }
+                    }
+
+                    if ($pfCode) {
+                        if (!isset($pfRighe[$pfCode])) {
+                            $pfRighe[$pfCode] = [];
+                            $pfOrder[] = $pfCode;
+                        }
+                        $pfRighe[$pfCode][] = $riga;
+                    } else {
+                        $righeSingole[] = $riga;
+                    }
+                }
+
+                $pos = 1;
+            @endphp
             @if($righe->count() > 0)
-                @foreach($righe as $index => $riga)
+                @foreach($pfOrder as $pfCode)
                     <tr>
-                        <td>{{ $index + 1 }}</td>
-                        <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
-                        <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
-                        <td style="text-align: center;">{{ $riga->quantita }}</td>
-                        <td style="text-align: center;">PZ</td>
-                        <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
+                        <td></td>
+                        <td colspan="5"><strong>PF {{ $pfCode }} (contiene {{ count($pfRighe[$pfCode]) }} articoli)</strong></td>
                     </tr>
+                    @foreach($pfRighe[$pfCode] as $riga)
+                        <tr>
+                            <td>{{ $pos++ }}</td>
+                            <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
+                            <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
+                            <td style="text-align: center;">{{ $riga->quantita }}</td>
+                            <td style="text-align: center;">PZ</td>
+                            <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
+                        </tr>
+                    @endforeach
                 @endforeach
+
+                @if(count($righeSingole) > 0)
+                    <tr>
+                        <td></td>
+                        <td colspan="5"><strong>Articoli sciolti</strong></td>
+                    </tr>
+                    @foreach($righeSingole as $riga)
+                        <tr>
+                            <td>{{ $pos++ }}</td>
+                            <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
+                            <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
+                            <td style="text-align: center;">{{ $riga->quantita }}</td>
+                            <td style="text-align: center;">PZ</td>
+                            <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
+                        </tr>
+                    @endforeach
+                @endif
             @else
                 <tr>
                     <td>1</td>

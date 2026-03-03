@@ -7,6 +7,7 @@ use App\Models\Movimentazione;
 use App\Models\MovimentazioneDettaglio;
 use App\Models\Articolo;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Service per gestione movimentazioni tra magazzini
@@ -83,7 +84,7 @@ class MovimentazioneService
             'data_movimentazione' => $dataMovimentazione,
             'note' => $note,
             'numero_documento' => $this->generateNumeroDocumento(),
-            'creata_da' => auth()->id(),
+            'creata_da' => Auth::id(),
         ]);
     }
 
@@ -127,9 +128,24 @@ class MovimentazioneService
 
     private function generateNumeroDocumento(): string
     {
-        $anno = date('Y');
-        $timestamp = time();
-        return "MOV-{$anno}-{$timestamp}";
+        $anno = now()->format('Y');
+        $prefix = "MOV-{$anno}-";
+        $progressivo = 1;
+
+        $numeri = Movimentazione::whereYear('data_movimentazione', $anno)
+            ->where('numero_documento', 'like', $prefix . '%')
+            ->pluck('numero_documento');
+
+        foreach ($numeri as $numero) {
+            if (str_starts_with($numero, $prefix)) {
+                $suffix = substr($numero, strlen($prefix));
+                if (ctype_digit($suffix) && strlen($suffix) <= 6) {
+                    $progressivo = max($progressivo, (int) $suffix + 1);
+                }
+            }
+        }
+
+        return $prefix . str_pad((string) $progressivo, 4, '0', STR_PAD_LEFT);
     }
     
     /**
