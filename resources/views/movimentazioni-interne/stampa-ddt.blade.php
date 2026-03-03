@@ -4,122 +4,140 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DDT Movimentazione - {{ $movimentazione->numero_documento ?? 'MOV-' . $movimentazione->id }}</title>
+    @vite(['resources/scss/app.scss'])
     <style>
+        @media print {
+            @page { margin: 1cm; size: A4; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none; }
+        }
         body {
             font-family: Arial, sans-serif;
-            font-size: 12px;
-            line-height: 1.4;
             margin: 0;
-            padding: 20px;
+            padding: 10mm;
+            background: white;
+            font-size: 10px;
+            line-height: 1.25;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 15px;
+        .box {
+            border: 1px solid #000;
+            padding: 8px;
+            min-height: 60px;
         }
-        .title {
-            font-size: 24px;
+        .box-title {
             font-weight: bold;
+            font-size: 10px;
+            margin-bottom: 6px;
+        }
+        .header-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 10px;
             margin-bottom: 10px;
         }
-        .subtitle {
-            font-size: 16px;
-            color: #666;
+        .header-right {
+            display: grid;
+            gap: 8px;
         }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
-        .info-box {
-            border: 1px solid #ccc;
-            padding: 10px;
-            width: 48%;
-        }
-        .info-box h4 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            font-weight: bold;
-            color: #333;
+        .info-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
         }
         .table {
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
+            margin: 12px 0;
         }
         .table th,
         .table td {
-            border: 1px solid #ccc;
-            padding: 8px;
+            border: 1px solid #000;
+            padding: 6px;
             text-align: left;
         }
         .table th {
             background-color: #f5f5f5;
             font-weight: bold;
+            text-align: center;
         }
-        .footer {
-            margin-top: 50px;
-            border-top: 1px solid #ccc;
-            padding-top: 20px;
+        .footer-box {
+            border: 1px solid #000;
+            margin-top: 12px;
         }
-        .signature-box {
-            border: 1px solid #ccc;
-            height: 80px;
-            width: 200px;
-            display: inline-block;
-            margin-right: 50px;
+        .footer-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            border-bottom: 1px solid #000;
         }
-        @media print {
-            body { margin: 0; }
-            .no-print { display: none; }
+        .footer-row > div {
+            padding: 6px;
+            min-height: 40px;
         }
+        .footer-sign {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            border-top: 1px solid #000;
+        }
+        .footer-sign > div {
+            padding: 6px;
+            min-height: 50px;
+            border-right: 1px solid #000;
+        }
+        .footer-sign > div:last-child { border-right: 0; }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <div class="header">
-        <div class="title">DOCUMENTO DI TRASPORTO</div>
-        <div class="subtitle">Movimentazione Interna</div>
-    </div>
+    @php
+        $numeroDocumento = $movimentazione->numero_documento ?? 'MOV-' . str_pad($movimentazione->id, 6, '0', STR_PAD_LEFT);
+        $numeroProgressivo = $numeroDocumento;
+        if (preg_match('/^MOV-\d{4}-(\d+)$/', $numeroDocumento, $matches)) {
+            $numeroProgressivo = ltrim($matches[1], '0') ?: '1';
+        }
+        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
+        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
+    @endphp
 
-    <!-- Informazioni Generali -->
-    <div class="info-row">
-        <div class="info-box">
-            <h4>SEDE ORIGINE</h4>
-            <strong>{{ $movimentazione->magazzinoPartenza->sede->nome ?? 'N/A' }}</strong><br>
-            {{ $movimentazione->magazzinoPartenza->sede->indirizzo ?? '' }}<br>
-            {{ $movimentazione->magazzinoPartenza->sede->citta ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->provincia ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->cap ?? '' }}<br>
-            @if($movimentazione->magazzinoPartenza && $movimentazione->magazzinoPartenza->sede && $movimentazione->magazzinoPartenza->sede->telefono)
-                Tel: {{ $movimentazione->magazzinoPartenza->sede->telefono }}
+    <div class="header-grid">
+        <div class="box">
+            <div class="box-title">MITTENTE</div>
+            <strong>{{ $sedeOrigine->societa->ragione_sociale ?? $sedeOrigine->nome ?? 'N/A' }}</strong><br>
+            @if($sedeOrigine)
+                {{ $sedeOrigine->indirizzo ?? '' }}<br>
+                {{ $sedeOrigine->cap ?? '' }} {{ $sedeOrigine->citta ?? '' }} {{ $sedeOrigine->provincia ?? '' }}<br>
+                @if($sedeOrigine->telefono) Tel: {{ $sedeOrigine->telefono }}<br>@endif
+                @if($sedeOrigine->email) Email: {{ $sedeOrigine->email }}@endif
             @endif
         </div>
-        <div class="info-box">
-            <h4>SEDE DESTINAZIONE</h4>
-            <strong>{{ $movimentazione->magazzinoDestinazione->sede->nome ?? 'N/A' }}</strong><br>
-            {{ $movimentazione->magazzinoDestinazione->sede->indirizzo ?? '' }}<br>
-            {{ $movimentazione->magazzinoDestinazione->sede->citta ?? '' }} {{ $movimentazione->magazzinoDestinazione->sede->provincia ?? '' }} {{ $movimentazione->magazzinoDestinazione->sede->cap ?? '' }}<br>
-            @if($movimentazione->magazzinoDestinazione && $movimentazione->magazzinoDestinazione->sede && $movimentazione->magazzinoDestinazione->sede->telefono)
-                Tel: {{ $movimentazione->magazzinoDestinazione->sede->telefono }}
-            @endif
+        <div class="header-right">
+            <div class="box">
+                <div class="box-title">DOCUMENTO DI TRASPORTO</div>
+                N.: {{ $numeroProgressivo }}<br>
+                Del: {{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : now()->format('d/m/Y') }}
+            </div>
+            <div class="box">
+                <div class="box-title">DESTINATARIO</div>
+                <strong>{{ $sedeDestinazione->societa->ragione_sociale ?? $sedeDestinazione->nome ?? 'N/A' }}</strong><br>
+                @if($sedeDestinazione)
+                    {{ $sedeDestinazione->indirizzo ?? '' }}<br>
+                    {{ $sedeDestinazione->cap ?? '' }} {{ $sedeDestinazione->citta ?? '' }} {{ $sedeDestinazione->provincia ?? '' }}
+                @endif
+            </div>
         </div>
     </div>
 
-    <!-- Dettagli DDT -->
-    <table class="table">
-        <tr>
-            <td><strong>Numero DDT:</strong></td>
-            <td>{{ $movimentazione->numero_documento ?? 'MOV-' . str_pad($movimentazione->id, 6, '0', STR_PAD_LEFT) }}</td>
-            <td><strong>Data:</strong></td>
-            <td>{{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : now()->format('d/m/Y') }}</td>
-        </tr>
-        <tr>
-            <td><strong>Operatore:</strong></td>
-            <td>{{ $movimentazione->creataDa->name ?? 'Sistema' }}</td>
-            <td><strong>Ora:</strong></td>
-            <td>{{ now()->format('H:i') }}</td>
-        </tr>
-    </table>
+    <div class="info-grid">
+        <div class="box">
+            <div class="box-title">CAUSALE DEL TRASPORTO</div>
+            Movimentazione Interna
+        </div>
+        <div class="box">
+            <div class="box-title">ASPETTO ESTERIORE DEI BENI</div>
+        </div>
+        <div class="box">
+            <div class="box-title">N. COLLI</div>
+        </div>
+    </div>
 
     <!-- Dettagli Articoli -->
     <table class="table">
@@ -217,21 +235,30 @@
     @endif
 
     <!-- Footer con Firme -->
-    <div class="footer">
-        <div style="display: flex; justify-content: space-between;">
+    <div class="footer-box">
+        <div class="footer-row">
             <div>
-                <strong>Firma Mittente</strong><br><br>
-                <div class="signature-box"></div><br>
-                {{ $movimentazione->magazzinoPartenza->sede->nome ?? 'Sede Origine' }}
+                <strong>TRASPORTO A MEZZO:</strong>
+                <span style="margin-left: 8px;">☐ Mittente</span>
+                <span style="margin-left: 8px;">☐ Vettore</span>
+                <span style="margin-left: 8px;">☐ Destinatario</span>
             </div>
             <div>
-                <strong>Firma Destinatario</strong><br><br>
-                <div class="signature-box"></div><br>
-                {{ $movimentazione->magazzinoDestinazione->sede->nome ?? 'Sede Destinazione' }}
+                <strong>DATA RITIRO</strong>
             </div>
         </div>
-        <div style="margin-top: 30px; text-align: center; font-size: 10px; color: #666;">
-            Documento generato il {{ now()->format('d/m/Y H:i') }} - Sistema Athena v2
+        <div class="footer-row">
+            <div><strong>VETTORE:</strong></div>
+            <div></div>
+        </div>
+        <div class="footer-row">
+            <div><strong>ANNOTAZIONI</strong></div>
+            <div></div>
+        </div>
+        <div class="footer-sign">
+            <div><strong>FIRMA MITTENTE</strong></div>
+            <div><strong>FIRMA VETTORE</strong></div>
+            <div><strong>FIRMA DESTINATARIO</strong></div>
         </div>
     </div>
 
