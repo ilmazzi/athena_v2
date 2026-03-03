@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
 use App\Models\Movimentazione;
+use App\Models\MovimentazioneDettaglio;
 use App\Models\Articolo;
 use Illuminate\Support\Facades\DB;
 
@@ -57,6 +58,14 @@ class MovimentazioneService
             
             // Registra movimentazione
             $movimentazione = Movimentazione::create($dto->toModelArray());
+
+            // Registra dettaglio articolo per ricerche/storico
+            MovimentazioneDettaglio::create([
+                'movimentazione_id' => $movimentazione->id,
+                'articolo_id' => $dto->articoloId,
+                'quantita' => $dto->quantita,
+                'note' => $dto->note,
+            ]);
             
             return $movimentazione->fresh(['articolo', 'magazzinoOrigine', 'magazzinoDestinazione']);
         });
