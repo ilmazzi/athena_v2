@@ -3,13 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DDT Movimentazione - {{ $movimentazione->numero_documento ?? 'MOV-' . $movimentazione->id }}</title>
+    <title>DDT Movimentazione {{ $movimentazione->numero_documento ?? 'MOV-' . $movimentazione->id }}</title>
     @vite(['resources/scss/app.scss'])
     <style>
         @media print {
-            @page { margin: 1cm; size: A4; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .no-print { display: none; }
+            @page {
+                margin: 1cm;
+                size: A4;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                font-size: 12px;
+                line-height: 1.4;
+            }
+            .no-print {
+                display: none !important;
+            }
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
         body {
             font-family: Arial, sans-serif;
@@ -19,75 +32,162 @@
             font-size: 10px;
             line-height: 1.25;
         }
-        .box {
-            border: 1px solid #000;
-            padding: 8px;
-            min-height: 60px;
+        .print-actions {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 1000;
         }
-        .box-title {
-            font-weight: bold;
-            font-size: 10px;
-            margin-bottom: 6px;
-        }
-        .header-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .header-right {
-            display: grid;
-            gap: 8px;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 12px 0;
-        }
-        .table th,
-        .table td {
-            border: 1px solid #000;
-            padding: 6px;
-            text-align: left;
-        }
-        .table th {
-            background-color: #f5f5f5;
-            font-weight: bold;
+        .print-button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: var(--bs-primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            text-decoration: none;
             text-align: center;
         }
-        .footer-box {
-            border: 1px solid #000;
+        .header {
+            text-align: center;
+            border-bottom: 1px solid var(--bs-dark);
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--bs-dark);
+            font-weight: bold;
+        }
+        .header .info {
+            margin-top: 4px;
+            color: var(--bs-secondary);
+            font-size: 11px;
+        }
+        .document-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            background: var(--bs-light);
+            border-radius: 4px;
+            gap: 10px;
+        }
+        .info-section {
+            flex: 1;
+        }
+        .info-title {
+            margin-bottom: 6px;
+            color: var(--bs-primary);
+            font-weight: bold;
+            font-size: 11px;
+            border-bottom: 1px solid var(--bs-border-color);
+            padding-bottom: 3px;
+        }
+        .info-row {
+            margin-bottom: 3px;
+            font-size: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 75px;
+            color: var(--bs-secondary);
+        }
+        .tipo-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 9px;
+            font-weight: bold;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid var(--bs-border-color);
+            padding: 8px 6px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: var(--bs-light);
+            font-weight: bold;
+            font-size: 11px;
+            text-align: center;
+            color: var(--bs-dark);
+        }
+        td {
+            font-size: 10px;
+        }
+        tbody tr:nth-child(even) {
+            background-color: var(--bs-light);
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-primary {
+            color: var(--bs-primary);
+            font-weight: bold;
+        }
+        .summary-box {
+            background: var(--bs-light);
+            border: 1px solid var(--bs-border-color);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 10px;
+        }
+        .note-box {
+            background: white;
+            border: 1px solid var(--bs-border-color);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .ddt-footer {
+            display: flex;
+            gap: 10px;
+        }
+        .ddt-footer-section {
+            flex: 1;
+            border: 1px solid var(--bs-border-color);
+            padding: 10px;
+        }
+        .ddt-signature-box {
+            margin-top: 10px;
+            height: 50px;
+            border: 1px dashed var(--bs-border-color);
+        }
+        .technical-info {
             margin-top: 12px;
+            font-size: 8px;
+            color: var(--bs-secondary);
+            text-align: center;
+            border-top: 1px solid var(--bs-border-color);
+            padding-top: 6px;
         }
-        .footer-row {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            border-bottom: 1px solid #000;
-        }
-        .footer-row > div {
-            padding: 6px;
-            min-height: 40px;
-        }
-        .footer-sign {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            border-top: 1px solid #000;
-        }
-        .footer-sign > div {
-            padding: 6px;
-            min-height: 50px;
-            border-right: 1px solid #000;
-        }
-        .footer-sign > div:last-child { border-right: 0; }
     </style>
 </head>
 <body>
+    <div class="print-actions no-print">
+        <button class="print-button" onclick="window.print()">
+            🖨️ Stampa
+        </button>
+    </div>
+
     @php
         $numeroDocumento = $movimentazione->numero_documento ?? 'MOV-' . str_pad($movimentazione->id, 6, '0', STR_PAD_LEFT);
         $numeroProgressivo = $numeroDocumento;
@@ -96,180 +196,247 @@
         }
         $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
         $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
+        $righe = $movimentazione->dettagli ?? collect();
     @endphp
 
-    <div class="header-grid">
-        <div class="box">
-            <div class="box-title">MITTENTE</div>
-            <strong>{{ $sedeOrigine->societa->ragione_sociale ?? $sedeOrigine->nome ?? 'N/A' }}</strong><br>
-            @if($sedeOrigine)
-                {{ $sedeOrigine->indirizzo ?? '' }}<br>
-                {{ $sedeOrigine->cap ?? '' }} {{ $sedeOrigine->citta ?? '' }} {{ $sedeOrigine->provincia ?? '' }}<br>
-                @if($sedeOrigine->telefono) Tel: {{ $sedeOrigine->telefono }}<br>@endif
-                @if($sedeOrigine->email) Email: {{ $sedeOrigine->email }}@endif
-            @endif
+    <div class="header">
+        <img src="/images/depascalis_small.svg" alt="De Pascalis" style="height: 32px; margin-bottom: 4px;">
+        <h1>DOCUMENTO DI TRASPORTO - MOVIMENTAZIONE</h1>
+        <div class="info">
+            <strong>{{ $numeroProgressivo }}</strong> -
+            {{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : 'N/A' }}
+            <span class="tipo-badge" style="background-color: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis);">INTERNA</span>
         </div>
-        <div class="header-right">
-            <div class="box">
-                <div class="box-title">DOCUMENTO DI TRASPORTO</div>
-                N.: {{ $numeroProgressivo }}<br>
-                Del: {{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : now()->format('d/m/Y') }}
+    </div>
+
+    <div class="document-info">
+        <div class="info-section">
+            <div class="info-title">📋 Informazioni DDT</div>
+            <div class="info-row">
+                <span class="info-label">Numero:</span>
+                <span class="text-primary">{{ $numeroProgressivo }}</span>
             </div>
-            <div class="box">
-                <div class="box-title">DESTINATARIO</div>
-                <strong>{{ $sedeDestinazione->societa->ragione_sociale ?? $sedeDestinazione->nome ?? 'N/A' }}</strong><br>
-                @if($sedeDestinazione)
-                    {{ $sedeDestinazione->indirizzo ?? '' }}<br>
-                    {{ $sedeDestinazione->cap ?? '' }} {{ $sedeDestinazione->citta ?? '' }} {{ $sedeDestinazione->provincia ?? '' }}
-                @endif
+            <div class="info-row">
+                <span class="info-label">Data:</span>
+                {{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('d/m/Y') : 'N/A' }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Anno:</span>
+                {{ $movimentazione->data_movimentazione ? $movimentazione->data_movimentazione->format('Y') : now()->format('Y') }}
+            </div>
+            <div class="info-row">
+                <span class="info-label">Creato:</span>
+                {{ $movimentazione->created_at ? $movimentazione->created_at->format('d/m/Y H:i') : '—' }}
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">📦 Movimentazione</div>
+            <div class="info-row">
+                <span class="info-label">Causale:</span>
+                Movimentazione Interna
+            </div>
+            <div class="info-row">
+                <span class="info-label">Operatore:</span>
+                {{ $movimentazione->creataDa->name ?? 'Sistema' }}
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">🏢 Trasporto</div>
+            <div class="info-row">
+                <span class="info-label">Aspetto beni:</span>
+                —
+            </div>
+            <div class="info-row">
+                <span class="info-label">Colli:</span>
+                —
+            </div>
+            <div class="info-row">
+                <span class="info-label">Trasporto:</span>
+                —
+            </div>
+            <div class="info-row">
+                <span class="info-label">Vettore:</span>
+                —
             </div>
         </div>
     </div>
 
-    <div class="info-grid">
-        <div class="box">
-            <div class="box-title">CAUSALE DEL TRASPORTO</div>
-            Movimentazione Interna
-        </div>
-        <div class="box">
-            <div class="box-title">ASPETTO ESTERIORE DEI BENI</div>
-        </div>
-        <div class="box">
-            <div class="box-title">N. COLLI</div>
-        </div>
-    </div>
-
-    <!-- Dettagli Articoli -->
-    <table class="table">
-        <thead>
-            <tr>
-                <th width="10%">Pos.</th>
-                <th width="20%">Codice</th>
-                <th width="40%">Descrizione</th>
-                <th width="10%">Quantità</th>
-                <th width="10%">U.M.</th>
-                <th width="10%">Magazzino</th>
-            </tr>
-        </thead>
-        <tbody>
-            @php
-                $righe = $movimentazione->dettagli ?? collect();
-                $pfOrder = [];
-                $pfRighe = [];
-                $righeSingole = [];
-
-                foreach ($righe as $riga) {
-                    $pfCode = null;
-                    if (!empty($riga->note)) {
-                        if (preg_match('/Spostamento componente PF\s+([^\s\-]+)/i', $riga->note, $matches)) {
-                            $pfCode = $matches[1];
-                        }
-                    }
-
-                    if ($pfCode) {
-                        if (!isset($pfRighe[$pfCode])) {
-                            $pfRighe[$pfCode] = [];
-                            $pfOrder[] = $pfCode;
-                        }
-                        $pfRighe[$pfCode][] = $riga;
-                    } else {
-                        $righeSingole[] = $riga;
-                    }
-                }
-
-                $pos = 1;
-            @endphp
-            @if($righe->count() > 0)
-                @foreach($pfOrder as $pfCode)
-                    <tr>
-                        <td></td>
-                        <td colspan="5"><strong>PF {{ $pfCode }} (contiene {{ count($pfRighe[$pfCode]) }} articoli)</strong></td>
-                    </tr>
-                    @foreach($pfRighe[$pfCode] as $riga)
-                        <tr>
-                            <td>{{ $pos++ }}</td>
-                            <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
-                            <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
-                            <td style="text-align: center;">{{ $riga->quantita }}</td>
-                            <td style="text-align: center;">PZ</td>
-                            <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
-                        </tr>
-                    @endforeach
-                @endforeach
-
-                @if(count($righeSingole) > 0)
-                    <tr>
-                        <td></td>
-                        <td colspan="5"><strong>Articoli sciolti</strong></td>
-                    </tr>
-                    @foreach($righeSingole as $riga)
-                        <tr>
-                            <td>{{ $pos++ }}</td>
-                            <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
-                            <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
-                            <td style="text-align: center;">{{ $riga->quantita }}</td>
-                            <td style="text-align: center;">PZ</td>
-                            <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
-                        </tr>
-                    @endforeach
-                @endif
-            @else
+    <div>
+        <h3 style="color: var(--bs-primary); margin-bottom: 10px; font-size: 14px;">
+            📋 Dettagli Articoli ({{ $righe->count() }} item)
+        </h3>
+        <table>
+            <thead>
                 <tr>
-                    <td>1</td>
-                    <td>{{ $movimentazione->articolo->codice ?? 'N/A' }}</td>
-                    <td>{{ $movimentazione->articolo->descrizione ?? 'N/A' }}</td>
-                    <td style="text-align: center;">{{ $movimentazione->quantita }}</td>
-                    <td style="text-align: center;">PZ</td>
-                    <td>{{ $movimentazione->magazzinoPartenza->nome ?? 'N/A' }}</td>
+                    <th style="width: 40px;">#</th>
+                    <th style="width: 60px;">Tipo</th>
+                    <th style="width: 100px;">Codice</th>
+                    <th>Descrizione</th>
+                    <th style="width: 60px;" class="text-center">Q.tà</th>
                 </tr>
+            </thead>
+            <tbody>
+                @foreach($righe as $index => $dettaglio)
+                    @php
+                        $pfCode = null;
+                        if (!empty($dettaglio->note)) {
+                            if (preg_match('/Spostamento componente PF\s+([^\s\-]+)/i', $dettaglio->note, $matches)) {
+                                $pfCode = $matches[1];
+                            }
+                        }
+                    @endphp
+                    <tr>
+                        <td class="text-center">{{ $index + 1 }}</td>
+                        <td class="text-center">
+                            @if($pfCode)
+                                <span class="tipo-badge" style="background-color: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis);">PF</span>
+                            @else
+                                <span class="tipo-badge" style="background-color: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis);">ART</span>
+                            @endif
+                        </td>
+                        <td><strong class="text-primary">{{ $dettaglio->articolo->codice ?? 'N/D' }}</strong></td>
+                        <td>
+                            @if($pfCode)
+                                <div style="font-size: 9px; color: var(--bs-secondary); margin-bottom: 4px;">
+                                    <strong>PF {{ $pfCode }}</strong>
+                                </div>
+                            @endif
+                            {{ $dettaglio->articolo->descrizione ?? 'N/D' }}
+                        </td>
+                        <td class="text-center"><strong>{{ $dettaglio->quantita }}</strong></td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="summary-box">
+        <div class="summary-row">
+            <span>Totale Articoli:</span>
+            <strong>{{ $righe->count() }}</strong>
+        </div>
+    </div>
+
+    <div class="note-box">
+        <h4 style="color: var(--bs-primary); margin-bottom: 8px; font-size: 12px;">📝 Note</h4>
+        <div style="font-size: 10px; line-height: 1.4;">
+            {{ $movimentazione->note ?? '—' }}
+        </div>
+    </div>
+
+    <div class="ddt-footer">
+        <div class="ddt-footer-section">
+            <div class="info-title">👤 Mittente</div>
+            <div style="margin-bottom: 5px;">
+                <strong>{{ $sedeOrigine->societa->ragione_sociale ?? $sedeOrigine->nome ?? 'N/A' }}</strong>
+            </div>
+            @if($sedeOrigine)
+                @if($sedeOrigine->indirizzo)
+                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->indirizzo }}</div>
+                @endif
+                @if($sedeOrigine->citta)
+                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->citta }} {{ $sedeOrigine->cap ?? '' }}</div>
+                @endif
+                @if($sedeOrigine->telefono)
+                    <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeOrigine->telefono }}</div>
+                @endif
+                @if($sedeOrigine->email)
+                    <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeOrigine->email }}</div>
+                @endif
+                @if($sedeOrigine->sede_legale || $sedeOrigine->partita_iva || $sedeOrigine->codice_fiscale)
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        <strong>Sede legale:</strong> {{ $sedeOrigine->sede_legale ?? '—' }}
+                    </div>
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        {{ $sedeOrigine->sede_legale_indirizzo ?? '' }}
+                        {{ $sedeOrigine->sede_legale_cap ?? '' }}
+                        {{ $sedeOrigine->sede_legale_citta ?? '' }}
+                        {{ $sedeOrigine->sede_legale_provincia ?? '' }}
+                    </div>
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        P.IVA: {{ $sedeOrigine->partita_iva ?? '—' }}
+                        @if($sedeOrigine->codice_fiscale)
+                            | C.F.: {{ $sedeOrigine->codice_fiscale }}
+                        @endif
+                    </div>
+                @endif
             @endif
-        </tbody>
-    </table>
-
-    <!-- Note -->
-    @if($movimentazione->note)
-    <div style="margin: 20px 0;">
-        <strong>Note:</strong><br>
-        {{ $movimentazione->note }}
-    </div>
-    @endif
-
-    <!-- Footer con Firme -->
-    <div class="footer-box">
-        <div class="footer-row">
-            <div>
-                <strong>TRASPORTO A MEZZO:</strong>
-                <span style="margin-left: 8px;">☐ Mittente</span>
-                <span style="margin-left: 8px;">☐ Vettore</span>
-                <span style="margin-left: 8px;">☐ Destinatario</span>
-            </div>
-            <div>
-                <strong>DATA RITIRO</strong>
+            <div class="ddt-signature-box">
+                <div style="font-size: 9px; color: var(--bs-secondary);">Firma e Timbro:</div>
             </div>
         </div>
-        <div class="footer-row">
-            <div><strong>VETTORE:</strong></div>
-            <div></div>
-        </div>
-        <div class="footer-row">
-            <div><strong>ANNOTAZIONI</strong></div>
-            <div></div>
-        </div>
-        <div class="footer-sign">
-            <div><strong>FIRMA MITTENTE</strong></div>
-            <div><strong>FIRMA VETTORE</strong></div>
-            <div><strong>FIRMA DESTINATARIO</strong></div>
+
+        <div class="ddt-footer-section">
+            <div class="info-title">📝 Destinatario</div>
+            <div style="margin-bottom: 5px;">
+                <strong>{{ $sedeDestinazione->societa->ragione_sociale ?? $sedeDestinazione->nome ?? 'N/A' }}</strong>
+            </div>
+            @if($sedeDestinazione)
+                @if($sedeDestinazione->indirizzo)
+                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->indirizzo }}</div>
+                @endif
+                @if($sedeDestinazione->citta)
+                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->citta }} {{ $sedeDestinazione->cap ?? '' }}</div>
+                @endif
+                @if($sedeDestinazione->telefono)
+                    <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeDestinazione->telefono }}</div>
+                @endif
+                @if($sedeDestinazione->email)
+                    <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeDestinazione->email }}</div>
+                @endif
+                @if($sedeDestinazione->sede_legale || $sedeDestinazione->partita_iva || $sedeDestinazione->codice_fiscale)
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        <strong>Sede legale:</strong> {{ $sedeDestinazione->sede_legale ?? '—' }}
+                    </div>
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        {{ $sedeDestinazione->sede_legale_indirizzo ?? '' }}
+                        {{ $sedeDestinazione->sede_legale_cap ?? '' }}
+                        {{ $sedeDestinazione->sede_legale_citta ?? '' }}
+                        {{ $sedeDestinazione->sede_legale_provincia ?? '' }}
+                    </div>
+                    <div style="font-size: 9px; margin-bottom: 5px;">
+                        P.IVA: {{ $sedeDestinazione->partita_iva ?? '—' }}
+                        @if($sedeDestinazione->codice_fiscale)
+                            | C.F.: {{ $sedeDestinazione->codice_fiscale }}
+                        @endif
+                    </div>
+                @endif
+            @endif
+            <div class="ddt-signature-box">
+                <div style="font-size: 9px; color: var(--bs-secondary);">Firma per ricevuta:</div>
+            </div>
         </div>
     </div>
 
-    <!-- Pulsanti (solo a schermo) -->
-    <div class="no-print" style="text-align: center; margin-top: 30px;">
-        <button onclick="window.print()" class="btn btn-primary">
-            Stampa DDT
-        </button>
-        <button onclick="window.close()" class="btn btn-secondary">
-            Chiudi
-        </button>
+    <div class="ddt-footer" style="margin-top: 8px;">
+        <div class="ddt-footer-section">
+            <div class="info-title">🕒 Creazione documento</div>
+            <div class="info-row">
+                <span class="info-label">Creato il:</span>
+                {{ $movimentazione->created_at ? $movimentazione->created_at->format('d/m/Y H:i') : '—' }}
+            </div>
+        </div>
+        <div class="ddt-footer-section">
+            <div class="info-title">🚚 Ritiro corriere</div>
+            <div class="info-row">
+                <span class="info-label">Data ritiro:</span>
+                ____________________
+            </div>
+            <div class="info-row">
+                <span class="info-label">Ora ritiro:</span>
+                ____________________
+            </div>
+            <div class="ddt-signature-box">
+                <div style="font-size: 9px; color: var(--bs-secondary);">Timbro corriere:</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="technical-info">
+        <div>📄 Documento generato automaticamente da {{ config('app.name', 'Athena v2') }} il {{ now()->format('d/m/Y H:i') }}</div>
+        <div>🔒 ID MOV: {{ $movimentazione->id }} | Tipo: Movimentazione Interna</div>
     </div>
 </body>
 </html>

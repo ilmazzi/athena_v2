@@ -7,7 +7,7 @@ use App\Models\Movimentazione;
 use App\Models\MovimentazioneDettaglio;
 use App\Models\Articolo;
 use Illuminate\Support\Facades\DB;
-updateuse Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Service per gestione movimentazioni tra magazzini
