@@ -134,14 +134,28 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>1</td>
-                <td>{{ $movimentazione->articolo->codice ?? 'N/A' }}</td>
-                <td>{{ $movimentazione->articolo->descrizione ?? 'N/A' }}</td>
-                <td style="text-align: center;">{{ $movimentazione->quantita }}</td>
-                <td style="text-align: center;">PZ</td>
-                <td>{{ $movimentazione->magazzinoOrigine->nome ?? 'N/A' }}</td>
-            </tr>
+            @php $righe = $movimentazione->dettagli ?? collect(); @endphp
+            @if($righe->count() > 0)
+                @foreach($righe as $index => $riga)
+                    <tr>
+                        <td>{{ $index + 1 }}</td>
+                        <td>{{ $riga->articolo->codice ?? 'N/A' }}</td>
+                        <td>{{ $riga->articolo->descrizione ?? 'N/A' }}</td>
+                        <td style="text-align: center;">{{ $riga->quantita }}</td>
+                        <td style="text-align: center;">PZ</td>
+                        <td>{{ $movimentazione->magazzinoOrigine->nome ?? 'N/A' }}</td>
+                    </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td>1</td>
+                    <td>{{ $movimentazione->articolo->codice ?? 'N/A' }}</td>
+                    <td>{{ $movimentazione->articolo->descrizione ?? 'N/A' }}</td>
+                    <td style="text-align: center;">{{ $movimentazione->quantita }}</td>
+                    <td style="text-align: center;">PZ</td>
+                    <td>{{ $movimentazione->magazzinoOrigine->nome ?? 'N/A' }}</td>
+                </tr>
+            @endif
         </tbody>
     </table>
 

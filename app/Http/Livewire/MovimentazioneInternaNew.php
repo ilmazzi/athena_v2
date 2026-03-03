@@ -73,6 +73,24 @@ class MovimentazioneInternaNew extends Component
         if ($primaSede) {
             $this->sedeOrigineId = $primaSede->id;
         }
+
+        // Preseleziona una sede diversa come destinazione (se esiste)
+        if ($this->sedeOrigineId) {
+            $destinazione = Sede::attive()
+                ->where('id', '!=', $this->sedeOrigineId)
+                ->first();
+            $this->sedeDestinazioneId = $destinazione?->id;
+        }
+    }
+
+    public function updatedSedeOrigineId($value)
+    {
+        if ($this->sedeDestinazioneId == $value) {
+            $destinazione = Sede::attive()
+                ->where('id', '!=', $value)
+                ->first();
+            $this->sedeDestinazioneId = $destinazione?->id;
+        }
     }
 
     public function updatingSearch()
@@ -151,7 +169,7 @@ class MovimentazioneInternaNew extends Component
             return collect();
         }
         
-        $query = ProdottoFinito::with(['componentiArticoli'])
+        $query = ProdottoFinito::with(['componentiArticoli.articolo'])
             ->whereHas('componentiArticoli.articolo', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId);
             })
@@ -215,15 +233,34 @@ class MovimentazioneInternaNew extends Component
         if (isset($this->prodottiFinitiSelezionati[$pfId])) {
             unset($this->prodottiFinitiSelezionati[$pfId]);
         } else {
-            $pf = ProdottoFinito::findOrFail($pfId);
+            $pf = ProdottoFinito::with('componentiArticoli.articolo')->findOrFail($pfId);
+            $componenti = $pf->componentiArticoli->map(function ($componente) {
+                return [
+                    'articolo_id' => $componente->articolo_id,
+                    'codice' => $componente->articolo->codice ?? 'N/A',
+                    'descrizione' => $componente->articolo->descrizione ?? 'N/A',
+                    'quantita' => $componente->quantita,
+                ];
+            })->values()->all();
             
             $this->prodottiFinitiSelezionati[$pfId] = [
                 'prodotto_finito_id' => $pfId,
                 'quantita' => 1,
                 'codice' => $pf->codice,
                 'descrizione' => $pf->descrizione,
+                'componenti' => $componenti,
             ];
         }
+    }
+
+    public function rimuoviArticoloSelezionato($articoloId)
+    {
+        unset($this->articoliSelezionati[$articoloId]);
+    }
+
+    public function rimuoviProdottoFinitoSelezionato($pfId)
+    {
+        unset($this->prodottiFinitiSelezionati[$pfId]);
     }
     
     public function apriMovimentazioneModal()
@@ -266,8 +303,31 @@ class MovimentazioneInternaNew extends Component
             DB::transaction(function () {
                 $movimentazioneService = app(MovimentazioneService::class);
                 $totaleMovimentazioni = 0;
-                $ultimaMovimentazione = null;
-                
+                $movimentazioneMaster = null;
+
+                $articoloCampione = null;
+                if (!empty($this->articoliSelezionati)) {
+                    $articoloCampione = Articolo::findOrFail(reset($this->articoliSelezionati)['articolo_id']);
+                } elseif (!empty($this->prodottiFinitiSelezionati)) {
+                    $pfCampione = ProdottoFinito::with('componentiArticoli.articolo')
+                        ->findOrFail(reset($this->prodottiFinitiSelezionati)['prodotto_finito_id']);
+                    $articoloCampione = $pfCampione->componentiArticoli->first()?->articolo;
+                }
+
+                if (!$articoloCampione) {
+                    throw new \Exception('Nessun articolo valido per la movimentazione.');
+                }
+
+                $magazzinoOrigineId = $articoloCampione->categoria_merceologica_id;
+                $magazzinoDestinazioneId = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloCampione);
+
+                $movimentazioneMaster = $movimentazioneService->creaMovimentazioneMaster(
+                    $magazzinoOrigineId,
+                    $magazzinoDestinazioneId,
+                    $this->dataMovimentazione,
+                    $this->noteMovimentazione
+                );
+
                 // Movimenta articoli selezionati
                 foreach ($this->articoliSelezionati as $articoloData) {
                     $articolo = Articolo::findOrFail($articoloData['articolo_id']);
@@ -286,7 +346,7 @@ class MovimentazioneInternaNew extends Component
                         note: $this->noteMovimentazione
                     );
                     
-                    $ultimaMovimentazione = $movimentazioneService->eseguiMovimentazione($dto);
+                    $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
                     $totaleMovimentazioni++;
                     
                     // Rimuovi dalla vetrina se necessario
@@ -318,7 +378,7 @@ class MovimentazioneInternaNew extends Component
                             note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"
                         );
                         
-                        $ultimaMovimentazione = $movimentazioneService->eseguiMovimentazione($dto);
+                        $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
                         $totaleMovimentazioni++;
                         
                         // Sposta l'articolo componente nella nuova sede
@@ -334,8 +394,8 @@ class MovimentazioneInternaNew extends Component
                 session()->flash('success', "Movimentazione completata! {$totaleMovimentazioni} articoli spostati.");
                 
                 // Redirect al DDT per stampa se disponibile
-                if ($ultimaMovimentazione) {
-                    return redirect()->route('movimentazioni-interne.stampa', $ultimaMovimentazione->id);
+                if ($movimentazioneMaster) {
+                    return redirect()->route('movimentazioni-interne.stampa', $movimentazioneMaster->id);
                 }
             });
             

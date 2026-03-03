@@ -12,7 +12,7 @@
                 <!-- Sede Origine -->
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Sede Origine *</label>
-                    <select wire:model="sedeOrigineId" class="form-select">
+                    <select wire:model.live="sedeOrigineId" class="form-select">
                         <option value="">Seleziona sede...</option>
                         @foreach($sedi as $sede)
                             <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
@@ -24,7 +24,7 @@
                 <!-- Sede Destinazione -->
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Sede Destinazione *</label>
-                    <select wire:model="sedeDestinazioneId" class="form-select">
+                    <select wire:model.live="sedeDestinazioneId" class="form-select">
                         <option value="">Seleziona sede...</option>
                         @foreach($sedi as $sede)
                             @if($sede->id != $sedeOrigineId)
@@ -38,7 +38,7 @@
                 <!-- Categoria -->
                 <div class="col-md-2">
                     <label class="form-label">Magazzino</label>
-                    <select wire:model="categoriaId" class="form-select">
+                    <select wire:model.live="categoriaId" class="form-select">
                         <option value="">Tutti i magazzini</option>
                         @foreach($categorie as $categoria)
                             <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
@@ -49,7 +49,7 @@
                 <!-- Tipo Item -->
                 <div class="col-md-2">
                     <label class="form-label">Tipo</label>
-                    <select wire:model="tipoItem" class="form-select">
+                    <select wire:model.live="tipoItem" class="form-select">
                         <option value="articoli">Articoli</option>
                         <option value="prodotti_finiti">Prodotti Finiti</option>
                     </select>
@@ -87,7 +87,7 @@
         <div class="card-body">
             <div class="row">
                 <!-- Articoli Selezionati -->
-                                @foreach($articoliSelezionati as $articoloId => $data)
+                @foreach($articoliSelezionati as $articoloId => $data)
                 <div class="col-md-6 mb-2">
                     <div class="d-flex align-items-center p-2 border rounded @if($data['in_vetrina'] ?? false) border-warning @endif">
                         <div class="me-2">
@@ -111,6 +111,12 @@
                                    wire:model="articoliSelezionati.{{ $articoloId }}.quantita"
                                    min="1" max="{{ $data['max_quantita'] }}">
                             <br><small class="text-muted">Max: {{ $data['max_quantita'] }}</small>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                        wire:click="rimuoviArticoloSelezionato({{ $articoloId }})">
+                                    <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -124,9 +130,25 @@
                         <div class="flex-grow-1">
                             <strong>{{ $data['codice'] }}</strong><br>
                             <small class="text-muted">{{ Str::limit($data['descrizione'], 30) }}</small>
+                            @if(!empty($data['componenti']))
+                                <div class="mt-1">
+                                    @foreach($data['componenti'] as $componente)
+                                        <div class="small text-muted">
+                                            • {{ $componente['codice'] }} - {{ Str::limit($componente['descrizione'], 30) }}
+                                            (x{{ $componente['quantita'] }})
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                         <div class="text-end">
                             <span class="badge bg-light-success text-success">Q.tà: 1</span>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm"
+                                        wire:click="rimuoviProdottoFinitoSelezionato({{ $pfId }})">
+                                    <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -241,6 +263,14 @@
                                         <span class="badge bg-light-secondary">
                                             {{ $pf->componentiArticoli->count() }} comp.
                                         </span>
+                                        <div class="small text-muted mt-1">
+                                            @foreach($pf->componentiArticoli as $componente)
+                                                <div>
+                                                    • {{ $componente->articolo->codice ?? 'N/A' }} - {{ Str::limit($componente->articolo->descrizione ?? 'N/A', 30) }}
+                                                    (x{{ $componente->quantita }})
+                                                </div>
+                                            @endforeach
+                                        </div>
                                     </td>
                                     <td>€{{ number_format($pf->costo_totale, 2, ',', '.') }}</td>
                                 </tr>

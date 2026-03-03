@@ -70,6 +70,67 @@ class MovimentazioneService
             return $movimentazione->fresh(['articolo', 'magazzinoOrigine', 'magazzinoDestinazione']);
         });
     }
+
+    public function creaMovimentazioneMaster(
+        int $magazzinoOrigineId,
+        int $magazzinoDestinazioneId,
+        string $dataMovimentazione,
+        ?string $note = null
+    ): Movimentazione {
+        return Movimentazione::create([
+            'magazzino_partenza_id' => $magazzinoOrigineId,
+            'magazzino_destinazione_id' => $magazzinoDestinazioneId,
+            'data_movimentazione' => $dataMovimentazione,
+            'note' => $note,
+            'numero_documento' => $this->generateNumeroDocumento(),
+            'creata_da' => auth()->id(),
+        ]);
+    }
+
+    public function eseguiMovimentazioneDettaglio(Movimentazione $movimentazione, MovimentazioneDTO $dto): Movimentazione
+    {
+        return DB::transaction(function () use ($movimentazione, $dto) {
+            $articolo = Articolo::findOrFail($dto->articoloId);
+            
+            if (!$this->giacenzaService->verificaDisponibilita($dto->articoloId, $dto->quantita)) {
+                throw new \DomainException(
+                    "Giacenza insufficiente nel magazzino origine per articolo ID {$dto->articoloId}"
+                );
+            }
+            
+            $this->giacenzaService->trasferisci(
+                $dto->articoloId,
+                $dto->magazzinoDestinazioneId,
+                $dto->quantita
+            );
+            
+            $dettaglio = MovimentazioneDettaglio::where('movimentazione_id', $movimentazione->id)
+                ->where('articolo_id', $dto->articoloId)
+                ->first();
+            
+            if ($dettaglio) {
+                $dettaglio->quantita += $dto->quantita;
+                $dettaglio->note = $dto->note ?: $dettaglio->note;
+                $dettaglio->save();
+            } else {
+                MovimentazioneDettaglio::create([
+                    'movimentazione_id' => $movimentazione->id,
+                    'articolo_id' => $dto->articoloId,
+                    'quantita' => $dto->quantita,
+                    'note' => $dto->note,
+                ]);
+            }
+            
+            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione']);
+        });
+    }
+
+    private function generateNumeroDocumento(): string
+    {
+        $anno = date('Y');
+        $timestamp = time();
+        return "MOV-{$anno}-{$timestamp}";
+    }
     
     /**
      * Ottieni storico movimentazioni per articolo
