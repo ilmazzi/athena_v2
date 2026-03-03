@@ -66,11 +66,24 @@ class MovimentazioneInternaController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = $request->search;
+            $term = trim($request->search);
             $query->where(function ($q) use ($term) {
                 $q->where('numero_documento', 'like', "%{$term}%")
                     ->orWhere('note', 'like', "%{$term}%")
-                    ->orWhere('causale', 'like', "%{$term}%");
+                    ->orWhere('causale', 'like', "%{$term}%")
+                    ->orWhereHas('dettagli.articolo', function ($q) use ($term) {
+                        $q->withoutGlobalScope('user_sede')
+                            ->where('codice', 'like', "%{$term}%")
+                            ->orWhere('descrizione', 'like', "%{$term}%");
+                    })
+                    ->orWhereHas('magazzinoPartenza', function ($q) use ($term) {
+                        $q->withoutGlobalScope('user_sede')
+                            ->where('nome', 'like', "%{$term}%");
+                    })
+                    ->orWhereHas('magazzinoDestinazione', function ($q) use ($term) {
+                        $q->withoutGlobalScope('user_sede')
+                            ->where('nome', 'like', "%{$term}%");
+                    });
             });
         }
 
