@@ -43,7 +43,7 @@ class GiacenzaService
             // Crea giacenza
             return Giacenza::create([
                 'articolo_id' => $articoloId,
-                'magazzino_id' => $magazzinoId,
+                'categoria_merceologica_id' => $magazzinoId,
                 'quantita' => $quantita,
                 'scaffale' => $scaffale,
                 'ultimo_movimento_at' => now(),
@@ -145,7 +145,7 @@ class GiacenzaService
             $giacenzaOrigine->decrementa($quantita);
             
             // Incrementa o crea giacenza destinazione
-            $giacenzaDestinazione = Giacenza::where('magazzino_id', $magazzinoDestinazioneId)
+            $giacenzaDestinazione = Giacenza::where('categoria_merceologica_id', $magazzinoDestinazioneId)
                 ->where('articolo_id', $articoloId)
                 ->first();
             
@@ -161,7 +161,7 @@ class GiacenzaService
             
             // Aggiorna magazzino articolo
             Articolo::find($articoloId)->update([
-                'magazzino_id' => $magazzinoDestinazioneId
+                'categoria_merceologica_id' => $magazzinoDestinazioneId
             ]);
             
             return $giacenzaDestinazione;
@@ -176,7 +176,7 @@ class GiacenzaService
      */
     public function reportGiacenzeMagazzino(int $magazzinoId): array
     {
-        $giacenze = Giacenza::where('magazzino_id', $magazzinoId)
+        $giacenze = Giacenza::where('categoria_merceologica_id', $magazzinoId)
             ->with('articolo')
             ->disponibili()
             ->get();

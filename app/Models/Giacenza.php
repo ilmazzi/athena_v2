@@ -186,7 +186,7 @@ class Giacenza extends Model
     
     public function scopeInMagazzino($query, int $magazzinoId)
     {
-        return $query->where('magazzino_id', $magazzinoId);
+        return $query->where('categoria_merceologica_id', $magazzinoId);
     }
     
     public function scopeScaffale($query, string $scaffale)
