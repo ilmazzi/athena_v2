@@ -74,6 +74,26 @@ class MovimentazioneInternaNew extends Component
             $this->sedeOrigineId = $primaSede->id;
         }
     }
+
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingCategoriaId()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingTipoItem()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSedeOrigineId()
+    {
+        $this->resetPage();
+    }
     
     // ==========================================
     // COMPUTED PROPERTIES

@@ -76,6 +76,14 @@
                     <span class="nav-text">Movimentazioni Interne</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ route('movimentazioni-interne.elenco') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:list-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text">Elenco Movimentazioni</span>
+                </a>
+            </li>
 
             <li class="nav-item">
                 <a class="nav-link" href="{{ route('amministrazione-magazzino.index') }}">

@@ -13,6 +13,12 @@
                     </h1>
                     <p class="text-muted mb-0">Gestisci trasferimenti articoli tra sedi</p>
                 </div>
+                <div>
+                    <a class="btn btn-outline-primary" href="{{ route('movimentazioni-interne.elenco') }}">
+                        <iconify-icon icon="solar:list-bold" class="me-1"></iconify-icon>
+                        Elenco movimentazioni
+                    </a>
+                </div>
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
