@@ -90,7 +90,7 @@
             <strong>{{ $movimentazione->magazzinoPartenza->sede->nome ?? 'N/A' }}</strong><br>
             {{ $movimentazione->magazzinoPartenza->sede->indirizzo ?? '' }}<br>
             {{ $movimentazione->magazzinoPartenza->sede->citta ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->provincia ?? '' }} {{ $movimentazione->magazzinoPartenza->sede->cap ?? '' }}<br>
-            @if($movimentazione->magazzinoPartenza->sede->telefono)
+            @if($movimentazione->magazzinoPartenza && $movimentazione->magazzinoPartenza->sede && $movimentazione->magazzinoPartenza->sede->telefono)
                 Tel: {{ $movimentazione->magazzinoPartenza->sede->telefono }}
             @endif
         </div>
@@ -99,7 +99,7 @@
             <strong>{{ $movimentazione->magazzinoDestinazione->sede->nome ?? 'N/A' }}</strong><br>
             {{ $movimentazione->magazzinoDestinazione->sede->indirizzo ?? '' }}<br>
             {{ $movimentazione->magazzinoDestinazione->sede->citta ?? '' }} {{ $movimentazione->magazzinoDestinazione->sede->provincia ?? '' }} {{ $movimentazione->magazzinoDestinazione->sede->cap ?? '' }}<br>
-            @if($movimentazione->magazzinoDestinazione->sede->telefono)
+            @if($movimentazione->magazzinoDestinazione && $movimentazione->magazzinoDestinazione->sede && $movimentazione->magazzinoDestinazione->sede->telefono)
                 Tel: {{ $movimentazione->magazzinoDestinazione->sede->telefono }}
             @endif
         </div>
