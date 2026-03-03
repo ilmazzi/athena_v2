@@ -58,7 +58,7 @@
                 <!-- Ricerca -->
                 <div class="col-md-2">
                     <label class="form-label">Ricerca</label>
-                    <input type="text" wire:model.debounce.300ms="search" 
+                    <input type="text" wire:model.live.debounce.300ms="search" 
                            class="form-control" placeholder="Codice o descrizione...">
                 </div>
             </div>
