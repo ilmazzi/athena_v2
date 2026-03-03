@@ -370,17 +370,14 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-warning" wire:click="testLivewire">
-                        🧪 TEST
-                    </button>
                     <button type="button" class="btn btn-secondary" wire:click="chiudiMovimentazioneModal">
                         <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
                         Annulla
                     </button>
                     <button type="button" class="btn btn-success" 
                             wire:click="eseguiMovimentazione"
-                            x-on:click="console.log('🔵 ALPINE CLICK'); $wire.eseguiMovimentazione()"
-                            onclick="console.log('🔥 BUTTON CLICKED - Livewire should call eseguiMovimentazione'); console.log('Livewire component:', @this)">
+                            wire:loading.attr="disabled"
+                            wire:target="eseguiMovimentazione">
                         <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                         Conferma Movimentazione
                     </button>

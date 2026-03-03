@@ -420,6 +420,10 @@ class MovimentazioneInternaNew extends Component
         if (!$categoria) {
             $categoria = CategoriaMerceologica::where('sede_id', $sedeId)->first();
         }
+
+        if (!$categoria) {
+            throw new \Exception("Nessuna categoria merceologica disponibile per la sede di destinazione.");
+        }
         
         return $categoria->id;
     }
