@@ -337,6 +337,29 @@
                         </div>
                     </div>
 
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Trasporto a mezzo</label>
+                            <input type="text" wire:model="trasportoMezzo" class="form-control" placeholder="Mezzo">
+                            @error('trasportoMezzo') <div class="text-danger small">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Aspetto beni</label>
+                            <input type="text" wire:model="aspettoBeni" class="form-control" placeholder="Aspetto">
+                            @error('aspettoBeni') <div class="text-danger small">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Colli</label>
+                            <input type="text" wire:model="colli" class="form-control" placeholder="Colli">
+                            @error('colli') <div class="text-danger small">{{ $message }}</div> @enderror
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Vettore</label>
+                            <input type="text" wire:model="vettore" class="form-control" placeholder="Vettore">
+                            @error('vettore') <div class="text-danger small">{{ $message }}</div> @enderror
+                        </div>
+                    </div>
+
                     <h6 class="fw-bold mb-3">Articoli da Trasferire ({{ $this->getTotaleSelezionati() }})</h6>
                     <div class="table-responsive">
                         <table class="table table-sm">

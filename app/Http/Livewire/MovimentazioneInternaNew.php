@@ -34,6 +34,10 @@ class MovimentazioneInternaNew extends Component
     public $sedeDestinazioneId = null;
     public $dataMovimentazione = '';
     public $noteMovimentazione = '';
+    public $trasportoMezzo = '';
+    public $aspettoBeni = '';
+    public $colli = '';
+    public $vettore = '';
     
     // Filtri
     public $tipoItem = 'articoli'; // 'articoli' | 'prodotti_finiti'
@@ -56,6 +60,10 @@ class MovimentazioneInternaNew extends Component
         'sedeDestinazioneId' => 'required|exists:sedi,id|different:sedeOrigineId',
         'dataMovimentazione' => 'required|date',
         'noteMovimentazione' => 'nullable|string|max:500',
+        'trasportoMezzo' => 'nullable|string|max:100',
+        'aspettoBeni' => 'nullable|string|max:100',
+        'colli' => 'nullable|string|max:50',
+        'vettore' => 'nullable|string|max:100',
     ];
     
     protected $messages = [
@@ -325,7 +333,11 @@ class MovimentazioneInternaNew extends Component
                     $magazzinoOrigineId,
                     $magazzinoDestinazioneId,
                     $this->dataMovimentazione,
-                    $this->noteMovimentazione
+                    $this->noteMovimentazione,
+                    $this->trasportoMezzo,
+                    $this->aspettoBeni,
+                    $this->colli,
+                    $this->vettore
                 );
 
                 // Movimenta articoli selezionati
@@ -375,7 +387,7 @@ class MovimentazioneInternaNew extends Component
                             magazzinoOrigineId: $articolo->categoria_merceologica_id,
                             magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                             dataMovimentazione: $this->dataMovimentazione,
-                            note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"
+                            note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : '')
                         );
                         
                         $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);

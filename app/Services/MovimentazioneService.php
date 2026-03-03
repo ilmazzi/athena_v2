@@ -76,13 +76,21 @@ class MovimentazioneService
         int $magazzinoOrigineId,
         int $magazzinoDestinazioneId,
         string $dataMovimentazione,
-        ?string $note = null
+        ?string $note = null,
+        ?string $trasportoMezzo = null,
+        ?string $aspettoBeni = null,
+        ?string $colli = null,
+        ?string $vettore = null
     ): Movimentazione {
         return Movimentazione::create([
             'magazzino_partenza_id' => $magazzinoOrigineId,
             'magazzino_destinazione_id' => $magazzinoDestinazioneId,
             'data_movimentazione' => $dataMovimentazione,
             'note' => $note,
+            'trasporto_mezzo' => $trasportoMezzo,
+            'aspetto_beni' => $aspettoBeni,
+            'colli' => $colli,
+            'vettore' => $vettore,
             'numero_documento' => $this->generateNumeroDocumento(),
             'creata_da' => Auth::id(),
         ]);

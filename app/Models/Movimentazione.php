@@ -33,6 +33,10 @@ class Movimentazione extends Model
         'completata_at',
         'note',
         'causale',
+        'trasporto_mezzo',
+        'aspetto_beni',
+        'colli',
+        'vettore',
     ];
     
     protected $casts = [

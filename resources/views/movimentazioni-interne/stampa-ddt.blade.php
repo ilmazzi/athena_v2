@@ -246,19 +246,19 @@
             <div class="info-title">🏢 Trasporto</div>
             <div class="info-row">
                 <span class="info-label">Aspetto beni:</span>
-                —
+                {{ $movimentazione->aspetto_beni ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Colli:</span>
-                —
+                {{ $movimentazione->colli ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Trasporto:</span>
-                —
+                {{ $movimentazione->trasporto_mezzo ?? '—' }}
             </div>
             <div class="info-row">
                 <span class="info-label">Vettore:</span>
-                —
+                {{ $movimentazione->vettore ?? '—' }}
             </div>
         </div>
     </div>
@@ -278,33 +278,72 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($righe as $index => $dettaglio)
-                    @php
+                @php
+                    $pfGroups = [];
+                    $pfOrder = [];
+                    $righeArticoli = [];
+
+                    foreach ($righe as $dettaglio) {
                         $pfCode = null;
+                        $pfDescrizione = null;
                         if (!empty($dettaglio->note)) {
-                            if (preg_match('/Spostamento componente PF\s+([^\s\-]+)/i', $dettaglio->note, $matches)) {
-                                $pfCode = $matches[1];
+                            if (preg_match('/Spostamento componente PF\s+([^\|\s]+)\s*\|\s*([^\\-]+)?/i', $dettaglio->note, $matches)) {
+                                $pfCode = trim($matches[1]);
+                                $pfDescrizione = isset($matches[2]) ? trim($matches[2]) : null;
                             }
                         }
-                    @endphp
+
+                        if ($pfCode) {
+                            if (!isset($pfGroups[$pfCode])) {
+                                $pfGroups[$pfCode] = [
+                                    'codice' => $pfCode,
+                                    'descrizione' => $pfDescrizione,
+                                    'componenti' => [],
+                                ];
+                                $pfOrder[] = $pfCode;
+                            }
+                            $pfGroups[$pfCode]['componenti'][] = $dettaglio;
+                        } else {
+                            $righeArticoli[] = $dettaglio;
+                        }
+                    }
+
+                    $index = 1;
+                @endphp
+
+                @foreach($pfOrder as $pfCode)
+                    @php($pf = $pfGroups[$pfCode])
                     <tr>
-                        <td class="text-center">{{ $index + 1 }}</td>
+                        <td class="text-center">{{ $index++ }}</td>
                         <td class="text-center">
-                            @if($pfCode)
-                                <span class="tipo-badge" style="background-color: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis);">PF</span>
-                            @else
-                                <span class="tipo-badge" style="background-color: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis);">ART</span>
-                            @endif
+                            <span class="tipo-badge" style="background-color: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis);">PF</span>
+                        </td>
+                        <td><strong class="text-primary">{{ $pf['codice'] }}</strong></td>
+                        <td>
+                            {{ $pf['descrizione'] ?: 'Prodotto finito' }}
+                            <div style="margin-top: 4px; font-size: 9px; color: var(--bs-secondary);">
+                                <div><strong>Componenti:</strong></div>
+                                @foreach($pf['componenti'] as $comp)
+                                    <div>
+                                        {{ $comp->articolo->codice ?? 'N/D' }} -
+                                        {{ $comp->articolo->descrizione ?? 'N/D' }}
+                                        x{{ $comp->quantita }}
+                                    </div>
+                                @endforeach
+                            </div>
+                        </td>
+                        <td class="text-center"><strong>1</strong></td>
+                    </tr>
+                @endforeach
+
+                @foreach($righeArticoli as $dettaglio)
+                    <tr>
+                        <td class="text-center">{{ $index++ }}</td>
+                        <td class="text-center">
+                            <span class="tipo-badge" style="background-color: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis);">ART</span>
                         </td>
                         <td><strong class="text-primary">{{ $dettaglio->articolo->codice ?? 'N/D' }}</strong></td>
-                        <td>
-                            @if($pfCode)
-                                <div style="font-size: 9px; color: var(--bs-secondary); margin-bottom: 4px;">
-                                    <strong>PF {{ $pfCode }}</strong>
-                                </div>
-                            @endif
-                            {{ $dettaglio->articolo->descrizione ?? 'N/D' }}
-                        </td>
+                        <td>{{ $dettaglio->articolo->descrizione ?? 'N/D' }}</td>
                         <td class="text-center"><strong>{{ $dettaglio->quantita }}</strong></td>
                     </tr>
                 @endforeach
