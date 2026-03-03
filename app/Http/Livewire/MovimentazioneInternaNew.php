@@ -422,7 +422,8 @@ class MovimentazioneInternaNew extends Component
         }
 
         if (!$categoria) {
-            throw new \Exception("Nessuna categoria merceologica disponibile per la sede di destinazione.");
+            // Fallback: usa la stessa categoria dell'articolo, non richiede categorie duplicate
+            return $articolo->categoria_merceologica_id;
         }
         
         return $categoria->id;
