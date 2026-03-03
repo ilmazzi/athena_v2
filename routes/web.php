@@ -111,6 +111,8 @@ Route::prefix('stampanti')->group(function () {
             Route::get('/elenco', [\App\Http\Controllers\MovimentazioneInternaController::class, 'elenco'])->name('elenco');
             Route::get('/{movimentazione}/modifica', \App\Http\Livewire\ModificaMovimentazioneInterna::class)
                 ->name('modifica');
+            Route::delete('/{movimentazione}', [\App\Http\Controllers\MovimentazioneInternaController::class, 'elimina'])
+                ->name('elimina');
             Route::get('/{movimentazione}/stampa', [\App\Http\Controllers\MovimentazioneInternaController::class, 'stampaDdt'])->name('stampa');
             Route::get('/{movimentazione}/download', [\App\Http\Controllers\MovimentazioneInternaController::class, 'downloadDdt'])->name('download');
         });

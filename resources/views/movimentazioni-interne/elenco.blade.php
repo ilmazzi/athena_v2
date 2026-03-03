@@ -125,6 +125,15 @@
                                            href="{{ route('movimentazioni-interne.modifica', $movimentazione->id) }}">
                                             <iconify-icon icon="solar:pen-bold"></iconify-icon>
                                         </a>
+                                        <form method="POST" action="{{ route('movimentazioni-interne.elimina', $movimentazione->id) }}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Confermi eliminazione e rollback giacenze?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">
+                                                <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
+                                            </button>
+                                        </form>
                                         <a class="btn btn-sm btn-outline-secondary"
                                            href="{{ route('movimentazioni-interne.stampa', $movimentazione->id) }}"
                                            target="_blank" rel="noopener">

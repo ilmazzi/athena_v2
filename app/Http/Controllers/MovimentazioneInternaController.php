@@ -6,7 +6,9 @@ use App\Models\Sede;
 use App\Models\Articolo;
 use App\Models\ProdottoFinito;
 use App\Models\Movimentazione;
+use App\Services\GiacenzaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Controller per gestione movimentazioni interne tra sedi
@@ -125,5 +127,37 @@ class MovimentazioneInternaController extends Controller
         $filename = "DDT-MOV-{$movimentazione->numero_ddt}-" . now()->format('Y-m-d') . ".pdf";
         
         return $pdf->download($filename);
+    }
+
+    /**
+     * Elimina movimentazione e ripristina giacenze
+     */
+    public function elimina($movimentazioneId)
+    {
+        $movimentazione = Movimentazione::with(['dettagli'])->findOrFail($movimentazioneId);
+        $giacenzaService = app(GiacenzaService::class);
+
+        try {
+            DB::transaction(function () use ($movimentazione, $giacenzaService) {
+                foreach ($movimentazione->dettagli as $dettaglio) {
+                    $giacenzaService->trasferisci(
+                        $dettaglio->articolo_id,
+                        $movimentazione->magazzino_partenza_id,
+                        $dettaglio->quantita
+                    );
+                }
+
+                $movimentazione->dettagli()->delete();
+                $movimentazione->delete();
+            });
+
+            return redirect()
+                ->route('movimentazioni-interne.elenco')
+                ->with('success', 'Movimentazione eliminata e giacenze ripristinate.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->route('movimentazioni-interne.elenco')
+                ->with('error', 'Errore durante il rollback: ' . $e->getMessage());
+        }
     }
 }
