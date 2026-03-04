@@ -85,74 +85,69 @@
             </div>
         </div>
         <div class="card-body">
-            <div class="row">
-                <!-- Articoli Selezionati -->
-                @foreach($articoliSelezionati as $articoloId => $data)
-                <div class="col-md-6 mb-2">
-                    <div class="d-flex align-items-center p-2 border rounded @if($data['in_vetrina'] ?? false) border-warning @endif">
-                        <div class="me-2">
-                            <span class="badge bg-light-primary text-primary">ART</span>
-                            @if($data['in_vetrina'] ?? false)
-                                <br><span class="badge bg-warning text-dark mt-1" title="In vetrina - sarà rimosso">
-                                    <iconify-icon icon="solar:eye-bold" style="font-size: 10px;"></iconify-icon>
-                                </span>
-                            @endif
-                        </div>
-                        <div class="flex-grow-1">
-                            <strong>{{ $data['codice'] }}</strong><br>
-                            <small class="text-muted">{{ Str::limit($data['descrizione'], 30) }}</small>
-                            @if($data['warning_vetrina'] ?? false)
-                                <br><small class="text-warning">⚠️ {{ $data['warning_vetrina'] }}</small>
-                            @endif
-                        </div>
-                        <div class="text-end">
-                            <input type="number" class="form-control form-control-sm" 
-                                   style="width: 70px; display: inline-block;"
-                                   wire:model="articoliSelezionati.{{ $articoloId }}.quantita"
-                                   min="1" max="{{ $data['max_quantita'] }}">
-                            <br><small class="text-muted">Max: {{ $data['max_quantita'] }}</small>
-                            <div class="mt-2">
-                                <button type="button" class="btn btn-outline-danger btn-sm"
-                                        wire:click="rimuoviArticoloSelezionato({{ $articoloId }})">
-                                    <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @endforeach
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Tipo</th>
+                            <th style="width: 120px;">Codice</th>
+                            <th>Descrizione</th>
+                            <th style="width: 110px;">Q.tà</th>
+                            <th style="width: 60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($articoliSelezionati as $articoloId => $data)
+                            <tr @if($data['in_vetrina'] ?? false) class="table-warning" @endif>
+                                <td><span class="badge bg-light-primary text-primary">ART</span></td>
+                                <td><strong>{{ $data['codice'] }}</strong></td>
+                                <td>
+                                    {{ $data['descrizione'] }}
+                                    @if($data['warning_vetrina'] ?? false)
+                                        <div class="small text-warning">⚠️ {{ $data['warning_vetrina'] }}</div>
+                                    @endif
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm" 
+                                           wire:model="articoliSelezionati.{{ $articoloId }}.quantita"
+                                           min="1" max="{{ $data['max_quantita'] }}">
+                                    <div class="small text-muted">Max: {{ $data['max_quantita'] }}</div>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-outline-danger btn-sm"
+                                            wire:click="rimuoviArticoloSelezionato({{ $articoloId }})">
+                                        <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
 
-                <!-- Prodotti Finiti Selezionati -->
-                @foreach($prodottiFinitiSelezionati as $pfId => $data)
-                <div class="col-md-6 mb-2">
-                    <div class="d-flex align-items-center p-2 border rounded">
-                        <span class="badge bg-light-warning text-warning me-2">PF</span>
-                        <div class="flex-grow-1">
-                            <strong>{{ $data['codice'] }}</strong><br>
-                            <small class="text-muted">{{ Str::limit($data['descrizione'], 30) }}</small>
-                            @if(!empty($data['componenti']))
-                                <div class="mt-1">
-                                    @foreach($data['componenti'] as $componente)
-                                        <div class="small text-muted">
-                                            • {{ $componente['codice'] }} - {{ Str::limit($componente['descrizione'], 30) }}
-                                            (x{{ $componente['quantita'] }})
+                        @foreach($prodottiFinitiSelezionati as $pfId => $data)
+                            <tr>
+                                <td><span class="badge bg-light-warning text-warning">PF</span></td>
+                                <td><strong>{{ $data['codice'] }}</strong></td>
+                                <td>
+                                    {{ $data['descrizione'] }}
+                                    @if(!empty($data['componenti']))
+                                        <div class="small text-muted mt-1">
+                                            <strong>Componenti:</strong>
+                                            @foreach($data['componenti'] as $componente)
+                                                <div>• {{ $componente['codice'] }} - {{ $componente['descrizione'] }} (x{{ $componente['quantita'] }})</div>
+                                            @endforeach
                                         </div>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div>
-                        <div class="text-end">
-                            <span class="badge bg-light-success text-success">Q.tà: 1</span>
-                            <div class="mt-2">
-                                <button type="button" class="btn btn-outline-danger btn-sm"
-                                        wire:click="rimuoviProdottoFinitoSelezionato({{ $pfId }})">
-                                    <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @endforeach
+                                    @endif
+                                </td>
+                                <td class="text-center"><span class="badge bg-light-success text-success">1</span></td>
+                                <td>
+                                    <button type="button" class="btn btn-outline-danger btn-sm"
+                                            wire:click="rimuoviProdottoFinitoSelezionato({{ $pfId }})">
+                                        <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -193,9 +188,11 @@
                                 @foreach($articoliDisponibili as $articolo)
                                 <tr>
                                     <td>
-                                        <input type="checkbox" class="form-check-input"
-                                               wire:click="toggleArticolo({{ $articolo->id }})"
-                                               @if(isset($articoliSelezionati[$articolo->id])) checked @endif>
+                                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                                wire:click="toggleArticolo({{ $articolo->id }})"
+                                                @if(isset($articoliSelezionati[$articolo->id])) disabled @endif>
+                                            <iconify-icon icon="solar:plus-circle-bold"></iconify-icon>
+                                        </button>
                                     </td>
                                     <td><strong>{{ $articolo->codice }}</strong></td>
                                     <td>{{ Str::limit($articolo->descrizione, 50) }}</td>
@@ -253,9 +250,11 @@
                                 @foreach($prodottiFinitiDisponibili as $pf)
                                 <tr>
                                     <td>
-                                        <input type="checkbox" class="form-check-input"
-                                               wire:click="toggleProdottoFinito({{ $pf->id }})"
-                                               @if(isset($prodottiFinitiSelezionati[$pf->id])) checked @endif>
+                                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                                wire:click="toggleProdottoFinito({{ $pf->id }})"
+                                                @if(isset($prodottiFinitiSelezionati[$pf->id])) disabled @endif>
+                                            <iconify-icon icon="solar:plus-circle-bold"></iconify-icon>
+                                        </button>
                                     </td>
                                     <td><strong>{{ $pf->codice }}</strong></td>
                                     <td>{{ Str::limit($pf->descrizione, 50) }}</td>
