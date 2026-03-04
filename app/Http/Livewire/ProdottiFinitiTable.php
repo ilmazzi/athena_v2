@@ -216,7 +216,12 @@ class ProdottiFinitiTable extends Component
         ];
 
         // Opzioni filtri
-        $categorie = CategoriaMerceologica::where('attivo', true)
+        $categorieQuery = CategoriaMerceologica::where('attivo', true);
+        $userSedeId = auth()->user()?->sede_id;
+        if ($userSedeId) {
+            $categorieQuery->where('sede_id', $userSedeId);
+        }
+        $categorie = $categorieQuery
             ->orderBy('nome')
             ->get(['id', 'nome', 'codice']);
 

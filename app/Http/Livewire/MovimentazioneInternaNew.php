@@ -428,14 +428,10 @@ class MovimentazioneInternaNew extends Component
             ->where('nome', $articolo->categoriaMerceologica->nome)
             ->first();
             
-        // Se non esiste, prendi la prima categoria della sede
         if (!$categoria) {
-            $categoria = CategoriaMerceologica::where('sede_id', $sedeId)->first();
-        }
-
-        if (!$categoria) {
-            // Fallback: usa la stessa categoria dell'articolo, non richiede categorie duplicate
-            return $articolo->categoria_merceologica_id;
+            throw new \Exception(
+                "Categoria '{$articolo->categoriaMerceologica->nome}' non presente nella sede di destinazione."
+            );
         }
         
         return $categoria->id;

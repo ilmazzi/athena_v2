@@ -99,7 +99,12 @@ class ModificaProdottoFinito extends Component
 
     private function caricaDatiDropdown()
     {
-        $this->categorie = CategoriaMerceologica::where('attivo', true)
+        $sedeId = $this->sedeId ?: auth()->user()?->sede_id;
+        $categorieQuery = CategoriaMerceologica::where('attivo', true);
+        if ($sedeId) {
+            $categorieQuery->where('sede_id', $sedeId);
+        }
+        $this->categorie = $categorieQuery
             ->orderBy('nome')
             ->get(['id', 'nome', 'codice']);
             

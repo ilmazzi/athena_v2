@@ -184,7 +184,12 @@ class ArticoliTable extends Component
 
     public function selezionaTuttiMagazzini()
     {
-        $this->magazziniSelezionati = CategoriaMerceologica::pluck('id')->toArray();
+        $magazziniQuery = CategoriaMerceologica::query();
+        $userSedeId = auth()->user()?->sede_id;
+        if ($userSedeId) {
+            $magazziniQuery->where('sede_id', $userSedeId);
+        }
+        $this->magazziniSelezionati = $magazziniQuery->pluck('id')->toArray();
         $this->resetPage();
     }
 
@@ -1489,6 +1494,10 @@ class ArticoliTable extends Component
         // Opzioni per i filtri - TUTTE le categorie attive con count articoli
         $magazziniQuery = CategoriaMerceologica::where('attivo', true)
             ->orderBy('id');
+        $userSedeId = auth()->user()?->sede_id;
+        if ($userSedeId) {
+            $magazziniQuery->where('sede_id', $userSedeId);
+        }
         if (!$this->isSearchActive()) {
             $magazziniQuery->withCount('articoli');
         }

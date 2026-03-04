@@ -75,7 +75,12 @@ class CaricoDocumento extends Component
     {
         $this->fornitori = Fornitore::orderBy('ragione_sociale')->get();
         $this->sedi = Sede::orderBy('nome')->get();
-        $this->categorie = CategoriaMerceologica::orderBy('nome')->get();
+        $categorieQuery = CategoriaMerceologica::orderBy('nome');
+        $userSedeId = auth()->user()?->sede_id;
+        if ($userSedeId) {
+            $categorieQuery->where('sede_id', $userSedeId);
+        }
+        $this->categorie = $categorieQuery->get();
     }
 
     /**
