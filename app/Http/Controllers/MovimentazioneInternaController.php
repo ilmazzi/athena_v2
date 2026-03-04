@@ -134,17 +134,25 @@ class MovimentazioneInternaController extends Controller
      */
     public function elimina($movimentazioneId)
     {
-        $movimentazione = Movimentazione::with(['dettagli'])->findOrFail($movimentazioneId);
+        $movimentazione = Movimentazione::with(['dettagli', 'magazzinoPartenza', 'magazzinoDestinazione'])
+            ->findOrFail($movimentazioneId);
         $giacenzaService = app(GiacenzaService::class);
 
         try {
             DB::transaction(function () use ($movimentazione, $giacenzaService) {
                 foreach ($movimentazione->dettagli as $dettaglio) {
-                    $giacenzaService->trasferisci(
+                    $giacenzaService->trasferisciDaA(
                         $dettaglio->articolo_id,
+                        $movimentazione->magazzino_destinazione_id,
                         $movimentazione->magazzino_partenza_id,
                         $dettaglio->quantita
                     );
+
+                    if ($movimentazione->magazzinoPartenza?->sede_id) {
+                        Articolo::whereKey($dettaglio->articolo_id)->update([
+                            'sede_id' => $movimentazione->magazzinoPartenza->sede_id,
+                        ]);
+                    }
                 }
 
                 $movimentazione->dettagli()->delete();

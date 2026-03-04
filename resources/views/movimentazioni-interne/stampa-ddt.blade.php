@@ -11,10 +11,10 @@
                 margin: 1cm;
                 size: A4;
             }
-            body {
-                font-family: Arial, sans-serif;
-                font-size: 12px;
-                line-height: 1.4;
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
             }
             .no-print {
                 display: none !important;
@@ -194,8 +194,8 @@
         if (preg_match('/^MOV-\d{4}-(\d+)$/', $numeroDocumento, $matches)) {
             $numeroProgressivo = ltrim($matches[1], '0') ?: '1';
         }
-        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
-        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
+        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede ?? $movimentazione->magazzinoPartenza;
+        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede ?? $movimentazione->magazzinoDestinazione;
         $righe = $movimentazione->dettagli ?? collect();
     @endphp
 
@@ -236,7 +236,7 @@
                 <span class="info-label">Causale:</span>
                 Movimentazione Interna
             </div>
-            <div class="info-row">
+    <div class="info-row">
                 <span class="info-label">Operatore:</span>
                 {{ $movimentazione->creataDa->name ?? 'Sistema' }}
             </div>
@@ -268,16 +268,16 @@
             📋 Dettagli Articoli ({{ $righe->count() }} item)
         </h3>
         <table>
-            <thead>
-                <tr>
+        <thead>
+            <tr>
                     <th style="width: 40px;">#</th>
                     <th style="width: 60px;">Tipo</th>
                     <th style="width: 100px;">Codice</th>
                     <th>Descrizione</th>
                     <th style="width: 60px;" class="text-center">Q.tà</th>
-                </tr>
-            </thead>
-            <tbody>
+            </tr>
+        </thead>
+        <tbody>
                 @php
                     $pfGroups = [];
                     $pfOrder = [];
@@ -345,10 +345,10 @@
                         <td><strong class="text-primary">{{ $dettaglio->articolo->codice ?? 'N/D' }}</strong></td>
                         <td>{{ $dettaglio->articolo->descrizione ?? 'N/D' }}</td>
                         <td class="text-center"><strong>{{ $dettaglio->quantita }}</strong></td>
-                    </tr>
+            </tr>
                 @endforeach
-            </tbody>
-        </table>
+        </tbody>
+    </table>
     </div>
 
     <div class="summary-box">
@@ -401,7 +401,7 @@
                         @endif
                     </div>
                 @endif
-            @endif
+    @endif
             <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma e Timbro:</div>
             </div>

@@ -136,15 +136,39 @@ class GiacenzaService
         int $magazzinoDestinazioneId,
         int $quantita = 1
     ): Giacenza {
-        return DB::transaction(function () use ($articoloId, $magazzinoDestinazioneId, $quantita) {
-            // Decrementa giacenza origine
+        $articolo = Articolo::findOrFail($articoloId);
+        
+        return $this->trasferisciDaA(
+            $articoloId,
+            $articolo->categoria_merceologica_id,
+            $magazzinoDestinazioneId,
+            $quantita
+        );
+    }
+
+    /**
+     * Trasferisci giacenza tra magazzini specificando origine e destinazione
+     * 
+     * @param int $articoloId
+     * @param int $magazzinoOrigineId
+     * @param int $magazzinoDestinazioneId
+     * @param int $quantita
+     * @return Giacenza
+     */
+    public function trasferisciDaA(
+        int $articoloId,
+        int $magazzinoOrigineId,
+        int $magazzinoDestinazioneId,
+        int $quantita = 1
+    ): Giacenza {
+        return DB::transaction(function () use ($articoloId, $magazzinoOrigineId, $magazzinoDestinazioneId, $quantita) {
             $giacenzaOrigine = Giacenza::where('articolo_id', $articoloId)
+                ->where('categoria_merceologica_id', $magazzinoOrigineId)
                 ->lockForUpdate()
                 ->firstOrFail();
             
             $giacenzaOrigine->decrementa($quantita);
             
-            // Incrementa o crea giacenza destinazione
             $giacenzaDestinazione = Giacenza::where('categoria_merceologica_id', $magazzinoDestinazioneId)
                 ->where('articolo_id', $articoloId)
                 ->first();
@@ -159,7 +183,6 @@ class GiacenzaService
                 );
             }
             
-            // Aggiorna magazzino articolo
             Articolo::find($articoloId)->update([
                 'categoria_merceologica_id' => $magazzinoDestinazioneId
             ]);
