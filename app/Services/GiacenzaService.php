@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Service per gestione giacenze
  * 
- * Business Rules:
- * - Relazione 1:1 con Articolo
+     * Business Rules:
+     * - Una giacenza per coppia Articolo + Categoria
  * - Mai quantità negative
  * - Decremento aggiorna stato articolo se quantità = 0
  * - NO data_scarico (solo stato)
@@ -35,7 +35,9 @@ class GiacenzaService
     ): Giacenza {
         return DB::transaction(function () use ($articoloId, $magazzinoId, $quantita, $scaffale) {
             // Verifica che non esista già
-            $esistente = Giacenza::where('articolo_id', $articoloId)->first();
+            $esistente = Giacenza::where('articolo_id', $articoloId)
+                ->where('categoria_merceologica_id', $magazzinoId)
+                ->first();
             if ($esistente) {
                 throw new \LogicException("Giacenza già esistente per articolo ID {$articoloId}");
             }

@@ -196,8 +196,20 @@
         }
         $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
         $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
-        $mittente = $sedeOrigine ?? $movimentazione->magazzinoPartenza;
-        $destinatario = $sedeDestinazione ?? $movimentazione->magazzinoDestinazione;
+        $mittenteLuogo = $movimentazione->magazzinoPartenza;
+        $destinatarioLuogo = $movimentazione->magazzinoDestinazione;
+        $mittente = $sedeOrigine ?? $mittenteLuogo;
+        $destinatario = $sedeDestinazione ?? $destinatarioLuogo;
+        $mittenteIndirizzo = $mittenteLuogo?->indirizzo ?? $sedeOrigine?->indirizzo;
+        $mittenteCitta = $mittenteLuogo?->citta ?? $sedeOrigine?->citta;
+        $mittenteCap = $mittenteLuogo?->cap ?? $sedeOrigine?->cap;
+        $mittenteTelefono = $mittenteLuogo?->telefono ?? $sedeOrigine?->telefono;
+        $mittenteEmail = $mittenteLuogo?->email ?? $sedeOrigine?->email;
+        $destinatarioIndirizzo = $destinatarioLuogo?->indirizzo ?? $sedeDestinazione?->indirizzo;
+        $destinatarioCitta = $destinatarioLuogo?->citta ?? $sedeDestinazione?->citta;
+        $destinatarioCap = $destinatarioLuogo?->cap ?? $sedeDestinazione?->cap;
+        $destinatarioTelefono = $destinatarioLuogo?->telefono ?? $sedeDestinazione?->telefono;
+        $destinatarioEmail = $destinatarioLuogo?->email ?? $sedeDestinazione?->email;
         $righe = $movimentazione->dettagli ?? collect();
     @endphp
 
@@ -375,20 +387,22 @@
                     {{ $sedeOrigine?->societa?->ragione_sociale ?? $mittente?->nome ?? 'N/A' }}
                 </strong>
             </div>
-            @if($sedeOrigine?->societa)
-                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $sedeOrigine->nome }}</div>
+            @if($sedeOrigine?->societa || $mittenteLuogo?->nome)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    Sede: {{ $mittenteLuogo?->nome ?? $sedeOrigine?->nome }}
+                </div>
             @endif
-            @if($mittente?->indirizzo)
-                <div style="font-size: 9px; margin-bottom: 5px;">{{ $mittente->indirizzo }}</div>
+            @if($mittenteIndirizzo)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $mittenteIndirizzo }}</div>
             @endif
-            @if($mittente?->citta)
-                <div style="font-size: 9px; margin-bottom: 5px;">{{ $mittente->citta }} {{ $mittente->cap ?? '' }}</div>
+            @if($mittenteCitta)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $mittenteCitta }} {{ $mittenteCap ?? '' }}</div>
             @endif
-            @if($mittente?->telefono)
-                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $mittente->telefono }}</div>
+            @if($mittenteTelefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $mittenteTelefono }}</div>
             @endif
-            @if($mittente?->email)
-                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $mittente->email }}</div>
+            @if($mittenteEmail)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $mittenteEmail }}</div>
             @endif
             @if($sedeOrigine?->sede_legale || $sedeOrigine?->partita_iva || $sedeOrigine?->codice_fiscale)
                 <div style="font-size: 9px; margin-bottom: 5px;">
@@ -419,20 +433,22 @@
                     {{ $sedeDestinazione?->societa?->ragione_sociale ?? $destinatario?->nome ?? 'N/A' }}
                 </strong>
             </div>
-            @if($sedeDestinazione?->societa)
-                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $sedeDestinazione->nome }}</div>
+            @if($sedeDestinazione?->societa || $destinatarioLuogo?->nome)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    Sede: {{ $destinatarioLuogo?->nome ?? $sedeDestinazione?->nome }}
+                </div>
             @endif
-            @if($destinatario?->indirizzo)
-                <div style="font-size: 9px; margin-bottom: 5px;">{{ $destinatario->indirizzo }}</div>
+            @if($destinatarioIndirizzo)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $destinatarioIndirizzo }}</div>
             @endif
-            @if($destinatario?->citta)
-                <div style="font-size: 9px; margin-bottom: 5px;">{{ $destinatario->citta }} {{ $destinatario->cap ?? '' }}</div>
+            @if($destinatarioCitta)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $destinatarioCitta }} {{ $destinatarioCap ?? '' }}</div>
             @endif
-            @if($destinatario?->telefono)
-                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $destinatario->telefono }}</div>
+            @if($destinatarioTelefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $destinatarioTelefono }}</div>
             @endif
-            @if($destinatario?->email)
-                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $destinatario->email }}</div>
+            @if($destinatarioEmail)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $destinatarioEmail }}</div>
             @endif
             @if($sedeDestinazione?->sede_legale || $sedeDestinazione?->partita_iva || $sedeDestinazione?->codice_fiscale)
                 <div style="font-size: 9px; margin-bottom: 5px;">
