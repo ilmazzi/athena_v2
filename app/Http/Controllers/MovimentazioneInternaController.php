@@ -101,8 +101,8 @@ class MovimentazioneInternaController extends Controller
     {
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo',
-            'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
-            'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
+            'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
+            'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'
         ])->findOrFail($movimentazioneId);
         
@@ -116,8 +116,8 @@ class MovimentazioneInternaController extends Controller
     {
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo',
-            'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
-            'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
+            'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
+            'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'
         ])->findOrFail($movimentazioneId);
         

@@ -194,8 +194,8 @@
         if (preg_match('/^MOV-\d{4}-(\d+)$/', $numeroDocumento, $matches)) {
             $numeroProgressivo = ltrim($matches[1], '0') ?: '1';
         }
-        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede ?? $movimentazione->magazzinoPartenza;
-        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede ?? $movimentazione->magazzinoDestinazione;
+        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
+        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
         $righe = $movimentazione->dettagli ?? collect();
     @endphp
 
@@ -369,39 +369,42 @@
         <div class="ddt-footer-section">
             <div class="info-title">👤 Mittente</div>
             <div style="margin-bottom: 5px;">
-                <strong>{{ $sedeOrigine->societa->ragione_sociale ?? $sedeOrigine->nome ?? 'N/A' }}</strong>
+                <strong>
+                    {{ $sedeOrigine?->societa?->ragione_sociale ?? $sedeOrigine?->nome ?? $movimentazione->magazzinoPartenza?->nome ?? 'N/A' }}
+                </strong>
             </div>
-            @if($sedeOrigine)
-                @if($sedeOrigine->indirizzo)
-                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->indirizzo }}</div>
-                @endif
-                @if($sedeOrigine->citta)
-                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->citta }} {{ $sedeOrigine->cap ?? '' }}</div>
-                @endif
-                @if($sedeOrigine->telefono)
-                    <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeOrigine->telefono }}</div>
-                @endif
-                @if($sedeOrigine->email)
-                    <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeOrigine->email }}</div>
-                @endif
-                @if($sedeOrigine->sede_legale || $sedeOrigine->partita_iva || $sedeOrigine->codice_fiscale)
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        <strong>Sede legale:</strong> {{ $sedeOrigine->sede_legale ?? '—' }}
-                    </div>
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        {{ $sedeOrigine->sede_legale_indirizzo ?? '' }}
-                        {{ $sedeOrigine->sede_legale_cap ?? '' }}
-                        {{ $sedeOrigine->sede_legale_citta ?? '' }}
-                        {{ $sedeOrigine->sede_legale_provincia ?? '' }}
-                    </div>
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        P.IVA: {{ $sedeOrigine->partita_iva ?? '—' }}
-                        @if($sedeOrigine->codice_fiscale)
-                            | C.F.: {{ $sedeOrigine->codice_fiscale }}
-                        @endif
-                    </div>
-                @endif
-    @endif
+            @if($sedeOrigine?->societa)
+                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $sedeOrigine->nome }}</div>
+            @endif
+            @if($sedeOrigine?->indirizzo)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->indirizzo }}</div>
+            @endif
+            @if($sedeOrigine?->citta)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeOrigine->citta }} {{ $sedeOrigine->cap ?? '' }}</div>
+            @endif
+            @if($sedeOrigine?->telefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeOrigine->telefono }}</div>
+            @endif
+            @if($sedeOrigine?->email)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeOrigine->email }}</div>
+            @endif
+            @if($sedeOrigine?->sede_legale || $sedeOrigine?->partita_iva || $sedeOrigine?->codice_fiscale)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    <strong>Sede legale:</strong> {{ $sedeOrigine->sede_legale ?? '—' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    {{ $sedeOrigine->sede_legale_indirizzo ?? '' }}
+                    {{ $sedeOrigine->sede_legale_cap ?? '' }}
+                    {{ $sedeOrigine->sede_legale_citta ?? '' }}
+                    {{ $sedeOrigine->sede_legale_provincia ?? '' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    P.IVA: {{ $sedeOrigine->partita_iva ?? '—' }}
+                    @if($sedeOrigine?->codice_fiscale)
+                        | C.F.: {{ $sedeOrigine->codice_fiscale }}
+                    @endif
+                </div>
+            @endif
             <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma e Timbro:</div>
             </div>
@@ -410,38 +413,41 @@
         <div class="ddt-footer-section">
             <div class="info-title">📝 Destinatario</div>
             <div style="margin-bottom: 5px;">
-                <strong>{{ $sedeDestinazione->societa->ragione_sociale ?? $sedeDestinazione->nome ?? 'N/A' }}</strong>
+                <strong>
+                    {{ $sedeDestinazione?->societa?->ragione_sociale ?? $sedeDestinazione?->nome ?? $movimentazione->magazzinoDestinazione?->nome ?? 'N/A' }}
+                </strong>
             </div>
-            @if($sedeDestinazione)
-                @if($sedeDestinazione->indirizzo)
-                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->indirizzo }}</div>
-                @endif
-                @if($sedeDestinazione->citta)
-                    <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->citta }} {{ $sedeDestinazione->cap ?? '' }}</div>
-                @endif
-                @if($sedeDestinazione->telefono)
-                    <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeDestinazione->telefono }}</div>
-                @endif
-                @if($sedeDestinazione->email)
-                    <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeDestinazione->email }}</div>
-                @endif
-                @if($sedeDestinazione->sede_legale || $sedeDestinazione->partita_iva || $sedeDestinazione->codice_fiscale)
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        <strong>Sede legale:</strong> {{ $sedeDestinazione->sede_legale ?? '—' }}
-                    </div>
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        {{ $sedeDestinazione->sede_legale_indirizzo ?? '' }}
-                        {{ $sedeDestinazione->sede_legale_cap ?? '' }}
-                        {{ $sedeDestinazione->sede_legale_citta ?? '' }}
-                        {{ $sedeDestinazione->sede_legale_provincia ?? '' }}
-                    </div>
-                    <div style="font-size: 9px; margin-bottom: 5px;">
-                        P.IVA: {{ $sedeDestinazione->partita_iva ?? '—' }}
-                        @if($sedeDestinazione->codice_fiscale)
-                            | C.F.: {{ $sedeDestinazione->codice_fiscale }}
-                        @endif
-                    </div>
-                @endif
+            @if($sedeDestinazione?->societa)
+                <div style="font-size: 9px; margin-bottom: 5px;">Sede: {{ $sedeDestinazione->nome }}</div>
+            @endif
+            @if($sedeDestinazione?->indirizzo)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->indirizzo }}</div>
+            @endif
+            @if($sedeDestinazione?->citta)
+                <div style="font-size: 9px; margin-bottom: 5px;">{{ $sedeDestinazione->citta }} {{ $sedeDestinazione->cap ?? '' }}</div>
+            @endif
+            @if($sedeDestinazione?->telefono)
+                <div style="font-size: 9px; margin-bottom: 5px;">Tel: {{ $sedeDestinazione->telefono }}</div>
+            @endif
+            @if($sedeDestinazione?->email)
+                <div style="font-size: 9px; margin-bottom: 5px;">Email: {{ $sedeDestinazione->email }}</div>
+            @endif
+            @if($sedeDestinazione?->sede_legale || $sedeDestinazione?->partita_iva || $sedeDestinazione?->codice_fiscale)
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    <strong>Sede legale:</strong> {{ $sedeDestinazione->sede_legale ?? '—' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    {{ $sedeDestinazione->sede_legale_indirizzo ?? '' }}
+                    {{ $sedeDestinazione->sede_legale_cap ?? '' }}
+                    {{ $sedeDestinazione->sede_legale_citta ?? '' }}
+                    {{ $sedeDestinazione->sede_legale_provincia ?? '' }}
+                </div>
+                <div style="font-size: 9px; margin-bottom: 5px;">
+                    P.IVA: {{ $sedeDestinazione->partita_iva ?? '—' }}
+                    @if($sedeDestinazione?->codice_fiscale)
+                        | C.F.: {{ $sedeDestinazione->codice_fiscale }}
+                    @endif
+                </div>
             @endif
             <div class="ddt-signature-box">
                 <div style="font-size: 9px; color: var(--bs-secondary);">Firma per ricevuta:</div>
