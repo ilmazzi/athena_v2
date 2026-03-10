@@ -1219,10 +1219,21 @@ class MigraDeltaMssql extends Command
 
         $rows = DB::connection('mssql_prod')->select($sql, $params);
         $total = count($rows);
-        $this->line("  Candidati: {$total}");
+        $this->line("  Candidati MSSQL: {$total}");
         if ($total === 0 || $this->dryRun) {
             $this->newLine();
             return;
+        }
+
+        $recentIds = null;
+        if (!empty($onlySince)) {
+            $recentIds = array_flip(
+                DB::table('articoli')
+                    ->whereDate('created_at', '>=', $onlySince)
+                    ->pluck('id')
+                    ->all()
+            );
+            $this->line('  Candidati MySQL (data): ' . count($recentIds));
         }
 
         $updated = 0;
@@ -1230,6 +1241,9 @@ class MigraDeltaMssql extends Command
         foreach ($rows as $row) {
             $magazzino = (int) ($row->id_magazzino ?? 0);
             if (!empty($exclude) && in_array($magazzino, $exclude, true)) {
+                continue;
+            }
+            if (is_array($recentIds) && !isset($recentIds[$row->id])) {
                 continue;
             }
             $carico = $row->carico ?? $row->id;
