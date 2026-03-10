@@ -13,7 +13,11 @@ class DiffArticoliMssqlMysql extends Command
                             {--to-id= : ID massimo da confrontare}
                             {--only-prefix= : Limita al prefisso/categoria (es. 2)}
                             {--chunk=1000 : Dimensione chunk di confronto}
-                            {--limit=200 : Numero massimo di esempi per lato}';
+                            {--limit=200 : Numero massimo di esempi per lato}
+                            {--export-missing-mysql= : Path per esportare ID mancanti in MySQL}
+                            {--export-missing-mssql= : Path per esportare ID mancanti in MSSQL}
+                            {--purge-mysql-missing : Elimina da MySQL gli ID non presenti in MSSQL}
+                            {--dry-run : Simula senza eliminare}';
 
     protected $description = 'Confronta articoli tra MSSQL e MySQL e segnala discrepanze';
 
@@ -30,6 +34,10 @@ class DiffArticoliMssqlMysql extends Command
         $onlyPrefix = $this->option('only-prefix');
         $chunk = max(100, (int) $this->option('chunk'));
         $limit = max(1, (int) $this->option('limit'));
+        $exportMissingMysql = $this->option('export-missing-mysql');
+        $exportMissingMssql = $this->option('export-missing-mssql');
+        $purgeMysqlMissing = (bool) $this->option('purge-mysql-missing');
+        $dryRun = (bool) $this->option('dry-run');
 
         if (empty($toId)) {
             $maxMssql = (int) (DB::connection('mssql_prod')->table($table)->max('id') ?? 0);
@@ -55,6 +63,8 @@ class DiffArticoliMssqlMysql extends Command
         $missingInMssqlCount = 0;
         $missingInMysqlSamples = [];
         $missingInMssqlSamples = [];
+        $missingInMysqlIds = [];
+        $missingInMssqlIds = [];
 
         for ($start = $fromId; $start <= $toId; $start += $chunk) {
             $end = min($toId, $start + $chunk - 1);
@@ -85,6 +95,12 @@ class DiffArticoliMssqlMysql extends Command
 
             $missingInMysqlCount += count($missingInMysql);
             $missingInMssqlCount += count($missingInMssql);
+            if (!empty($missingInMysql)) {
+                $missingInMysqlIds = array_merge($missingInMysqlIds, $missingInMysql);
+            }
+            if (!empty($missingInMssql)) {
+                $missingInMssqlIds = array_merge($missingInMssqlIds, $missingInMssql);
+            }
 
             if (count($missingInMysqlSamples) < $limit && !empty($missingInMysql)) {
                 $needed = array_slice($missingInMysql, 0, $limit - count($missingInMysqlSamples));
@@ -120,6 +136,30 @@ class DiffArticoliMssqlMysql extends Command
             $this->info('  Esempi mancanti in MSSQL:');
             foreach ($missingInMssqlSamples as $row) {
                 $this->line("   - ID {$row['id']} | {$row['codice']} | {$row['descrizione']}");
+            }
+        }
+
+        if (!empty($exportMissingMysql)) {
+            $this->exportIds($exportMissingMysql, $missingInMysqlIds);
+            $this->line("  Export mancanti in MySQL: {$exportMissingMysql}");
+        }
+
+        if (!empty($exportMissingMssql)) {
+            $this->exportIds($exportMissingMssql, $missingInMssqlIds);
+            $this->line("  Export mancanti in MSSQL: {$exportMissingMssql}");
+        }
+
+        if ($purgeMysqlMissing && !empty($missingInMssqlIds)) {
+            $this->newLine();
+            $this->warn("  Eliminazione MySQL mancanti in MSSQL: " . count($missingInMssqlIds));
+            if ($dryRun) {
+                $this->line('  Dry-run: nessuna eliminazione eseguita.');
+            } else {
+                $deleted = 0;
+                foreach (array_chunk($missingInMssqlIds, 1000) as $chunkIds) {
+                    $deleted += DB::table('articoli')->whereIn('id', $chunkIds)->delete();
+                }
+                $this->line("  Eliminati: {$deleted}");
             }
         }
 
@@ -167,6 +207,12 @@ class DiffArticoliMssqlMysql extends Command
                 'descrizione' => $row->descrizione ?? '',
             ];
         })->all();
+    }
+
+    private function exportIds(string $path, array $ids): void
+    {
+        $content = implode(PHP_EOL, array_unique($ids)) . PHP_EOL;
+        @file_put_contents($path, $content);
     }
 
     private function resolveMssqlArticoliTable(): ?string
