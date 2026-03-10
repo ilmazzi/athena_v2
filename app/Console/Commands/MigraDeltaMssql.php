@@ -15,7 +15,9 @@ use App\Models\Fornitore;
 
 class MigraDeltaMssql extends Command
 {
-    protected $signature = 'migra:delta-mssql {--dry-run : Simula senza salvare}';
+    protected $signature = 'migra:delta-mssql 
+                            {--dry-run : Simula senza salvare}
+                            {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
     private bool $dryRun = false;
@@ -47,6 +49,7 @@ class MigraDeltaMssql extends Command
     public function handle()
     {
         $this->dryRun = $this->option('dry-run');
+        $forceMissing = $this->option('force-missing');
 
         $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
         $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -70,6 +73,9 @@ class MigraDeltaMssql extends Command
         try {
             $this->migraFornitori();
             $this->migraArticoliEGiacenze();
+            if ($forceMissing) {
+                $this->importMissingArticoliFromDdtDetails();
+            }
             $this->migraDdt();
             $this->migraFatture();
 
@@ -412,6 +418,77 @@ class MigraDeltaMssql extends Command
                 }
             }
         });
+    }
+
+    private function importMissingArticoliFromDdtDetails(): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_dettagli')) {
+            $this->warn('⚠️  Tabella mag_ddt_articoli_dettagli non trovata, skip force-missing');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('🔁 FORCE-MISSING: Import articoli mancanti dai dettagli DDT');
+
+        $ids = DB::connection('mssql_prod')
+            ->table('mag_ddt_articoli_dettagli')
+            ->select('id_articolo')
+            ->whereNotNull('id_articolo')
+            ->distinct()
+            ->pluck('id_articolo')
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            $this->line('  Nessun articolo trovato nei dettagli DDT.');
+            $this->newLine();
+            return;
+        }
+
+        $missing = $ids->filter(function ($id) {
+            return !DB::table('articoli')->where('id', $id)->exists();
+        })->values();
+
+        $this->line("  Articoli mancanti da importare: {$missing->count()}");
+
+        if ($missing->isEmpty()) {
+            $this->newLine();
+            return;
+        }
+
+        $bar = $this->output->createProgressBar($missing->count());
+        $bar->start();
+
+        $missing->chunk(500)->each(function ($chunk) use ($bar) {
+            $rows = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->whereIn('id', $chunk->all())
+                ->get();
+
+            foreach ($rows as $art) {
+                try {
+                    $existing = DB::table('articoli')->where('id', $art->id)->first();
+                    if ($existing) {
+                        if (!empty($existing->deleted_at)) {
+                            DB::table('articoli')->where('id', $art->id)->update(['deleted_at' => null]);
+                        }
+                        $this->syncExistingArticoloFromRow($art, $existing);
+                        $this->ensureGiacenzaForArticolo($art->id, $art);
+                    } else {
+                        $this->insertArticoloFromRow($art);
+                        $this->stats['articoli']++;
+                        $this->stats['giacenze']++;
+                    }
+                } catch (\Exception $e) {
+                    $this->stats['errori']++;
+                    $this->error("  ❌ Articolo {$art->id}: {$e->getMessage()}");
+                }
+                $bar->advance();
+            }
+        });
+
+        $bar->finish();
+        $this->newLine();
     }
 
     private function migraFatture(): void
