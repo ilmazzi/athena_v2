@@ -1090,15 +1090,13 @@
                                                     Stampa Etichetta
                                                 </button>
                                             </li>
-                                            @if($articolo->giacenza && ($articolo->giacenza->quantita_residua ?? 0) < ($articolo->giacenza->quantita ?? 0))
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <button class="dropdown-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
-                                                        <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
-                                                        Ricarica Quantità
-                                                    </button>
-                                                </li>
-                                            @endif
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <button class="dropdown-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
+                                                    <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
+                                                    Ricarica Quantità
+                                                </button>
+                                            </li>
                                             @if($articolo->stato_articolo === 'disponibile')
                                                 <li><hr class="dropdown-divider"></li>
                                                 <li>

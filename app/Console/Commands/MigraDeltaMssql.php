@@ -19,7 +19,11 @@ class MigraDeltaMssql extends Command
                             {--dry-run : Simula senza salvare}
                             {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}
                             {--backfill-ddt-descrizioni : Popola descrizione su ddt_dettagli da articoli}
-                            {--backfill-ddt-links : Crea/aggancia DDT e dettagli per articoli senza carico}';
+                            {--backfill-ddt-links : Crea/aggancia DDT e dettagli per articoli senza carico}
+                            {--backfill-giacenze : Crea giacenze mancanti dagli articoli MSSQL}
+                            {--normalize-codici-base : Rimuove suffisso -N se il codice base non esiste}
+                            {--normalize-since= : Data minima (YYYY-MM-DD) per normalizzare codici}
+                            {--normalize-from-id= : ID minimo per normalizzare codici}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
     private bool $dryRun = false;
@@ -54,6 +58,10 @@ class MigraDeltaMssql extends Command
         $forceMissing = $this->option('force-missing');
         $backfillDescrizioni = $this->option('backfill-ddt-descrizioni');
         $backfillLinks = $this->option('backfill-ddt-links');
+        $backfillGiacenze = $this->option('backfill-giacenze');
+        $normalizeCodici = $this->option('normalize-codici-base');
+        $normalizeSince = $this->option('normalize-since');
+        $normalizeFromId = $this->option('normalize-from-id');
 
         $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
         $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -83,6 +91,12 @@ class MigraDeltaMssql extends Command
             }
             if ($backfillLinks) {
                 $this->backfillDdtLinksFromArticoli();
+            }
+            if ($backfillGiacenze) {
+                $this->backfillGiacenzeFromMssql();
+            }
+            if ($normalizeCodici) {
+                $this->normalizeCodiciBase($normalizeSince, $normalizeFromId);
             }
 
             if ($this->dryRun) {
@@ -616,6 +630,122 @@ class MigraDeltaMssql extends Command
         $this->newLine();
     }
 
+    private function backfillGiacenzeFromMssql(): void
+    {
+        $this->info('📦 BACKFILL GIACENZE DA MSSQL');
+
+        if (!Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
+            $this->warn('⚠️  Vista elenco_articoli_magazzino non trovata, skip');
+            $this->newLine();
+            return;
+        }
+
+        $missing = DB::table('articoli')
+            ->leftJoin('giacenze', 'giacenze.articolo_id', '=', 'articoli.id')
+            ->whereNull('giacenze.id')
+            ->select('articoli.id')
+            ->pluck('id');
+
+        $count = $missing->count();
+        $this->line("  Giacenze mancanti: {$count}");
+
+        if ($count === 0 || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $bar = $this->output->createProgressBar($count);
+        $bar->start();
+
+        $missing->chunk(500)->each(function ($chunk) use ($bar) {
+            $rows = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->whereIn('id', $chunk->all())
+                ->get();
+
+            foreach ($rows as $art) {
+                try {
+                    $articolo = DB::table('articoli')->where('id', $art->id)->first();
+                    if (!$articolo) {
+                        $bar->advance();
+                        continue;
+                    }
+
+                    $sedeId = $articolo->sede_id ?? 1;
+                    $qta = isset($art->qta) ? (int) $art->qta : 1;
+                    $qtaResidua = $art->qta_residua ?? $qta;
+                    DB::table('giacenze')->insert([
+                        'articolo_id' => $art->id,
+                        'categoria_merceologica_id' => $articolo->categoria_merceologica_id ?? null,
+                        'sede_id' => $sedeId,
+                        'quantita' => $qta,
+                        'quantita_residua' => $qtaResidua,
+                        'quantita_deposito' => 0,
+                        'costo_unitario' => $art->costo_unitario ?? 0,
+                        'scaffale' => $art->ubicazione ?? null,
+                        'note' => $art->ubicazione ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $this->stats['giacenze']++;
+                } catch (\Exception $e) {
+                    $this->stats['errori']++;
+                    $this->error("  ❌ Giacenza articolo {$art->id}: {$e->getMessage()}");
+                }
+                $bar->advance();
+            }
+        });
+
+        $bar->finish();
+        $this->newLine();
+    }
+
+    private function normalizeCodiciBase(?string $since, ?string $fromId): void
+    {
+        $this->info('🔧 NORMALIZZA CODICI BASE');
+
+        $query = DB::table('articoli')
+            ->select('id', 'codice', 'created_at');
+
+        if (!empty($since)) {
+            $query->whereDate('created_at', '>=', $since);
+        }
+
+        if (!empty($fromId)) {
+            $query->where('id', '>=', (int) $fromId);
+        }
+
+        if (empty($since) && empty($fromId)) {
+            $query->whereDate('created_at', '>=', now()->toDateString());
+        }
+
+        $rows = $query->orderBy('id')->get();
+        $this->line("  Candidati: {$rows->count()}");
+
+        if ($rows->isEmpty() || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        foreach ($rows as $row) {
+            $codice = (string) $row->codice;
+            if (!preg_match('/^(.*)-(\d+)$/', $codice, $matches)) {
+                continue;
+            }
+            $base = $matches[1];
+            $existsBase = DB::table('articoli')->where('codice', $base)->exists();
+            if ($existsBase) {
+                continue;
+            }
+            DB::table('articoli')->where('id', $row->id)->update(['codice' => $base]);
+            $updated++;
+        }
+
+        $this->line("  Codici normalizzati: {$updated}");
+        $this->newLine();
+    }
+
     private function migraFatture(): void
     {
         $testateTable = $this->resolveFattureTestateTable();
@@ -1003,21 +1133,7 @@ class MigraDeltaMssql extends Command
                 throw new \RuntimeException("Insert articolo {$art->id} non riuscito");
             }
 
-            $qta = isset($art->qta) ? (int) $art->qta : 1;
-            $qtaResidua = $art->qta_residua ?? $qta;
-            DB::table('giacenze')->insert([
-                'articolo_id' => $art->id,
-                'categoria_merceologica_id' => $art->id_magazzino ?? null,
-                'sede_id' => $sedeId,
-                'quantita' => $qta,
-                'quantita_residua' => $qtaResidua,
-                'quantita_deposito' => 0,
-                'costo_unitario' => $art->costo_unitario ?? 0,
-                'scaffale' => $art->ubicazione ?? null,
-                'note' => $art->ubicazione ?? null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        // Giacenze create in un passaggio dedicato (backfill)
         } catch (\Throwable $e) {
             throw new \RuntimeException("Insert articolo {$art->id} fallito: " . $e->getMessage(), 0, $e);
         }
@@ -1025,8 +1141,9 @@ class MigraDeltaMssql extends Command
 
     private function generateUniqueCodice(string $base): string
     {
-        if (!isset($this->codiciUsati[$base])) {
+        if (!$this->codiceExists($base)) {
             $this->codiciUsati[$base] = true;
+            return $base;
         }
 
         $code = $base;
