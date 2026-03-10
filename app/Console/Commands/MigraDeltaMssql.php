@@ -954,28 +954,45 @@ class MigraDeltaMssql extends Command
 
         $this->info('🧩 RICALCOLA CODICI PER ID');
 
-        $rows = DB::connection('mssql_prod')
-            ->table($table)
-            ->select('id', 'id_magazzino', 'carico')
-            ->whereIn('id', $ids)
-            ->get();
+        $queue = $ids;
+        $seenIds = [];
+        $groups = [];
 
-        if ($rows->isEmpty()) {
+        while (!empty($queue)) {
+            $batch = array_splice($queue, 0, 500);
+            $rows = DB::connection('mssql_prod')
+                ->table($table)
+                ->select('id', 'id_magazzino', 'carico')
+                ->whereIn('id', $batch)
+                ->get();
+
+            foreach ($rows as $row) {
+                $seenIds[$row->id] = true;
+                $magazzino = (int) ($row->id_magazzino ?? 0);
+                $carico = $row->carico ?? $row->id;
+                $key = $magazzino . '|' . $carico;
+                $groups[$key] = [$magazzino, $carico];
+            }
+        }
+
+        if (empty($groups)) {
             $this->warn('⚠️  Nessun articolo trovato in MSSQL per gli ID richiesti.');
             $this->newLine();
             return;
         }
 
-        $groups = [];
-        foreach ($rows as $row) {
-            $magazzino = (int) ($row->id_magazzino ?? 0);
-            $carico = $row->carico ?? $row->id;
-            $key = $magazzino . '|' . $carico;
-            $groups[$key] = [$magazzino, $carico];
-        }
-
         $updated = 0;
-        foreach ($groups as [$magazzino, $carico]) {
+        $pending = $groups;
+        $processed = [];
+
+        while (!empty($pending)) {
+            $current = array_shift($pending);
+            [$magazzino, $carico] = $current;
+            $key = $magazzino . '|' . $carico;
+            if (isset($processed[$key])) {
+                continue;
+            }
+            $processed[$key] = true;
             $base = $magazzino . '-' . $carico;
 
             $idsGroup = DB::connection('mssql_prod')
@@ -1010,6 +1027,23 @@ class MigraDeltaMssql extends Command
                 continue;
             }
 
+            $conflictingIds = DB::table('articoli')
+                ->whereIn('codice', array_values($desired))
+                ->whereNotIn('id', $idsGroup->all())
+                ->pluck('id')
+                ->values()
+                ->all();
+
+            if (!empty($conflictingIds)) {
+                foreach ($conflictingIds as $conflictId) {
+                    if (!isset($seenIds[$conflictId])) {
+                        $seenIds[$conflictId] = true;
+                        $pending[] = $this->resolveGroupFromMssqlId($table, (int) $conflictId);
+                    }
+                }
+                continue;
+            }
+
             if ($this->dryRun) {
                 continue;
             }
@@ -1040,6 +1074,21 @@ class MigraDeltaMssql extends Command
 
         $this->line("  Codici ricalcolati: {$updated}");
         $this->newLine();
+    }
+
+    private function resolveGroupFromMssqlId(string $table, int $id): array
+    {
+        $row = DB::connection('mssql_prod')
+            ->table($table)
+            ->select('id_magazzino', 'carico', 'id')
+            ->where('id', $id)
+            ->first();
+        if (!$row) {
+            return [0, $id];
+        }
+        $magazzino = (int) ($row->id_magazzino ?? 0);
+        $carico = $row->carico ?? $row->id;
+        return [$magazzino, $carico];
     }
 
     private function resolveMssqlArticoliTable(): ?string
