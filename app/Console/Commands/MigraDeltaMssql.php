@@ -66,10 +66,6 @@ class MigraDeltaMssql extends Command
             return 1;
         }
 
-        if (!$this->dryRun) {
-            DB::beginTransaction();
-        }
-
         try {
             $this->migraFornitori();
             $this->migraArticoliEGiacenze();
@@ -82,13 +78,9 @@ class MigraDeltaMssql extends Command
             if ($this->dryRun) {
                 $this->warn('🔄 Dry-run completato (nessuna modifica applicata).');
             } else {
-                DB::commit();
                 $this->info('✅ Migrazione delta completata!');
             }
         } catch (\Exception $e) {
-            if (!$this->dryRun) {
-                DB::rollBack();
-            }
             $this->error('❌ Errore durante migrazione delta: ' . $e->getMessage());
             return 1;
         }
