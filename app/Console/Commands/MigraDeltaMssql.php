@@ -954,132 +954,56 @@ class MigraDeltaMssql extends Command
 
         $this->info('🧩 RICALCOLA CODICI PER ID');
 
-        $queue = $ids;
-        $seenIds = [];
-        $groups = [];
-
-        while (!empty($queue)) {
-            $batch = array_splice($queue, 0, 500);
-            $rows = DB::connection('mssql_prod')
-                ->table($table)
-                ->select('id', 'id_magazzino', 'carico')
-                ->whereIn('id', $batch)
-                ->get();
-
-            foreach ($rows as $row) {
-                $seenIds[$row->id] = true;
-                $magazzino = (int) ($row->id_magazzino ?? 0);
-                $carico = $row->carico ?? $row->id;
-                $key = $magazzino . '|' . $carico;
-                $groups[$key] = [$magazzino, $carico];
-            }
-        }
-
+        $groups = $this->collectGroupsFromMssqlIds($table, $ids);
         if (empty($groups)) {
             $this->warn('⚠️  Nessun articolo trovato in MSSQL per gli ID richiesti.');
             $this->newLine();
             return;
         }
 
-        $updated = 0;
-        $pending = $groups;
-        $processed = [];
-
-        $safety = 0;
-        while (!empty($pending)) {
-            $safety++;
-            if ($safety > 10000) {
-                $this->error('  ❌ Loop di ricalcolo troppo lungo, interrompo per evitare blocchi.');
-                break;
-            }
-            $current = array_shift($pending);
-            [$magazzino, $carico] = $current;
-            $key = $magazzino . '|' . $carico;
-            if (isset($processed[$key])) {
-                continue;
-            }
-            $base = $magazzino . '-' . $carico;
-
-            $idsGroup = DB::connection('mssql_prod')
-                ->table($table)
-                ->where('id_magazzino', $magazzino)
-                ->where('carico', $carico)
-                ->orderBy('id')
-                ->pluck('id')
-                ->values();
-
-            if ($idsGroup->isEmpty()) {
-                continue;
-            }
-
-            $existing = DB::table('articoli')
-                ->whereIn('id', $idsGroup->all())
-                ->pluck('codice', 'id');
-
-            $desired = [];
-            foreach ($idsGroup as $index => $id) {
-                $desired[$id] = $index === 0 ? $base : ($base . '-' . ($index + 1));
-            }
-
-            $needsUpdate = false;
-            foreach ($desired as $id => $code) {
-                if (isset($existing[$id]) && $existing[$id] !== $code) {
-                    $needsUpdate = true;
-                    break;
-                }
-            }
-            if (!$needsUpdate) {
-                continue;
-            }
-
-            $conflictingIds = DB::table('articoli')
-                ->whereIn('codice', array_values($desired))
-                ->whereNotIn('id', $idsGroup->all())
-                ->pluck('id')
-                ->values()
-                ->all();
-
-            if (!empty($conflictingIds)) {
-                foreach ($conflictingIds as $conflictId) {
-                    if (!isset($seenIds[$conflictId])) {
-                        $seenIds[$conflictId] = true;
-                        $pending[] = $this->resolveGroupFromMssqlId($table, (int) $conflictId);
-                    }
-                }
-                // Ripianifica il gruppo corrente dopo la risoluzione dei conflitti
-                $pending[] = [$magazzino, $carico];
-                continue;
-            }
-
-            $processed[$key] = true;
-
-            if ($this->dryRun) {
-                continue;
-            }
-
-            DB::transaction(function () use ($desired, $existing, &$updated) {
-                foreach ($desired as $id => $code) {
-                    if (!isset($existing[$id])) {
-                        continue;
-                    }
-                    DB::table('articoli')->where('id', $id)->update([
-                        'codice' => $code . '-TMP-' . $id,
-                        'updated_at' => now(),
-                    ]);
-                }
-
-                foreach ($desired as $id => $code) {
-                    if (!isset($existing[$id])) {
-                        continue;
-                    }
-                    DB::table('articoli')->where('id', $id)->update([
-                        'codice' => $code,
-                        'updated_at' => now(),
-                    ]);
-                    $updated++;
-                }
-            });
+        $expandedGroups = $this->expandGroupsForConflicts($table, $groups);
+        if ($expandedGroups === null) {
+            $this->error('  ❌ Loop di ricalcolo troppo lungo, interrompo per evitare blocchi.');
+            $this->newLine();
+            return;
         }
+
+        [$desiredAll, $existingAll] = $this->buildDesiredCodesForGroups($table, $expandedGroups);
+        if (empty($desiredAll)) {
+            $this->line('  Nessun codice da ricalcolare.');
+            $this->newLine();
+            return;
+        }
+
+        if ($this->dryRun) {
+            $this->line('  Dry-run: ricalcolo codici non applicato.');
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        DB::transaction(function () use ($desiredAll, $existingAll, &$updated) {
+            foreach ($desiredAll as $id => $code) {
+                if (!isset($existingAll[$id])) {
+                    continue;
+                }
+                DB::table('articoli')->where('id', $id)->update([
+                    'codice' => $code . '-TMP-' . $id,
+                    'updated_at' => now(),
+                ]);
+            }
+
+            foreach ($desiredAll as $id => $code) {
+                if (!isset($existingAll[$id])) {
+                    continue;
+                }
+                DB::table('articoli')->where('id', $id)->update([
+                    'codice' => $code,
+                    'updated_at' => now(),
+                ]);
+                $updated++;
+            }
+        });
 
         $this->line("  Codici ricalcolati: {$updated}");
         $this->newLine();
@@ -1098,6 +1022,107 @@ class MigraDeltaMssql extends Command
         $magazzino = (int) ($row->id_magazzino ?? 0);
         $carico = $row->carico ?? $row->id;
         return [$magazzino, $carico];
+    }
+
+    private function collectGroupsFromMssqlIds(string $table, array $ids): array
+    {
+        $groups = [];
+        $queue = $ids;
+        while (!empty($queue)) {
+            $batch = array_splice($queue, 0, 500);
+            $rows = DB::connection('mssql_prod')
+                ->table($table)
+                ->select('id', 'id_magazzino', 'carico')
+                ->whereIn('id', $batch)
+                ->get();
+            foreach ($rows as $row) {
+                $magazzino = (int) ($row->id_magazzino ?? 0);
+                $carico = $row->carico ?? $row->id;
+                $key = $magazzino . '|' . $carico;
+                $groups[$key] = [$magazzino, $carico];
+            }
+        }
+        return array_values($groups);
+    }
+
+    private function expandGroupsForConflicts(string $table, array $groups): ?array
+    {
+        $groupMap = [];
+        foreach ($groups as [$magazzino, $carico]) {
+            $groupMap[$magazzino . '|' . $carico] = [$magazzino, $carico];
+        }
+
+        $iterations = 0;
+        while (true) {
+            $iterations++;
+            if ($iterations > 50) {
+                return null;
+            }
+
+            [$desiredAll, $existingAll] = $this->buildDesiredCodesForGroups($table, array_values($groupMap));
+            if (empty($desiredAll)) {
+                return array_values($groupMap);
+            }
+
+            $conflictingIds = DB::table('articoli')
+                ->whereIn('codice', array_values($desiredAll))
+                ->whereNotIn('id', array_keys($desiredAll))
+                ->pluck('id')
+                ->values()
+                ->all();
+
+            if (empty($conflictingIds)) {
+                return array_values($groupMap);
+            }
+
+            $newGroups = $this->collectGroupsFromMssqlIds($table, $conflictingIds);
+            $added = false;
+            foreach ($newGroups as [$magazzino, $carico]) {
+                $key = $magazzino . '|' . $carico;
+                if (!isset($groupMap[$key])) {
+                    $groupMap[$key] = [$magazzino, $carico];
+                    $added = true;
+                }
+            }
+
+            if (!$added) {
+                return array_values($groupMap);
+            }
+        }
+    }
+
+    private function buildDesiredCodesForGroups(string $table, array $groups): array
+    {
+        $desiredAll = [];
+        $existingAll = [];
+
+        foreach ($groups as [$magazzino, $carico]) {
+            $base = $magazzino . '-' . $carico;
+            $idsGroup = DB::connection('mssql_prod')
+                ->table($table)
+                ->where('id_magazzino', $magazzino)
+                ->where('carico', $carico)
+                ->orderBy('id')
+                ->pluck('id')
+                ->values();
+
+            if ($idsGroup->isEmpty()) {
+                continue;
+            }
+
+            foreach ($idsGroup as $index => $id) {
+                $desiredAll[$id] = $index === 0 ? $base : ($base . '-' . ($index + 1));
+            }
+        }
+
+        if (!empty($desiredAll)) {
+            $existingAll = DB::table('articoli')
+                ->whereIn('id', array_keys($desiredAll))
+                ->pluck('codice', 'id')
+                ->all();
+        }
+
+        return [$desiredAll, $existingAll];
     }
 
     private function resolveMssqlArticoliTable(): ?string
