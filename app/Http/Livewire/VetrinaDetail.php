@@ -332,9 +332,9 @@ class VetrinaDetail extends Component
         ])
             ->where('vetrina_id', $this->vetrina->id)
             ->whereNull('data_rimozione')
-            ->when($this->search, function ($query) {
+            ->when($this->search, function ($query) use ($hasDescrizioneEsterno, $hasTestoVetrina) {
                 $term = $this->search;
-                $query->where(function ($q) use ($term) {
+                $query->where(function ($q) use ($term, $hasDescrizioneEsterno, $hasTestoVetrina) {
                     $q->whereHas('articolo', function ($sub) use ($term) {
                         $sub->where('codice', 'like', '%' . $term . '%')
                             ->orWhere('descrizione', 'like', '%' . $term . '%');
