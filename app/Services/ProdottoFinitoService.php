@@ -53,7 +53,12 @@ class ProdottoFinitoService
         try {
             // 1. Verifica disponibilità componenti
             foreach ($componenti as $comp) {
-                $this->verificaDisponibilitaComponente($comp['articolo_id'], $comp['quantita'], $sedeId);
+                $this->verificaDisponibilitaComponente(
+                    $comp['articolo_id'],
+                    $comp['quantita'],
+                    $sedeId,
+                    null
+                );
             }
             
             // 2. Calcola dati gioielleria dai componenti
@@ -258,7 +263,8 @@ class ProdottoFinitoService
                 $this->verificaDisponibilitaComponente(
                     $comp['articolo_id'],
                     $comp['quantita'],
-                    $forceEdit ? null : $sedeId
+                    $forceEdit ? null : $sedeId,
+                    $prodottoFinitoId
                 );
             }
             
@@ -353,8 +359,14 @@ class ProdottoFinitoService
     /**
      * Verifica disponibilità componente
      */
-    private function verificaDisponibilitaComponente(int $articoloId, int $quantita, ?int $sedeId): void
-    {
+    private function verificaDisponibilitaComponente(
+        int $articoloId,
+        int $quantita,
+        ?int $sedeId,
+        ?int $prodottoFinitoId
+    ): void {
+        $this->verificaComponenteNonUsatoAltrove($articoloId, $prodottoFinitoId);
+
         $giacenzaQuery = Giacenza::where('articolo_id', $articoloId);
         if ($sedeId) {
             $giacenzaQuery->where('sede_id', $sedeId);
@@ -372,6 +384,27 @@ class ProdottoFinitoService
         if ($giacenza->quantita_residua < $quantita) {
             $articolo = Articolo::find($articoloId);
             throw new \Exception("Giacenza insufficiente per articolo {$articolo->codice}. Disponibili: {$giacenza->quantita_residua}, Richiesti: {$quantita}");
+        }
+    }
+
+    /**
+     * Impedisce di riutilizzare lo stesso articolo in più PF attivi.
+     */
+    private function verificaComponenteNonUsatoAltrove(int $articoloId, ?int $prodottoFinitoId): void
+    {
+        $query = ComponenteProdotto::where('articolo_id', $articoloId)
+            ->whereHas('prodottoFinito', function ($q) {
+                $q->whereNull('deleted_at')
+                    ->where('stato', '!=', 'annullato');
+            });
+
+        if ($prodottoFinitoId) {
+            $query->where('prodotto_finito_id', '!=', $prodottoFinitoId);
+        }
+
+        if ($query->exists()) {
+            $articolo = Articolo::find($articoloId);
+            throw new \Exception("Articolo {$articolo->codice} già utilizzato in un altro prodotto finito");
         }
     }
     
