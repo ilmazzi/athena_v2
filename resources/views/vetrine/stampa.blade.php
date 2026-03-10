@@ -200,17 +200,21 @@
                 @foreach($articoli as $articoloVetrina)
                     <tr>
                         <td class="qr-code">
-                            <img src="data:image/png;base64,{{ $articoloVetrina->qr_code_base64 }}" 
-                                 alt="QR {{ $articoloVetrina->articolo->codice }}">
+                            @if($articoloVetrina->qr_code_base64)
+                                <img src="data:image/png;base64,{{ $articoloVetrina->qr_code_base64 }}"
+                                     alt="QR {{ $articoloVetrina->codice_display }}">
+                            @else
+                                <span class="text-muted">-</span>
+                            @endif
                         </td>
                         <td style="text-align: center; font-size: 12px; font-weight: bold; color: var(--bs-primary);">
-                            {{ $articoloVetrina->articolo->codice }}
+                            {{ $articoloVetrina->codice_display }}
                         </td>
                         <td style="font-size: 12px;">
                             @if($articoloVetrina->testo_vetrina)
                                 <div style="font-weight: bold; margin-bottom: 2px;">{{ $articoloVetrina->testo_vetrina }}</div>
                             @else
-                                <div style="font-weight: bold; margin-bottom: 2px;">{{ Str::limit($articoloVetrina->articolo->descrizione, 50) }}</div>
+                                <div style="font-weight: bold; margin-bottom: 2px;">{{ Str::limit($articoloVetrina->descrizione_display, 50) }}</div>
                             @endif
                             <div style="font-size: 9px; color: var(--bs-secondary);">
                                 @php

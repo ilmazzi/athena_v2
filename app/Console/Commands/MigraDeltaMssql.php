@@ -1,0 +1,878 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use App\Models\Articolo;
+use App\Models\Giacenza;
+use App\Models\Ddt;
+use App\Models\DdtDettaglio;
+use App\Models\Fattura;
+use App\Models\FatturaDettaglio;
+use App\Models\Fornitore;
+
+class MigraDeltaMssql extends Command
+{
+    protected $signature = 'migra:delta-mssql {--dry-run : Simula senza salvare}';
+    protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
+
+    private bool $dryRun = false;
+    private array $stats = [
+        'fornitori' => 0,
+        'articoli' => 0,
+        'giacenze' => 0,
+        'ddt' => 0,
+        'ddt_dettagli' => 0,
+        'ddt_dettagli_skipped' => 0,
+        'fatture' => 0,
+        'fatture_dettagli' => 0,
+        'fatture_dettagli_skipped' => 0,
+        'errori' => 0,
+    ];
+
+    private array $ubicazioneToSedeMapping = [
+        0 => 1,
+        1 => 1,  // Lecco Cavour
+        2 => 3,  // Bellagio Monastero
+        3 => 4,  // Bellagio Mazzini
+        4 => 2,  // Jolly
+        5 => 5,  // Roma
+    ];
+
+    private array $codiciUsati = [];
+    private array $codiceCounters = [];
+
+    public function handle()
+    {
+        $this->dryRun = $this->option('dry-run');
+
+        $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
+        $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        if ($this->dryRun) {
+            $this->warn('🔍 MODALITÀ DRY-RUN: Nessuna modifica verrà salvata');
+        }
+        $this->newLine();
+
+        try {
+            DB::connection('mssql_prod')->getPdo();
+            $this->info('✅ Connessione MSSQL produzione: OK');
+        } catch (\Exception $e) {
+            $this->error('❌ Errore connessione MSSQL: ' . $e->getMessage());
+            return 1;
+        }
+
+        if (!$this->dryRun) {
+            DB::beginTransaction();
+        }
+
+        try {
+            $this->migraFornitori();
+            $this->migraArticoliEGiacenze();
+            $this->migraDdt();
+            $this->migraFatture();
+
+            if ($this->dryRun) {
+                $this->warn('🔄 Dry-run completato (nessuna modifica applicata).');
+            } else {
+                DB::commit();
+                $this->info('✅ Migrazione delta completata!');
+            }
+        } catch (\Exception $e) {
+            if (!$this->dryRun) {
+                DB::rollBack();
+            }
+            $this->error('❌ Errore durante migrazione delta: ' . $e->getMessage());
+            return 1;
+        }
+
+        $this->displaySummary();
+        return 0;
+    }
+
+    private function migraFornitori(): void
+    {
+        $this->info('🏢 FORNITORI (delta)');
+
+        $maxId = (int) (DB::table('fornitori')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table('mag_fornitori')
+            ->where('id', '>', $maxId)
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $bar = $this->output->createProgressBar($rows->count());
+
+        foreach ($rows as $forn) {
+            try {
+                if (!$this->dryRun) {
+                    Fornitore::create([
+                        'id' => $forn->id,
+                        'codice' => $forn->codice ?? 'FOR' . str_pad($forn->id, 4, '0', STR_PAD_LEFT),
+                        'ragione_sociale' => $forn->ragione_sociale ?? $forn->nome ?? 'Fornitore ' . $forn->id,
+                        'partita_iva' => $forn->partita_iva ?? null,
+                        'codice_fiscale' => $forn->codice_fiscale ?? null,
+                        'indirizzo' => $forn->indirizzo ?? null,
+                        'citta' => $forn->citta ?? null,
+                        'cap' => $forn->cap ?? null,
+                        'provincia' => $forn->provincia ?? null,
+                        'email' => $forn->email ?? null,
+                        'telefono' => $forn->telefono ?? null,
+                        'attivo' => $forn->attivo ?? true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+                $this->stats['fornitori']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ Fornitore {$forn->id}: {$e->getMessage()}");
+            }
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+    }
+
+    private function migraArticoliEGiacenze(): void
+    {
+        $this->info('💎 ARTICOLI + GIACENZE (delta)');
+
+        $maxId = (int) (DB::table('articoli')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table('elenco_articoli_magazzino')
+            ->where('id', '>', $maxId)
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $bar = $this->output->createProgressBar($rows->count());
+
+        foreach ($rows as $art) {
+            try {
+                $codiceBase = ($art->id_magazzino ?? '0') . '-' . ($art->carico ?? $art->id);
+                $codiceUnico = $this->generateUniqueCodice($codiceBase);
+
+                $descrizione = trim((string) ($art->descrizione ?? ''));
+                if ($descrizione === '') {
+                    $descrizione = 'Articolo ' . $art->id;
+                }
+
+                $sedeId = 1;
+                if (property_exists($art, 'ubicazione_magazzino')) {
+                    $sedeId = $this->ubicazioneToSedeMapping[$art->ubicazione_magazzino ?? 0] ?? 1;
+                }
+
+                $fornitoreId = $this->resolveFornitoreIdFromArticolo($art);
+
+                if (!$this->dryRun) {
+                    Articolo::create([
+                        'id' => $art->id,
+                        'codice' => $codiceUnico,
+                        'descrizione' => $descrizione,
+                        'descrizione_estesa' => $art->note ?? null,
+                        'categoria_merceologica_id' => $art->id_magazzino ?? null,
+                        'sede_id' => $sedeId,
+                        'fornitore_id' => $fornitoreId,
+                        'materiale' => $art->materiale ?? null,
+                        'colore' => $art->colore ?? null,
+                        'peso_lordo' => $art->peso_lordo ?? null,
+                        'peso_netto' => $art->peso_netto ?? null,
+                        'titolo' => $art->oro ?? null,
+                        'caratura' => $art->carati ?? null,
+                        'prezzo_acquisto' => $art->costo_unitario ?? 0,
+                        'prezzo_fornitore' => $art->prezzo_fornitore ?? null,
+                        'stato_articolo' => 'disponibile',
+                        'tipo_carico' => isset($art->fatturato) && $art->fatturato == 1 ? 'fattura' : 'ddt',
+                        'numero_documento_carico' => $art->numero_documento ?? null,
+                        'data_carico' => $art->data_documento ?? null,
+                        'in_vetrina' => (bool) ($art->vetrina ?? false),
+                        'foto_principale' => $art->foto_url ?? null,
+                        'caratteristiche' => json_encode([
+                            'marca' => $art->marca ?? null,
+                            'referenza' => $art->referenza ?? null,
+                        ]),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    // Giacenza
+                    $qta = isset($art->qta) ? (int) $art->qta : 1;
+                    $qtaResidua = $art->qta_residua ?? $qta;
+                    Giacenza::create([
+                        'articolo_id' => $art->id,
+                        'categoria_merceologica_id' => $art->id_magazzino ?? null,
+                        'sede_id' => $sedeId,
+                        'quantita' => $qta,
+                        'quantita_residua' => $qtaResidua,
+                        'quantita_deposito' => 0,
+                        'costo_unitario' => $art->costo_unitario ?? 0,
+                        'scaffale' => $art->ubicazione ?? null,
+                        'note' => $art->ubicazione ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                $this->stats['articoli']++;
+                $this->stats['giacenze']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ Articolo {$art->id}: {$e->getMessage()}");
+            }
+
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+    }
+
+    private function migraDdt(): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_testate')) {
+            $this->warn('⚠️  Tabella mag_ddt_articoli_testate non trovata, skip DDT');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('📄 DDT (delta)');
+
+        $maxId = (int) (DB::table('ddt')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table('mag_ddt_articoli_testate')
+            ->where('id', '>', $maxId)
+            ->whereNotNull('numero_documento')
+            ->where('numero_documento', '!=', '')
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $bar = $this->output->createProgressBar($rows->count());
+
+        $fornitoreFallbackId = Fornitore::where('ragione_sociale', 'DE PASCALIS S.P.A.')->value('id')
+            ?? Fornitore::min('id');
+
+        foreach ($rows as $d) {
+            try {
+                if (!$this->dryRun) {
+                    $fornitoreId = $this->resolveFornitoreIdFromId($d->fornitore ?? null, $fornitoreFallbackId);
+                    Ddt::create([
+                        'id' => $d->id,
+                        'numero' => $d->numero_documento,
+                        'data_documento' => $d->data_documento ?? now(),
+                        'anno' => date('Y', strtotime($d->data_documento ?? 'now')),
+                        'fornitore_id' => $fornitoreId,
+                        'stato' => 'caricato',
+                        'note' => $d->note ?? null,
+                        'data_carico' => $d->data_carico ?? null,
+                        'created_at' => $d->created_at ?? now(),
+                        'updated_at' => $d->updated_at ?? now(),
+                    ]);
+                }
+                $this->stats['ddt']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ DDT {$d->id}: {$e->getMessage()}");
+            }
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+
+        $this->migraDdtDettagli();
+    }
+
+    private function migraDdtDettagli(): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_dettagli')) {
+            $this->warn('⚠️  Tabella mag_ddt_articoli_dettagli non trovata, skip dettagli DDT');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('📋 DETTAGLI DDT (delta)');
+
+        $maxId = (int) (DB::table('ddt_dettagli')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table('mag_ddt_articoli_dettagli')
+            ->where('id', '>', $maxId)
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $this->importMissingArticoliForDdtDettagli($rows);
+
+        $bar = $this->output->createProgressBar($rows->count());
+
+        foreach ($rows as $det) {
+            try {
+                $ddtId = $det->id_testata ?? null;
+                $articoloId = $det->id_articolo ?? null;
+                if (!$ddtId || !Ddt::where('id', $ddtId)->exists()) {
+                    $bar->advance();
+                    continue;
+                }
+
+                $articoloExists = $articoloId && DB::table('articoli')->where('id', $articoloId)->exists();
+                if (!$articoloExists && $articoloId) {
+                    $imported = $this->importArticoloById($articoloId);
+                    $articoloExists = $imported || DB::table('articoli')->where('id', $articoloId)->exists();
+                }
+                if ($articoloExists) {
+                    $deletedAt = DB::table('articoli')->where('id', $articoloId)->value('deleted_at');
+                    if (!empty($deletedAt)) {
+                        DB::table('articoli')->where('id', $articoloId)->update(['deleted_at' => null]);
+                    }
+                    $this->ensureGiacenzaForArticolo($articoloId);
+                }
+                if (!$articoloExists) {
+                    throw new \RuntimeException("Articolo {$articoloId} mancante: dettaglio DDT {$det->id} non importabile");
+                }
+
+                if (!$this->dryRun) {
+                    $descrizione = $det->descrizione ?? null;
+                    if (!$descrizione && $articoloId) {
+                        $descrizione = Articolo::where('id', $articoloId)->value('descrizione');
+                    }
+                    DdtDettaglio::create([
+                        'id' => $det->id,
+                        'ddt_id' => $ddtId,
+                        'articolo_id' => $articoloId,
+                        'descrizione' => $descrizione,
+                        'quantita' => $det->qta_caricata ?? $det->quantita ?? 1,
+                        'prezzo_unitario' => $det->prezzo_unitario ?? null,
+                        'caricato' => true,
+                        'created_at' => $det->created_at ?? now(),
+                    ]);
+                }
+
+                $this->stats['ddt_dettagli']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ Dettaglio DDT {$det->id}: {$e->getMessage()}");
+            }
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+    }
+
+    private function importMissingArticoliForDdtDettagli($rows): void
+    {
+        $articoliIds = collect($rows)
+            ->pluck('id_articolo')
+            ->filter(fn($id) => !empty($id))
+            ->unique()
+            ->values();
+
+        if ($articoliIds->isEmpty()) {
+            return;
+        }
+
+        $missing = $articoliIds->reject(function ($id) {
+            return DB::table('articoli')->where('id', $id)->exists();
+        })->values();
+
+        if ($missing->isEmpty()) {
+            return;
+        }
+
+        $this->info("  ↳ Articoli mancanti dai dettagli DDT: {$missing->count()} (import in corso)");
+
+        $missing->chunk(500)->each(function ($chunk) {
+            $rows = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->whereIn('id', $chunk->all())
+                ->get();
+            if ($rows->isEmpty()) {
+                $this->warn("  ⚠️  Nessun articolo trovato in MSSQL per chunk: " . implode(',', $chunk->all()));
+            }
+
+            foreach ($rows as $art) {
+                try {
+                    $existing = DB::table('articoli')->where('id', $art->id)->first();
+                    if ($existing) {
+                        if (!empty($existing->deleted_at)) {
+                            DB::table('articoli')
+                                ->where('id', $art->id)
+                                ->update(['deleted_at' => null]);
+                        }
+                        continue;
+                    }
+
+                    $this->insertArticoloFromRow($art);
+
+                    $this->stats['articoli']++;
+                    $this->stats['giacenze']++;
+                } catch (\Exception $e) {
+                    $this->stats['errori']++;
+                    $this->error("  ❌ Articolo mancante {$art->id}: {$e->getMessage()}");
+                }
+            }
+        });
+    }
+
+    private function migraFatture(): void
+    {
+        $testateTable = $this->resolveFattureTestateTable();
+        $dettagliTable = $this->resolveFattureDettagliTable();
+
+        if (!$testateTable || !$dettagliTable) {
+            $this->warn('⚠️  Tabelle fatture non trovate in MSSQL, skip fatture');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('🧾 FATTURE (delta)');
+
+        $maxId = (int) (DB::table('fatture')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table($testateTable)
+            ->where('id', '>', $maxId)
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $bar = $this->output->createProgressBar($rows->count());
+
+        $fornitoreFallbackId = Fornitore::where('ragione_sociale', 'DE PASCALIS S.P.A.')->value('id')
+            ?? Fornitore::min('id');
+
+        foreach ($rows as $f) {
+            try {
+                if (!$this->dryRun) {
+                    $fornitoreId = $this->resolveFornitoreIdFromId($f->fornitore ?? null, $fornitoreFallbackId);
+                    $dataDocumento = $f->data_documento ?? $f->data_fattura ?? now();
+                    $numero = $f->numero_documento ?? $f->numero_fattura ?? $f->numero ?? $f->id;
+                    Fattura::create([
+                        'id' => $f->id,
+                        'numero' => $numero,
+                        'data_documento' => $dataDocumento,
+                        'anno' => date('Y', strtotime($dataDocumento ?? 'now')),
+                        'fornitore_id' => $fornitoreId,
+                        'imponibile' => $f->imponibile ?? 0,
+                        'iva' => $f->iva ?? 0,
+                        'totale' => $f->totale ?? 0,
+                        'stato' => 'caricato',
+                        'note' => $f->note ?? null,
+                        'created_at' => $f->created_at ?? now(),
+                        'updated_at' => $f->updated_at ?? now(),
+                    ]);
+                }
+                $this->stats['fatture']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ Fattura {$f->id}: {$e->getMessage()}");
+            }
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+
+        $this->migraFattureDettagli($dettagliTable);
+    }
+
+    private function migraFattureDettagli(string $dettagliTable): void
+    {
+        $this->info('📋 DETTAGLI FATTURE (delta)');
+
+        $maxId = (int) (DB::table('fatture_dettagli')->max('id') ?? 0);
+        $rows = DB::connection('mssql_prod')
+            ->table($dettagliTable)
+            ->where('id', '>', $maxId)
+            ->get();
+
+        $this->line("  Max ID attuale: {$maxId} | Nuovi: {$rows->count()}");
+        $bar = $this->output->createProgressBar($rows->count());
+
+        foreach ($rows as $det) {
+            try {
+                $fatturaId = $det->id_testata ?? $det->fattura_id ?? null;
+                $articoloId = $det->id_articolo ?? null;
+                if (!$fatturaId || !Fattura::where('id', $fatturaId)->exists()) {
+                    $bar->advance();
+                    continue;
+                }
+
+                $articoloExists = $articoloId && DB::table('articoli')->where('id', $articoloId)->exists();
+                if (!$articoloExists && $articoloId) {
+                    $imported = $this->importArticoloById($articoloId);
+                    $articoloExists = $imported || DB::table('articoli')->where('id', $articoloId)->exists();
+                }
+                if ($articoloExists) {
+                    $deletedAt = DB::table('articoli')->where('id', $articoloId)->value('deleted_at');
+                    if (!empty($deletedAt)) {
+                        DB::table('articoli')->where('id', $articoloId)->update(['deleted_at' => null]);
+                    }
+                    $this->ensureGiacenzaForArticolo($articoloId);
+                }
+                if (!$articoloExists) {
+                    throw new \RuntimeException("Articolo {$articoloId} mancante: dettaglio Fattura {$det->id} non importabile");
+                }
+
+                if (!$this->dryRun) {
+                    FatturaDettaglio::create([
+                        'id' => $det->id,
+                        'fattura_id' => $fatturaId,
+                        'articolo_id' => $articoloId,
+                        'codice_articolo' => $det->codice_articolo ?? null,
+                        'descrizione' => $det->descrizione ?? ('Articolo ' . $articoloId),
+                        'quantita' => $det->quantita ?? 1,
+                        'prezzo_unitario' => $det->prezzo_unitario ?? 0,
+                        'sconto_percentuale' => $det->sconto_percentuale ?? 0,
+                        'iva_percentuale' => $det->iva_percentuale ?? 22.00,
+                        'totale_riga' => $det->totale_riga ?? 0,
+                        'caricato' => true,
+                        'created_at' => $det->created_at ?? now(),
+                    ]);
+                }
+
+                $this->stats['fatture_dettagli']++;
+            } catch (\Exception $e) {
+                $this->stats['errori']++;
+                $this->error("  ❌ Dettaglio Fattura {$det->id}: {$e->getMessage()}");
+            }
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine();
+    }
+
+    private function resolveFattureTestateTable(): ?string
+    {
+        $candidates = [
+            'mag_fatture_testate',
+            'mag_fatture_articoli_testate',
+            'mag_fatture',
+        ];
+        foreach ($candidates as $table) {
+            if (Schema::connection('mssql_prod')->hasTable($table)) {
+                return $table;
+            }
+        }
+        return null;
+    }
+
+    private function resolveFattureDettagliTable(): ?string
+    {
+        $candidates = [
+            'mag_fatture_dettagli',
+            'mag_fatture_articoli_dettagli',
+            'mag_fatture_righe',
+        ];
+        foreach ($candidates as $table) {
+            if (Schema::connection('mssql_prod')->hasTable($table)) {
+                return $table;
+            }
+        }
+        return null;
+    }
+
+    private function resolveFornitoreIdFromId($value, ?int $fallbackId): ?int
+    {
+        if (is_numeric($value)) {
+            $id = (int) $value;
+            if (Fornitore::where('id', $id)->exists()) {
+                return $id;
+            }
+        }
+        return $fallbackId;
+    }
+
+    private function resolveFornitoreIdFromArticolo(object $art): ?int
+    {
+        $fallbackId = Fornitore::where('ragione_sociale', 'DE PASCALIS S.P.A.')->value('id')
+            ?? Fornitore::min('id');
+
+        if (property_exists($art, 'fornitore') && $art->fornitore) {
+            $value = $art->fornitore;
+            if (is_numeric($value) && Fornitore::where('id', (int) $value)->exists()) {
+                return (int) $value;
+            }
+            return $this->resolveFornitoreIdFromString((string) $value, $fallbackId);
+        }
+
+        if (property_exists($art, 'fornitore_import') && $art->fornitore_import) {
+            return $this->resolveFornitoreIdFromString((string) $art->fornitore_import, $fallbackId);
+        }
+
+        return $fallbackId;
+    }
+
+    private function resolveFornitoreIdFromString(string $ragioneSociale, ?int $fallbackId): ?int
+    {
+        $ragioneSociale = trim($ragioneSociale);
+        if ($ragioneSociale === '') {
+            return $fallbackId;
+        }
+
+        if (strcasecmp($ragioneSociale, 'NON INSERITO') === 0) {
+            $ragioneSociale = 'DE PASCALIS S.P.A.';
+        }
+
+        $fornitore = Fornitore::where('ragione_sociale', $ragioneSociale)->first();
+        if (!$fornitore) {
+            $fornitore = Fornitore::where('ragione_sociale', 'like', '%' . $ragioneSociale . '%')->first();
+        }
+        if ($fornitore) {
+            return $fornitore->id;
+        }
+
+        if ($this->dryRun) {
+            return $fallbackId;
+        }
+
+        $fornitore = Fornitore::create([
+            'ragione_sociale' => $ragioneSociale,
+            'note' => 'Creato da migrazione delta MSSQL',
+        ]);
+
+        return $fornitore->id;
+    }
+
+    private function importArticoloById(int $articoloId): bool
+    {
+        $art = DB::connection('mssql_prod')
+            ->table('elenco_articoli_magazzino')
+            ->where('id', $articoloId)
+            ->first();
+
+        if (!$art) {
+            return false;
+        }
+
+        $existing = DB::table('articoli')->where('id', $articoloId)->first();
+        if ($existing) {
+            if (!empty($existing->deleted_at)) {
+                DB::table('articoli')->where('id', $articoloId)->update(['deleted_at' => null]);
+            }
+            $this->syncExistingArticoloFromRow($art, $existing);
+            $this->ensureGiacenzaForArticolo($articoloId, $art);
+            return true;
+        }
+
+        $this->insertArticoloFromRow($art);
+        $this->stats['articoli']++;
+        $this->stats['giacenze']++;
+        return true;
+    }
+
+    private function ensureGiacenzaForArticolo(int $articoloId, ?object $art = null): void
+    {
+        $exists = DB::table('giacenze')->where('articolo_id', $articoloId)->exists();
+        if ($exists || $this->dryRun) {
+            return;
+        }
+
+        if (!$art) {
+            $art = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->where('id', $articoloId)
+                ->first();
+        }
+
+        $articolo = DB::table('articoli')->where('id', $articoloId)->first();
+        if (!$articolo) {
+            return;
+        }
+
+        $qta = $art ? (int) ($art->qta ?? 1) : 1;
+        $qtaResidua = $art ? ($art->qta_residua ?? $qta) : $qta;
+        $costo = $art ? ($art->costo_unitario ?? 0) : ($articolo->prezzo_acquisto ?? 0);
+        $scaffale = $art->ubicazione ?? null;
+        $note = $art->ubicazione ?? null;
+
+        DB::table('giacenze')->insert([
+            'articolo_id' => $articoloId,
+            'categoria_merceologica_id' => $articolo->categoria_merceologica_id ?? null,
+            'sede_id' => $articolo->sede_id ?? 1,
+            'quantita' => $qta,
+            'quantita_residua' => $qtaResidua,
+            'quantita_deposito' => 0,
+            'costo_unitario' => $costo,
+            'scaffale' => $scaffale,
+            'note' => $note,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->stats['giacenze']++;
+    }
+
+    private function syncExistingArticoloFromRow(object $art, object $existing): void
+    {
+        if ($this->dryRun) {
+            return;
+        }
+
+        $sedeId = $existing->sede_id ?? 1;
+        if (property_exists($art, 'ubicazione_magazzino')) {
+            $sedeId = $this->ubicazioneToSedeMapping[$art->ubicazione_magazzino ?? 0] ?? $sedeId;
+        }
+
+        $codiceBase = ($art->id_magazzino ?? '0') . '-' . ($art->carico ?? $art->id);
+        $codiceUnico = $existing->codice;
+        if (strpos((string) $existing->codice, $codiceBase) !== 0) {
+            $codiceUnico = $this->generateUniqueCodice($codiceBase);
+        }
+
+        DB::table('articoli')->where('id', $art->id)->update([
+            'codice' => $codiceUnico,
+            'descrizione' => $art->descrizione ?? $existing->descrizione ?? ('Articolo ' . $art->id),
+            'descrizione_estesa' => $art->note ?? $existing->descrizione_estesa,
+            'categoria_merceologica_id' => $art->id_magazzino ?? $existing->categoria_merceologica_id,
+            'sede_id' => $sedeId,
+            'materiale' => $art->materiale ?? $existing->materiale,
+            'colore' => $art->colore ?? $existing->colore,
+            'peso_lordo' => $art->peso_lordo ?? $existing->peso_lordo,
+            'peso_netto' => $art->peso_netto ?? $existing->peso_netto,
+            'titolo' => $art->oro ?? $existing->titolo,
+            'caratura' => $art->carati ?? $existing->caratura,
+            'prezzo_acquisto' => $art->costo_unitario ?? $existing->prezzo_acquisto,
+            'prezzo_fornitore' => $art->prezzo_fornitore ?? $existing->prezzo_fornitore,
+            'tipo_carico' => isset($art->fatturato) && $art->fatturato == 1 ? 'fattura' : 'ddt',
+            'numero_documento_carico' => $art->numero_documento ?? $existing->numero_documento_carico,
+            'data_carico' => $art->data_documento ?? $existing->data_carico,
+            'in_vetrina' => (bool) ($art->vetrina ?? false),
+            'foto_principale' => $art->foto_url ?? $existing->foto_principale,
+            'caratteristiche' => json_encode([
+                'marca' => $art->marca ?? null,
+                'referenza' => $art->referenza ?? null,
+            ]),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function insertArticoloFromRow(object $art): void
+    {
+        if ($this->dryRun) {
+            return;
+        }
+
+        $codiceBase = ($art->id_magazzino ?? '0') . '-' . ($art->carico ?? $art->id);
+        $codiceUnico = $this->generateUniqueCodice($codiceBase);
+        $descrizione = trim((string) ($art->descrizione ?? ''));
+        if ($descrizione === '') {
+            $descrizione = 'Articolo ' . $art->id;
+        }
+
+        $sedeId = 1;
+        if (property_exists($art, 'ubicazione_magazzino')) {
+            $sedeId = $this->ubicazioneToSedeMapping[$art->ubicazione_magazzino ?? 0] ?? 1;
+        }
+
+        $fornitoreId = $this->resolveFornitoreIdFromArticolo($art);
+
+        DB::beginTransaction();
+        try {
+            DB::table('articoli')->insert([
+                'id' => $art->id,
+                'codice' => $codiceUnico,
+                'descrizione' => $descrizione,
+                'descrizione_estesa' => $art->note ?? null,
+                'categoria_merceologica_id' => $art->id_magazzino ?? null,
+                'sede_id' => $sedeId,
+                'fornitore_id' => $fornitoreId,
+                'materiale' => $art->materiale ?? null,
+                'colore' => $art->colore ?? null,
+                'peso_lordo' => $art->peso_lordo ?? null,
+                'peso_netto' => $art->peso_netto ?? null,
+                'titolo' => $art->oro ?? null,
+                'caratura' => $art->carati ?? null,
+                'prezzo_acquisto' => $art->costo_unitario ?? 0,
+                'prezzo_fornitore' => $art->prezzo_fornitore ?? null,
+                'stato_articolo' => 'disponibile',
+                'tipo_carico' => isset($art->fatturato) && $art->fatturato == 1 ? 'fattura' : 'ddt',
+                'numero_documento_carico' => $art->numero_documento ?? null,
+                'data_carico' => $art->data_documento ?? null,
+                'in_vetrina' => (bool) ($art->vetrina ?? false),
+                'foto_principale' => $art->foto_url ?? null,
+                'caratteristiche' => json_encode([
+                    'marca' => $art->marca ?? null,
+                    'referenza' => $art->referenza ?? null,
+                ]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $exists = DB::table('articoli')->where('id', $art->id)->exists();
+            if (!$exists) {
+                throw new \RuntimeException("Insert articolo {$art->id} non riuscito");
+            }
+
+            $qta = isset($art->qta) ? (int) $art->qta : 1;
+            $qtaResidua = $art->qta_residua ?? $qta;
+            DB::table('giacenze')->insert([
+                'articolo_id' => $art->id,
+                'categoria_merceologica_id' => $art->id_magazzino ?? null,
+                'sede_id' => $sedeId,
+                'quantita' => $qta,
+                'quantita_residua' => $qtaResidua,
+                'quantita_deposito' => 0,
+                'costo_unitario' => $art->costo_unitario ?? 0,
+                'scaffale' => $art->ubicazione ?? null,
+                'note' => $art->ubicazione ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw new \RuntimeException("Insert articolo {$art->id} fallito: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    private function generateUniqueCodice(string $base): string
+    {
+        if (!isset($this->codiciUsati[$base])) {
+            $this->codiciUsati[$base] = true;
+        }
+
+        $code = $base;
+        $counter = $this->codiceCounters[$base] ?? 1;
+
+        while ($this->codiceExists($code)) {
+            $counter++;
+            $code = $base . '-' . $counter;
+        }
+
+        $this->codiceCounters[$base] = $counter;
+        $this->codiciUsati[$code] = true;
+
+        return $code;
+    }
+
+    private function codiceExists(string $code): bool
+    {
+        if (isset($this->codiciUsati[$code])) {
+            return true;
+        }
+        return DB::table('articoli')->where('codice', $code)->exists();
+    }
+
+    private function displaySummary(): void
+    {
+        $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        $this->info('📊 RIEPILOGO MIGRAZIONE DELTA');
+        $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        $this->line("Fornitori: {$this->stats['fornitori']}");
+        $this->line("Articoli: {$this->stats['articoli']}");
+        $this->line("Giacenze: {$this->stats['giacenze']}");
+        $this->line("DDT: {$this->stats['ddt']}");
+        $this->line("Dettagli DDT: {$this->stats['ddt_dettagli']}");
+        $this->line("Dettagli DDT saltati: {$this->stats['ddt_dettagli_skipped']}");
+        $this->line("Fatture: {$this->stats['fatture']}");
+        $this->line("Dettagli Fatture: {$this->stats['fatture_dettagli']}");
+        $this->line("Dettagli Fatture saltati: {$this->stats['fatture_dettagli_skipped']}");
+        if ($this->stats['errori'] > 0) {
+            $this->warn("Errori: {$this->stats['errori']}");
+        }
+        $this->newLine();
+        if ($this->dryRun) {
+            $this->warn('✅ DRY-RUN completato. Rimuovi --dry-run per applicare.');
+        }
+    }
+}

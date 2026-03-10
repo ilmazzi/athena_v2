@@ -5,10 +5,11 @@ namespace App\Http\Livewire;
 use App\Models\Vetrina;
 use App\Models\Articolo;
 use App\Models\ArticoloVetrina;
+use App\Models\CategoriaMerceologica;
 use App\Models\ProdottoFinito;
+use App\Models\Sede;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Illuminate\Support\Facades\DB;
 
 class VetrinaDetail extends Component
 {
@@ -19,11 +20,27 @@ class VetrinaDetail extends Component
     
     // Modal aggiunta articolo
     public $showAddModal = false;
+    public $addMode = 'interno'; // interno|esterno
     public $selectedArticolo = null;
     public $prezzo_vetrina = '';
     public $testo_vetrina = '';
     public $posizione = '';
     public $ripiano = '';
+
+    // Articolo NC (esterno)
+    public $descrizione_esterno = '';
+    public $categoria_merceologica_id_esterno = '';
+    public $sede_id_esterno = '';
+    public $foto_principale_esterno = '';
+    public $materiale_esterno = '';
+    public $titolo_esterno = '';
+    public $caratura_esterno = '';
+    public $colore_esterno = '';
+    public $peso_lordo_esterno = '';
+    public $peso_netto_esterno = '';
+    public $prezzo_acquisto_esterno = '';
+    public $prezzo_fornitore_esterno = '';
+    public $note_esterno = '';
     
     // Modal spostamento articolo
     public $showMoveModal = false;
@@ -34,12 +51,7 @@ class VetrinaDetail extends Component
         'search' => ['except' => ''],
     ];
 
-    protected $rules = [
-        'prezzo_vetrina' => 'required|string|max:50',
-        'testo_vetrina' => 'required|string|max:500',
-        'posizione' => 'nullable|integer|min:0',
-        'ripiano' => 'nullable|string|max:50',
-    ];
+    protected $rules = [];
 
     public function mount($id)
     {
@@ -54,11 +66,20 @@ class VetrinaDetail extends Component
     public function openAddModal()
     {
         $this->resetAddForm();
+        $this->addMode = 'interno';
         $this->showAddModal = true;
+    }
+
+    public function setAddMode(string $mode)
+    {
+        $this->addMode = $mode;
+        $this->selectedArticolo = null;
+        $this->resetValidation();
     }
 
     public function selectArticolo($articoloId)
     {
+        $this->addMode = 'interno';
         $this->selectedArticolo = Articolo::findOrFail($articoloId);
         
         // Se l'articolo ha già un ultimo testo vetrina salvato, lo proponiamo
@@ -74,10 +95,45 @@ class VetrinaDetail extends Component
 
     public function addArticoloToVetrina()
     {
-        $this->validate();
+        $this->validate($this->getAddRules());
 
         try {
+            if ($this->addMode === 'esterno') {
+                ArticoloVetrina::create([
+                    'vetrina_id' => $this->vetrina->id,
+                    'articolo_id' => null,
+                    'tipo_articolo' => 'esterno',
+                    'descrizione_esterno' => $this->descrizione_esterno,
+                    'categoria_merceologica_id' => $this->categoria_merceologica_id_esterno ?: null,
+                    'sede_id' => $this->sede_id_esterno ?: null,
+                    'foto_principale_esterno' => $this->foto_principale_esterno,
+                    'materiale_esterno' => $this->materiale_esterno,
+                    'titolo_esterno' => $this->titolo_esterno,
+                    'caratura_esterno' => $this->caratura_esterno,
+                    'colore_esterno' => $this->colore_esterno,
+                    'peso_lordo_esterno' => $this->peso_lordo_esterno,
+                    'peso_netto_esterno' => $this->peso_netto_esterno,
+                    'prezzo_acquisto_esterno' => $this->prezzo_acquisto_esterno,
+                    'prezzo_fornitore_esterno' => $this->prezzo_fornitore_esterno,
+                    'note_esterno' => $this->note_esterno,
+                    'prezzo_vetrina' => $this->prezzo_vetrina,
+                    'testo_vetrina' => $this->testo_vetrina,
+                    'posizione' => $this->posizione ?: 0,
+                    'ripiano' => $this->ripiano,
+                    'data_inserimento' => now()->toDateString(),
+                ]);
+
+                session()->flash('success', 'Articolo NC aggiunto alla vetrina');
+                $this->closeAddModal();
+                return;
+            }
+
             // Verifica che l'articolo non sia già in una vetrina
+            if (!$this->selectedArticolo) {
+                session()->flash('error', 'Seleziona un articolo');
+                return;
+            }
+
             $esisteInVetrina = ArticoloVetrina::where('articolo_id', $this->selectedArticolo->id)
                 ->whereNull('data_rimozione')
                 ->exists();
@@ -90,6 +146,7 @@ class VetrinaDetail extends Component
             ArticoloVetrina::create([
                 'vetrina_id' => $this->vetrina->id,
                 'articolo_id' => $this->selectedArticolo->id,
+                'tipo_articolo' => 'interno',
                 'prezzo_vetrina' => $this->prezzo_vetrina,
                 'testo_vetrina' => $this->testo_vetrina,
                 'posizione' => $this->posizione ?: 0,
@@ -211,19 +268,75 @@ class VetrinaDetail extends Component
         $this->testo_vetrina = '';
         $this->posizione = '';
         $this->ripiano = '';
+        $this->descrizione_esterno = '';
+        $this->categoria_merceologica_id_esterno = '';
+        $this->sede_id_esterno = '';
+        $this->foto_principale_esterno = '';
+        $this->materiale_esterno = '';
+        $this->titolo_esterno = '';
+        $this->caratura_esterno = '';
+        $this->colore_esterno = '';
+        $this->peso_lordo_esterno = '';
+        $this->peso_netto_esterno = '';
+        $this->prezzo_acquisto_esterno = '';
+        $this->prezzo_fornitore_esterno = '';
+        $this->note_esterno = '';
         $this->resetErrorBag();
+    }
+
+    private function getAddRules(): array
+    {
+        if ($this->addMode === 'esterno') {
+            return [
+                'descrizione_esterno' => 'required|string|max:255',
+                'categoria_merceologica_id_esterno' => 'nullable|exists:categorie_merceologiche,id',
+                'sede_id_esterno' => 'nullable|exists:sedi,id',
+                'foto_principale_esterno' => 'nullable|string|max:255',
+                'materiale_esterno' => 'nullable|string|max:100',
+                'titolo_esterno' => 'nullable|string|max:50',
+                'caratura_esterno' => 'nullable|string|max:50',
+                'colore_esterno' => 'nullable|string|max:50',
+                'peso_lordo_esterno' => 'nullable|numeric|min:0',
+                'peso_netto_esterno' => 'nullable|numeric|min:0',
+                'prezzo_acquisto_esterno' => 'nullable|numeric|min:0',
+                'prezzo_fornitore_esterno' => 'nullable|numeric|min:0',
+                'note_esterno' => 'nullable|string|max:1000',
+                'prezzo_vetrina' => 'required|string|max:50',
+                'testo_vetrina' => 'required|string|max:500',
+                'posizione' => 'nullable|integer|min:0',
+                'ripiano' => 'nullable|string|max:50',
+            ];
+        }
+
+        return [
+            'selectedArticolo' => 'required',
+            'prezzo_vetrina' => 'required|string|max:50',
+            'testo_vetrina' => 'required|string|max:500',
+            'posizione' => 'nullable|integer|min:0',
+            'ripiano' => 'nullable|string|max:50',
+        ];
     }
 
     public function render()
     {
         // Articoli attualmente in vetrina
-        $articoliInVetrina = ArticoloVetrina::with(['articolo.categoriaMerceologica', 'articolo.sede'])
+        $articoliInVetrina = ArticoloVetrina::with([
+            'articolo.categoriaMerceologica',
+            'articolo.sede',
+            'categoriaMerceologica',
+            'sede',
+        ])
             ->where('vetrina_id', $this->vetrina->id)
             ->whereNull('data_rimozione')
             ->when($this->search, function ($query) {
-                $query->whereHas('articolo', function ($q) {
-                    $q->where('codice', 'like', '%' . $this->search . '%')
-                      ->orWhere('descrizione', 'like', '%' . $this->search . '%');
+                $term = $this->search;
+                $query->where(function ($q) use ($term) {
+                    $q->whereHas('articolo', function ($sub) use ($term) {
+                        $sub->where('codice', 'like', '%' . $term . '%')
+                            ->orWhere('descrizione', 'like', '%' . $term . '%');
+                    })
+                    ->orWhere('descrizione_esterno', 'like', '%' . $term . '%')
+                    ->orWhere('testo_vetrina', 'like', '%' . $term . '%');
                 });
             })
             ->orderBy('posizione')
@@ -277,6 +390,12 @@ class VetrinaDetail extends Component
                 ->get();
         }
 
+        $categorieDisponibili = CategoriaMerceologica::withoutGlobalScope('user_sede')
+            ->orderBy('nome')
+            ->get();
+
+        $sediDisponibili = Sede::orderBy('nome')->get();
+
         // Altre vetrine per spostamento
         $altreVetrine = Vetrina::where('id', '!=', $this->vetrina->id)
             ->where('attiva', true)
@@ -288,6 +407,8 @@ class VetrinaDetail extends Component
             'articoliDisponibili' => $articoliDisponibili,
             'prodottiFinitiDisponibili' => $prodottiFinitiDisponibili,
             'altreVetrine' => $altreVetrine,
+            'categorieDisponibili' => $categorieDisponibili,
+            'sediDisponibili' => $sediDisponibili,
         ]);
     }
 }
