@@ -985,14 +985,19 @@ class MigraDeltaMssql extends Command
         $pending = $groups;
         $processed = [];
 
+        $safety = 0;
         while (!empty($pending)) {
+            $safety++;
+            if ($safety > 10000) {
+                $this->error('  ❌ Loop di ricalcolo troppo lungo, interrompo per evitare blocchi.');
+                break;
+            }
             $current = array_shift($pending);
             [$magazzino, $carico] = $current;
             $key = $magazzino . '|' . $carico;
             if (isset($processed[$key])) {
                 continue;
             }
-            $processed[$key] = true;
             $base = $magazzino . '-' . $carico;
 
             $idsGroup = DB::connection('mssql_prod')
@@ -1041,8 +1046,12 @@ class MigraDeltaMssql extends Command
                         $pending[] = $this->resolveGroupFromMssqlId($table, (int) $conflictId);
                     }
                 }
+                // Ripianifica il gruppo corrente dopo la risoluzione dei conflitti
+                $pending[] = [$magazzino, $carico];
                 continue;
             }
+
+            $processed[$key] = true;
 
             if ($this->dryRun) {
                 continue;
