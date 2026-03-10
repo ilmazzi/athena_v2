@@ -17,6 +17,7 @@ class DiffArticoliMssqlMysql extends Command
                             {--export-missing-mysql= : Path per esportare ID mancanti in MySQL}
                             {--export-missing-mssql= : Path per esportare ID mancanti in MSSQL}
                             {--purge-mysql-missing : Elimina da MySQL gli ID non presenti in MSSQL}
+                            {--force-delete : Esegue delete fisico invece di soft-delete}
                             {--dry-run : Simula senza eliminare}';
 
     protected $description = 'Confronta articoli tra MSSQL e MySQL e segnala discrepanze';
@@ -37,6 +38,7 @@ class DiffArticoliMssqlMysql extends Command
         $exportMissingMysql = $this->option('export-missing-mysql');
         $exportMissingMssql = $this->option('export-missing-mssql');
         $purgeMysqlMissing = (bool) $this->option('purge-mysql-missing');
+        $forceDelete = (bool) $this->option('force-delete');
         $dryRun = (bool) $this->option('dry-run');
 
         if (empty($toId)) {
@@ -157,9 +159,15 @@ class DiffArticoliMssqlMysql extends Command
             } else {
                 $deleted = 0;
                 foreach (array_chunk($missingInMssqlIds, 1000) as $chunkIds) {
-                    $deleted += DB::table('articoli')->whereIn('id', $chunkIds)->delete();
+                    if ($forceDelete) {
+                        $deleted += DB::table('articoli')->whereIn('id', $chunkIds)->delete();
+                    } else {
+                        $deleted += DB::table('articoli')
+                            ->whereIn('id', $chunkIds)
+                            ->update(['deleted_at' => now()]);
+                    }
                 }
-                $this->line("  Eliminati: {$deleted}");
+                $this->line($forceDelete ? "  Eliminati: {$deleted}" : "  Soft-deleted: {$deleted}");
             }
         }
 
