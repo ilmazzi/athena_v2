@@ -8,6 +8,7 @@ use App\Models\ArticoloVetrina;
 use App\Models\CategoriaMerceologica;
 use App\Models\ProdottoFinito;
 use App\Models\Sede;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Livewire\WithPagination;
 

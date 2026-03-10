@@ -26,7 +26,10 @@ class MigraDeltaMssql extends Command
                             {--normalize-from-id= : ID minimo per normalizzare codici}
                             {--align-categoria-by-codice : Allinea categoria_merceologica_id al prefisso del codice}
                             {--align-only-prefix= : Limita allineamento al prefisso (es. 5)}
-                            {--normalize-skip-categorie= : Categorie da escludere (es. 5,9)}';
+                            {--normalize-skip-categorie= : Categorie da escludere (es. 5,9)}
+                            {--rebuild-codici-from-mssql : Ricalcola codici in base a MSSQL (dup per base)}
+                            {--rebuild-only-prefix= : Limita ricalcolo al prefisso (es. 2)}
+                            {--rebuild-only-base= : Limita ricalcolo al base (es. 2-64443)}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
     private bool $dryRun = false;
@@ -68,6 +71,9 @@ class MigraDeltaMssql extends Command
         $normalizeSkipCategorie = $this->option('normalize-skip-categorie');
         $alignCategoria = $this->option('align-categoria-by-codice');
         $alignOnlyPrefix = $this->option('align-only-prefix');
+        $rebuildCodici = $this->option('rebuild-codici-from-mssql');
+        $rebuildOnlyPrefix = $this->option('rebuild-only-prefix');
+        $rebuildOnlyBase = $this->option('rebuild-only-base');
 
         $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
         $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -106,6 +112,9 @@ class MigraDeltaMssql extends Command
             }
             if ($alignCategoria) {
                 $this->alignCategoriaByCodice($alignOnlyPrefix);
+            }
+            if ($rebuildCodici) {
+                $this->rebuildCodiciFromMssql($rebuildOnlyPrefix, $rebuildOnlyBase);
             }
 
             if ($this->dryRun) {
@@ -807,6 +816,117 @@ class MigraDeltaMssql extends Command
         }
 
         $this->line("  Articoli riallineati: {$updated}");
+        $this->newLine();
+    }
+
+    private function rebuildCodiciFromMssql(?string $onlyPrefix, ?string $onlyBase): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
+            $this->warn('⚠️  Vista elenco_articoli_magazzino non trovata, skip');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('🧩 RICALCOLA CODICI DA MSSQL');
+
+        $baseMagazzino = null;
+        $baseCarico = null;
+        if (!empty($onlyBase)) {
+            if (!preg_match('/^(\d+)-(\d+)$/', $onlyBase, $matches)) {
+                $this->error('  ❌ --rebuild-only-base deve essere nel formato X-Y (es. 2-64443)');
+                $this->newLine();
+                return;
+            }
+            $baseMagazzino = (int) $matches[1];
+            $baseCarico = (int) $matches[2];
+        }
+
+        $dupQuery = DB::connection('mssql_prod')
+            ->table('elenco_articoli_magazzino')
+            ->select('id_magazzino', 'carico', DB::raw('COUNT(*) as cnt'))
+            ->whereNotNull('id_magazzino')
+            ->whereNotNull('carico');
+
+        if (!empty($onlyPrefix)) {
+            $dupQuery->where('id_magazzino', (int) $onlyPrefix);
+        }
+        if ($baseMagazzino !== null && $baseCarico !== null) {
+            $dupQuery->where('id_magazzino', $baseMagazzino)
+                ->where('carico', $baseCarico);
+        }
+
+        $groups = $dupQuery
+            ->groupBy('id_magazzino', 'carico')
+            ->having('cnt', '>', 1)
+            ->get();
+
+        $this->line("  Gruppi duplicati: {$groups->count()}");
+        if ($groups->isEmpty() || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        foreach ($groups as $group) {
+            $base = (int) $group->id_magazzino . '-' . (int) $group->carico;
+
+            $ids = DB::connection('mssql_prod')
+                ->table('elenco_articoli_magazzino')
+                ->where('id_magazzino', $group->id_magazzino)
+                ->where('carico', $group->carico)
+                ->orderBy('id')
+                ->pluck('id')
+                ->values();
+
+            if ($ids->isEmpty()) {
+                continue;
+            }
+
+            $existing = DB::table('articoli')
+                ->whereIn('id', $ids->all())
+                ->pluck('codice', 'id');
+
+            $desired = [];
+            foreach ($ids as $index => $id) {
+                $desired[$id] = $index === 0 ? $base : ($base . '-' . ($index + 1));
+            }
+
+            $needsUpdate = false;
+            foreach ($desired as $id => $code) {
+                if (!isset($existing[$id]) || $existing[$id] !== $code) {
+                    $needsUpdate = true;
+                    break;
+                }
+            }
+            if (!$needsUpdate) {
+                continue;
+            }
+
+            DB::transaction(function () use ($desired, $existing, &$updated) {
+                foreach ($desired as $id => $code) {
+                    if (!isset($existing[$id])) {
+                        continue;
+                    }
+                    DB::table('articoli')->where('id', $id)->update([
+                        'codice' => $code . '-TMP-' . $id,
+                        'updated_at' => now(),
+                    ]);
+                }
+
+                foreach ($desired as $id => $code) {
+                    if (!isset($existing[$id])) {
+                        continue;
+                    }
+                    DB::table('articoli')->where('id', $id)->update([
+                        'codice' => $code,
+                        'updated_at' => now(),
+                    ]);
+                    $updated++;
+                }
+            });
+        }
+
+        $this->line("  Codici ricalcolati: {$updated}");
         $this->newLine();
     }
 
