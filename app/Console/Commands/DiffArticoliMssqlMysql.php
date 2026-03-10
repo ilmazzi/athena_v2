@@ -17,6 +17,7 @@ class DiffArticoliMssqlMysql extends Command
                             {--export-missing-mysql= : Path per esportare ID mancanti in MySQL}
                             {--export-missing-mssql= : Path per esportare ID mancanti in MSSQL}
                             {--purge-mysql-missing : Elimina da MySQL gli ID non presenti in MSSQL}
+                            {--purge-exclude-prefix= : Prefissi/categorie da NON eliminare (es. 9,12)}
                             {--force-delete : Esegue delete fisico invece di soft-delete}
                             {--dry-run : Simula senza eliminare}';
 
@@ -38,6 +39,7 @@ class DiffArticoliMssqlMysql extends Command
         $exportMissingMysql = $this->option('export-missing-mysql');
         $exportMissingMssql = $this->option('export-missing-mssql');
         $purgeMysqlMissing = (bool) $this->option('purge-mysql-missing');
+        $purgeExcludePrefix = $this->option('purge-exclude-prefix');
         $forceDelete = (bool) $this->option('force-delete');
         $dryRun = (bool) $this->option('dry-run');
 
@@ -154,17 +156,26 @@ class DiffArticoliMssqlMysql extends Command
         if ($purgeMysqlMissing && !empty($missingInMssqlIds)) {
             $this->newLine();
             $this->warn("  Eliminazione MySQL mancanti in MSSQL: " . count($missingInMssqlIds));
+            $exclude = [];
+            if (!empty($purgeExcludePrefix)) {
+                $exclude = array_values(array_filter(array_map('intval', explode(',', $purgeExcludePrefix))));
+                if (!empty($exclude)) {
+                    $this->line("  Esclusi prefissi/categorie: " . implode(',', $exclude));
+                }
+            }
             if ($dryRun) {
                 $this->line('  Dry-run: nessuna eliminazione eseguita.');
             } else {
                 $deleted = 0;
                 foreach (array_chunk($missingInMssqlIds, 1000) as $chunkIds) {
+                    $query = DB::table('articoli')->whereIn('id', $chunkIds);
+                    if (!empty($exclude)) {
+                        $query->whereNotIn('categoria_merceologica_id', $exclude);
+                    }
                     if ($forceDelete) {
-                        $deleted += DB::table('articoli')->whereIn('id', $chunkIds)->delete();
+                        $deleted += $query->delete();
                     } else {
-                        $deleted += DB::table('articoli')
-                            ->whereIn('id', $chunkIds)
-                            ->update(['deleted_at' => now()]);
+                        $deleted += $query->update(['deleted_at' => now()]);
                     }
                 }
                 $this->line($forceDelete ? "  Eliminati: {$deleted}" : "  Soft-deleted: {$deleted}");
