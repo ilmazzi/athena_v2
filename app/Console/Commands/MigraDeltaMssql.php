@@ -17,7 +17,9 @@ class MigraDeltaMssql extends Command
 {
     protected $signature = 'migra:delta-mssql 
                             {--dry-run : Simula senza salvare}
-                            {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}';
+                            {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}
+                            {--backfill-ddt-descrizioni : Popola descrizione su ddt_dettagli da articoli}
+                            {--backfill-ddt-links : Crea/aggancia DDT e dettagli per articoli senza carico}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
     private bool $dryRun = false;
@@ -50,6 +52,8 @@ class MigraDeltaMssql extends Command
     {
         $this->dryRun = $this->option('dry-run');
         $forceMissing = $this->option('force-missing');
+        $backfillDescrizioni = $this->option('backfill-ddt-descrizioni');
+        $backfillLinks = $this->option('backfill-ddt-links');
 
         $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
         $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -74,6 +78,12 @@ class MigraDeltaMssql extends Command
             }
             $this->migraDdt();
             $this->migraFatture();
+            if ($backfillDescrizioni) {
+                $this->backfillDdtDettagliDescrizioni();
+            }
+            if ($backfillLinks) {
+                $this->backfillDdtLinksFromArticoli();
+            }
 
             if ($this->dryRun) {
                 $this->warn('🔄 Dry-run completato (nessuna modifica applicata).');
@@ -480,6 +490,129 @@ class MigraDeltaMssql extends Command
         });
 
         $bar->finish();
+        $this->newLine();
+    }
+
+    private function backfillDdtDettagliDescrizioni(): void
+    {
+        $this->info('📝 BACKFILL DESCRIZIONI DDT DETTAGLI');
+
+        $query = DB::table('ddt_dettagli')
+            ->where(function ($q) {
+                $q->whereNull('descrizione')
+                  ->orWhere('descrizione', '');
+            })
+            ->whereNotNull('articolo_id');
+
+        $count = (clone $query)->count();
+        $this->line("  Righe senza descrizione: {$count}");
+
+        if ($count === 0 || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        $query->orderBy('id')
+            ->chunkById(1000, function ($rows) use (&$updated) {
+                foreach ($rows as $row) {
+                    $descrizione = DB::table('articoli')
+                        ->where('id', $row->articolo_id)
+                        ->value('descrizione');
+                    if (!$descrizione) {
+                        continue;
+                    }
+                    $affected = DB::table('ddt_dettagli')
+                        ->where('id', $row->id)
+                        ->update(['descrizione' => $descrizione]);
+                    $updated += $affected;
+                }
+            });
+
+        $this->line("  Aggiornate descrizioni: {$updated}");
+        $this->newLine();
+    }
+
+    private function backfillDdtLinksFromArticoli(): void
+    {
+        $this->info('🔗 BACKFILL LINK DDT DA ARTICOLI');
+
+        if (!Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_testate') ||
+            !Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_dettagli')) {
+            $this->warn('⚠️  Tabelle DDT MSSQL non trovate, skip');
+            $this->newLine();
+            return;
+        }
+
+        $query = DB::table('articoli')
+            ->whereNotNull('numero_documento_carico')
+            ->where('numero_documento_carico', '!=', '')
+            ->whereDoesntHave('ddtDettaglio');
+
+        $count = (clone $query)->count();
+        $this->line("  Articoli senza DDT dettagli: {$count}");
+
+        if ($count === 0 || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $query->orderBy('id')
+            ->chunkById(500, function ($rows) {
+                foreach ($rows as $articolo) {
+                    $mssqlDet = DB::connection('mssql_prod')
+                        ->table('mag_ddt_articoli_dettagli')
+                        ->where('id_articolo', $articolo->id)
+                        ->orderByDesc('id')
+                        ->first();
+
+                    if (!$mssqlDet) {
+                        continue;
+                    }
+
+                    $ddtId = $mssqlDet->id_testata ?? null;
+                    if (!$ddtId) {
+                        continue;
+                    }
+
+                    $ddtExists = Ddt::where('id', $ddtId)->exists();
+                    if (!$ddtExists) {
+                        $ddtMssql = DB::connection('mssql_prod')
+                            ->table('mag_ddt_articoli_testate')
+                            ->where('id', $ddtId)
+                            ->first();
+                        if ($ddtMssql) {
+                            $fornitoreId = $this->resolveFornitoreIdFromId($ddtMssql->fornitore ?? null, Fornitore::min('id'));
+                            Ddt::create([
+                                'id' => $ddtMssql->id,
+                                'numero' => $ddtMssql->numero_documento ?? $articolo->numero_documento_carico,
+                                'data_documento' => $ddtMssql->data_documento ?? $articolo->data_carico ?? now(),
+                                'anno' => date('Y', strtotime($ddtMssql->data_documento ?? ($articolo->data_carico ?? 'now'))),
+                                'fornitore_id' => $fornitoreId,
+                                'stato' => 'caricato',
+                                'note' => $ddtMssql->note ?? null,
+                                'data_carico' => $ddtMssql->data_carico ?? null,
+                                'created_at' => $ddtMssql->created_at ?? now(),
+                                'updated_at' => $ddtMssql->updated_at ?? now(),
+                            ]);
+                        }
+                    }
+
+                    if (!DdtDettaglio::where('ddt_id', $ddtId)->where('articolo_id', $articolo->id)->exists()) {
+                        DdtDettaglio::create([
+                            'ddt_id' => $ddtId,
+                            'articolo_id' => $articolo->id,
+                            'descrizione' => $articolo->descrizione,
+                            'quantita' => $mssqlDet->qta_caricata ?? $mssqlDet->quantita ?? 1,
+                            'prezzo_unitario' => $mssqlDet->prezzo_unitario ?? null,
+                            'caricato' => true,
+                            'created_at' => $mssqlDet->created_at ?? now(),
+                        ]);
+                        $this->stats['ddt_dettagli']++;
+                    }
+                }
+            });
+
         $this->newLine();
     }
 

@@ -495,13 +495,8 @@ class ArticoliTable extends Component
             $residua = $articolo->giacenza->quantita_residua ?? 0;
             $mancante = max(0, $quantita - $residua);
 
-            if ($mancante === 0) {
-                session()->flash('error', 'Nessuna quantità da ripristinare per questo articolo');
-                return;
-            }
-
             $this->articoloDaRicaricare = $articolo;
-            $this->giacenzaMancante = $mancante;
+            $this->giacenzaMancante = $mancante > 0 ? $mancante : null;
             $this->quantitaDaRicaricare = 1;
             $this->showModalRicarico = true;
         } catch (\Exception $e) {
@@ -519,7 +514,7 @@ class ArticoliTable extends Component
             return;
         }
 
-        if ($this->quantitaDaRicaricare > $this->giacenzaMancante) {
+        if ($this->giacenzaMancante !== null && $this->quantitaDaRicaricare > $this->giacenzaMancante) {
             session()->flash('error', 'Quantità superiore al massimo ripristinabile');
             return;
         }
