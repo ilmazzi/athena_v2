@@ -765,7 +765,6 @@ class MigraDeltaMssql extends Command
 
         $fornitoreId = $this->resolveFornitoreIdFromArticolo($art);
 
-        DB::beginTransaction();
         try {
             DB::table('articoli')->insert([
                 'id' => $art->id,
@@ -817,10 +816,7 @@ class MigraDeltaMssql extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            DB::commit();
         } catch (\Throwable $e) {
-            DB::rollBack();
             throw new \RuntimeException("Insert articolo {$art->id} fallito: " . $e->getMessage(), 0, $e);
         }
     }
