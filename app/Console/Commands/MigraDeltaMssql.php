@@ -895,7 +895,7 @@ class MigraDeltaMssql extends Command
 
         $groups = $dupQuery
             ->groupBy('id_magazzino', 'carico')
-            ->having('cnt', '>', 1)
+            ->havingRaw('COUNT(*) > 1')
             ->get();
 
         $this->line("  Gruppi duplicati: {$groups->count()}");
