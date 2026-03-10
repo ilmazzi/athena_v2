@@ -826,8 +826,9 @@ class MigraDeltaMssql extends Command
 
     private function rebuildCodiciFromMssql(?string $onlyPrefix, ?string $onlyBase): void
     {
-        if (!Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
-            $this->warn('⚠️  Vista elenco_articoli_magazzino non trovata, skip');
+        $table = $this->resolveMssqlArticoliTable();
+        if (!$table) {
+            $this->warn('⚠️  Nessuna tabella articoli MSSQL trovata (elenco_articoli_magazzino/mag_articoli), skip');
             $this->newLine();
             return;
         }
@@ -847,7 +848,7 @@ class MigraDeltaMssql extends Command
         }
 
         $dupQuery = DB::connection('mssql_prod')
-            ->table('elenco_articoli_magazzino')
+            ->table($table)
             ->select('id_magazzino', 'carico', DB::raw('COUNT(*) as cnt'))
             ->whereNotNull('id_magazzino')
             ->whereNotNull('carico');
@@ -876,7 +877,7 @@ class MigraDeltaMssql extends Command
             $base = (int) $group->id_magazzino . '-' . (int) $group->carico;
 
             $ids = DB::connection('mssql_prod')
-                ->table('elenco_articoli_magazzino')
+                ->table($table)
                 ->where('id_magazzino', $group->id_magazzino)
                 ->where('carico', $group->carico)
                 ->orderBy('id')
@@ -937,8 +938,9 @@ class MigraDeltaMssql extends Command
 
     private function rebuildCodiciById(string $idsCsv): void
     {
-        if (!Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
-            $this->warn('⚠️  Vista elenco_articoli_magazzino non trovata, skip');
+        $table = $this->resolveMssqlArticoliTable();
+        if (!$table) {
+            $this->warn('⚠️  Nessuna tabella articoli MSSQL trovata (elenco_articoli_magazzino/mag_articoli), skip');
             $this->newLine();
             return;
         }
@@ -953,7 +955,7 @@ class MigraDeltaMssql extends Command
         $this->info('🧩 RICALCOLA CODICI PER ID');
 
         $rows = DB::connection('mssql_prod')
-            ->table('elenco_articoli_magazzino')
+            ->table($table)
             ->select('id', 'id_magazzino', 'carico')
             ->whereIn('id', $ids)
             ->get();
@@ -977,7 +979,7 @@ class MigraDeltaMssql extends Command
             $base = $magazzino . '-' . $carico;
 
             $idsGroup = DB::connection('mssql_prod')
-                ->table('elenco_articoli_magazzino')
+                ->table($table)
                 ->where('id_magazzino', $magazzino)
                 ->where('carico', $carico)
                 ->orderBy('id')
@@ -1038,6 +1040,17 @@ class MigraDeltaMssql extends Command
 
         $this->line("  Codici ricalcolati: {$updated}");
         $this->newLine();
+    }
+
+    private function resolveMssqlArticoliTable(): ?string
+    {
+        if (Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
+            return 'elenco_articoli_magazzino';
+        }
+        if (Schema::connection('mssql_prod')->hasTable('mag_articoli')) {
+            return 'mag_articoli';
+        }
+        return null;
     }
 
     private function migraFatture(): void
