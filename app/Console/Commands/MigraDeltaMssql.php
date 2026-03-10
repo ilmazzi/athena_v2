@@ -1044,13 +1044,27 @@ class MigraDeltaMssql extends Command
 
     private function resolveMssqlArticoliTable(): ?string
     {
-        if (Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
+        if ($this->mssqlViewExists('elenco_articoli_magazzino') || Schema::connection('mssql_prod')->hasTable('elenco_articoli_magazzino')) {
             return 'elenco_articoli_magazzino';
         }
         if (Schema::connection('mssql_prod')->hasTable('mag_articoli')) {
             return 'mag_articoli';
         }
         return null;
+    }
+
+    private function mssqlViewExists(string $viewName): bool
+    {
+        try {
+            $rows = DB::connection('mssql_prod')
+                ->select(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = ?",
+                    [$viewName]
+                );
+            return !empty($rows);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     private function migraFatture(): void
