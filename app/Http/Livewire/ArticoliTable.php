@@ -521,20 +521,34 @@ class ArticoliTable extends Component
 
         try {
             $articolo = Articolo::with('giacenza')->findOrFail($this->articoloDaRicaricare->id);
-            $residua = $articolo->giacenza->quantita_residua ?? 0;
-            $nuovaGiacenza = $residua + $this->quantitaDaRicaricare;
+            if (!$articolo->giacenza) {
+                DB::table('giacenze')->insert([
+                    'articolo_id' => $articolo->id,
+                    'categoria_merceologica_id' => $articolo->categoria_merceologica_id,
+                    'sede_id' => $articolo->sede_id,
+                    'quantita' => $this->quantitaDaRicaricare,
+                    'quantita_residua' => $this->quantitaDaRicaricare,
+                    'quantita_deposito' => 0,
+                    'costo_unitario' => $articolo->prezzo_acquisto ?? 0,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                $residua = $articolo->giacenza->quantita_residua ?? 0;
+                $quantita = $articolo->giacenza->quantita ?? 0;
+                $nuovaResidua = $residua + $this->quantitaDaRicaricare;
+                $nuovaQuantita = max($quantita, $nuovaResidua);
 
-            $articolo->giacenza()->update([
-                'quantita_residua' => $nuovaGiacenza
-            ]);
-
-            if ($articolo->stato_articolo === 'scaricato') {
-                $articolo->update([
-                    'stato_articolo' => 'disponibile',
-                    'scaricato_il' => null,
-                    'scaricato_da' => null
+                $articolo->giacenza()->update([
+                    'quantita' => $nuovaQuantita,
+                    'quantita_residua' => $nuovaResidua,
                 ]);
             }
+
+            $articolo->update([
+                'stato_articolo' => 'disponibile',
+                'stato' => 'disponibile',
+            ]);
 
             session()->flash('success', "Ripristinati {$this->quantitaDaRicaricare} pezzi di {$articolo->codice}");
             $this->chiudiModalRicarico();
