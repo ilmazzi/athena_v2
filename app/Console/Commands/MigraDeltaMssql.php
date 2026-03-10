@@ -23,7 +23,10 @@ class MigraDeltaMssql extends Command
                             {--backfill-giacenze : Crea giacenze mancanti dagli articoli MSSQL}
                             {--normalize-codici-base : Rimuove suffisso -N se il codice base non esiste}
                             {--normalize-since= : Data minima (YYYY-MM-DD) per normalizzare codici}
-                            {--normalize-from-id= : ID minimo per normalizzare codici}';
+                            {--normalize-from-id= : ID minimo per normalizzare codici}
+                            {--align-categoria-by-codice : Allinea categoria_merceologica_id al prefisso del codice}
+                            {--align-only-prefix= : Limita allineamento al prefisso (es. 5)}
+                            {--normalize-skip-categorie= : Categorie da escludere (es. 5,9)}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
     private bool $dryRun = false;
@@ -62,6 +65,9 @@ class MigraDeltaMssql extends Command
         $normalizeCodici = $this->option('normalize-codici-base');
         $normalizeSince = $this->option('normalize-since');
         $normalizeFromId = $this->option('normalize-from-id');
+        $normalizeSkipCategorie = $this->option('normalize-skip-categorie');
+        $alignCategoria = $this->option('align-categoria-by-codice');
+        $alignOnlyPrefix = $this->option('align-only-prefix');
 
         $this->info('🚀 MIGRAZIONE DELTA MSSQL (CRITERIO ID)');
         $this->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -96,7 +102,10 @@ class MigraDeltaMssql extends Command
                 $this->backfillGiacenzeFromMssql();
             }
             if ($normalizeCodici) {
-                $this->normalizeCodiciBase($normalizeSince, $normalizeFromId);
+                $this->normalizeCodiciBase($normalizeSince, $normalizeFromId, $normalizeSkipCategorie);
+            }
+            if ($alignCategoria) {
+                $this->alignCategoriaByCodice($alignOnlyPrefix);
             }
 
             if ($this->dryRun) {
@@ -700,12 +709,12 @@ class MigraDeltaMssql extends Command
         $this->newLine();
     }
 
-    private function normalizeCodiciBase(?string $since, ?string $fromId): void
+    private function normalizeCodiciBase(?string $since, ?string $fromId, ?string $skipCategorie): void
     {
         $this->info('🔧 NORMALIZZA CODICI BASE');
 
         $query = DB::table('articoli')
-            ->select('id', 'codice', 'created_at');
+            ->select('id', 'codice', 'created_at', 'categoria_merceologica_id');
 
         if (!empty($since)) {
             $query->whereDate('created_at', '>=', $since);
@@ -728,9 +737,18 @@ class MigraDeltaMssql extends Command
         }
 
         $updated = 0;
+        $skip = [];
+        if (!empty($skipCategorie)) {
+            $skip = array_values(array_filter(array_map('intval', explode(',', $skipCategorie))));
+        }
+
         foreach ($rows as $row) {
+            if (!empty($skip) && in_array((int) $row->categoria_merceologica_id, $skip, true)) {
+                continue;
+            }
+
             $codice = (string) $row->codice;
-            if (!preg_match('/^(.*)-(\d+)$/', $codice, $matches)) {
+            if (!preg_match('/^(\d+-\d+)-(\d+)$/', $codice, $matches)) {
                 continue;
             }
             $base = $matches[1];
@@ -743,6 +761,52 @@ class MigraDeltaMssql extends Command
         }
 
         $this->line("  Codici normalizzati: {$updated}");
+        $this->newLine();
+    }
+
+    private function alignCategoriaByCodice(?string $onlyPrefix): void
+    {
+        $this->info('🧭 ALLINEA CATEGORIA DAL CODICE');
+
+        $query = DB::table('articoli')
+            ->select('id', 'codice', 'categoria_merceologica_id');
+
+        if (!empty($onlyPrefix)) {
+            $prefix = (int) $onlyPrefix;
+            $query->where('codice', 'like', $prefix . '-%');
+        } else {
+            $query->whereRaw("codice REGEXP '^[0-9]+-'");
+        }
+
+        $rows = $query->orderBy('id')->get();
+        $this->line("  Candidati: {$rows->count()}");
+
+        if ($rows->isEmpty() || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        foreach ($rows as $row) {
+            if (!preg_match('/^(\d+)-/', (string) $row->codice, $m)) {
+                continue;
+            }
+            $prefix = (int) $m[1];
+            if ($prefix === (int) $row->categoria_merceologica_id) {
+                continue;
+            }
+            $categoriaExists = DB::table('categorie_merceologiche')->where('id', $prefix)->exists();
+            if (!$categoriaExists) {
+                continue;
+            }
+            DB::table('articoli')->where('id', $row->id)->update([
+                'categoria_merceologica_id' => $prefix,
+                'updated_at' => now(),
+            ]);
+            $updated++;
+        }
+
+        $this->line("  Articoli riallineati: {$updated}");
         $this->newLine();
     }
 

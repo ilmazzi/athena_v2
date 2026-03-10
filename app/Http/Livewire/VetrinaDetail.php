@@ -320,6 +320,9 @@ class VetrinaDetail extends Component
     public function render()
     {
         // Articoli attualmente in vetrina
+        $hasDescrizioneEsterno = Schema::hasColumn('articoli_vetrine', 'descrizione_esterno');
+        $hasTestoVetrina = Schema::hasColumn('articoli_vetrine', 'testo_vetrina');
+
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
@@ -335,8 +338,12 @@ class VetrinaDetail extends Component
                         $sub->where('codice', 'like', '%' . $term . '%')
                             ->orWhere('descrizione', 'like', '%' . $term . '%');
                     })
-                    ->orWhere('descrizione_esterno', 'like', '%' . $term . '%')
-                    ->orWhere('testo_vetrina', 'like', '%' . $term . '%');
+                    ->when($hasDescrizioneEsterno, function ($q) use ($term) {
+                        $q->orWhere('descrizione_esterno', 'like', '%' . $term . '%');
+                    })
+                    ->when($hasTestoVetrina, function ($q) use ($term) {
+                        $q->orWhere('testo_vetrina', 'like', '%' . $term . '%');
+                    });
                 });
             })
             ->orderBy('posizione')
