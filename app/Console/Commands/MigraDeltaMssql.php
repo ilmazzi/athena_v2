@@ -1011,11 +1011,7 @@ class MigraDeltaMssql extends Command
 
     private function resolveGroupFromMssqlId(string $table, int $id): array
     {
-        $row = DB::connection('mssql_prod')
-            ->table($table)
-            ->select('id_magazzino', 'carico', 'id')
-            ->where('id', $id)
-            ->first();
+        $row = $this->fetchMssqlRowById($table, $id);
         if (!$row) {
             return [0, $id];
         }
@@ -1030,11 +1026,7 @@ class MigraDeltaMssql extends Command
         $queue = $ids;
         while (!empty($queue)) {
             $batch = array_splice($queue, 0, 500);
-            $rows = DB::connection('mssql_prod')
-                ->table($table)
-                ->select('id', 'id_magazzino', 'carico')
-                ->whereIn('id', $batch)
-                ->get();
+            $rows = $this->fetchMssqlRowsByIds($table, $batch);
             foreach ($rows as $row) {
                 $magazzino = (int) ($row->id_magazzino ?? 0);
                 $carico = $row->carico ?? $row->id;
@@ -1123,6 +1115,60 @@ class MigraDeltaMssql extends Command
         }
 
         return [$desiredAll, $existingAll];
+    }
+
+    private function fetchMssqlRowsByIds(string $primaryTable, array $ids)
+    {
+        $rows = DB::connection('mssql_prod')
+            ->table($primaryTable)
+            ->select('id', 'id_magazzino', 'carico')
+            ->whereIn('id', $ids)
+            ->get();
+
+        if ($primaryTable === 'mag_articoli') {
+            return $rows;
+        }
+
+        $foundIds = $rows->pluck('id')->all();
+        $missing = array_values(array_diff($ids, $foundIds));
+        if (empty($missing)) {
+            return $rows;
+        }
+
+        if (!Schema::connection('mssql_prod')->hasTable('mag_articoli')) {
+            return $rows;
+        }
+
+        $fallback = DB::connection('mssql_prod')
+            ->table('mag_articoli')
+            ->select('id', 'id_magazzino', 'carico')
+            ->whereIn('id', $missing)
+            ->get();
+
+        return $rows->merge($fallback);
+    }
+
+    private function fetchMssqlRowById(string $primaryTable, int $id): ?object
+    {
+        $row = DB::connection('mssql_prod')
+            ->table($primaryTable)
+            ->select('id', 'id_magazzino', 'carico')
+            ->where('id', $id)
+            ->first();
+
+        if ($row || $primaryTable === 'mag_articoli') {
+            return $row;
+        }
+
+        if (!Schema::connection('mssql_prod')->hasTable('mag_articoli')) {
+            return null;
+        }
+
+        return DB::connection('mssql_prod')
+            ->table('mag_articoli')
+            ->select('id', 'id_magazzino', 'carico')
+            ->where('id', $id)
+            ->first();
     }
 
     private function resolveMssqlArticoliTable(): ?string
