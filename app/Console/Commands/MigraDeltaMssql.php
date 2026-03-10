@@ -30,6 +30,13 @@ class MigraDeltaMssql extends Command
                             {--rebuild-codici-from-mssql : Ricalcola codici in base a MSSQL (dup per base)}
                             {--rebuild-only-prefix= : Limita ricalcolo al prefisso (es. 2)}
                             {--rebuild-only-base= : Limita ricalcolo al base (es. 2-64443)}
+                            {--normalize-codici-mssql : Forza codici base per articoli MSSQL non duplicati}
+                            {--normalize-only-prefix= : Limita normalizzazione MSSQL al prefisso (es. 2)}
+                            {--normalize-exclude-prefix= : Escludi prefissi dalla normalizzazione MSSQL (es. 9)}
+                            {--sync-codici-mssql : Allinea codici a MSSQL (singoli=base, duplicati=-N)}
+                            {--sync-only-prefix= : Limita sync al prefisso (es. 2)}
+                            {--sync-exclude-prefix= : Escludi prefissi dal sync (es. 9)}
+                            {--sync-since= : Data minima (YYYY-MM-DD) per sync codici}
                             {--rebuild-by-id= : Ricalcola codice per ID specifici (es. 53114,52806)}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
@@ -72,6 +79,13 @@ class MigraDeltaMssql extends Command
         $normalizeSkipCategorie = $this->option('normalize-skip-categorie');
         $alignCategoria = $this->option('align-categoria-by-codice');
         $alignOnlyPrefix = $this->option('align-only-prefix');
+        $normalizeCodiciMssql = $this->option('normalize-codici-mssql');
+        $normalizeOnlyPrefix = $this->option('normalize-only-prefix');
+        $normalizeExcludePrefix = $this->option('normalize-exclude-prefix');
+        $syncCodiciMssql = $this->option('sync-codici-mssql');
+        $syncOnlyPrefix = $this->option('sync-only-prefix');
+        $syncExcludePrefix = $this->option('sync-exclude-prefix');
+        $syncSince = $this->option('sync-since');
         $rebuildCodici = $this->option('rebuild-codici-from-mssql');
         $rebuildOnlyPrefix = $this->option('rebuild-only-prefix');
         $rebuildOnlyBase = $this->option('rebuild-only-base');
@@ -116,10 +130,17 @@ class MigraDeltaMssql extends Command
                 $this->alignCategoriaByCodice($alignOnlyPrefix);
             }
             if ($rebuildCodici) {
-                $this->rebuildCodiciFromMssql($rebuildOnlyPrefix, $rebuildOnlyBase);
+                $this->rebuildCodiciFromMssql($rebuildOnlyPrefix, $rebuildOnlyBase, null);
             }
             if (!empty($rebuildById)) {
                 $this->rebuildCodiciById($rebuildById);
+            }
+            if ($normalizeCodiciMssql) {
+                $this->normalizeCodiciFromMssql($normalizeOnlyPrefix, $normalizeExcludePrefix, null);
+            }
+            if ($syncCodiciMssql) {
+                $this->normalizeCodiciFromMssql($syncOnlyPrefix, $syncExcludePrefix, $syncSince);
+                $this->rebuildCodiciFromMssql($syncOnlyPrefix, null, $syncExcludePrefix, $syncSince);
             }
 
             if ($this->dryRun) {
@@ -824,7 +845,7 @@ class MigraDeltaMssql extends Command
         $this->newLine();
     }
 
-    private function rebuildCodiciFromMssql(?string $onlyPrefix, ?string $onlyBase): void
+    private function rebuildCodiciFromMssql(?string $onlyPrefix, ?string $onlyBase, ?string $excludePrefix, ?string $onlySince): void
     {
         $table = $this->resolveMssqlArticoliTable();
         if (!$table) {
@@ -834,6 +855,9 @@ class MigraDeltaMssql extends Command
         }
 
         $this->info('🧩 RICALCOLA CODICI DA MSSQL');
+        if (!empty($onlySince)) {
+            $this->line("  Solo creati dal: {$onlySince}");
+        }
 
         $baseMagazzino = null;
         $baseCarico = null;
@@ -847,6 +871,11 @@ class MigraDeltaMssql extends Command
             $baseCarico = (int) $matches[2];
         }
 
+        $exclude = [];
+        if (!empty($excludePrefix)) {
+            $exclude = array_values(array_filter(array_map('intval', explode(',', $excludePrefix))));
+        }
+
         $dupQuery = DB::connection('mssql_prod')
             ->table($table)
             ->select('id_magazzino', 'carico', DB::raw('COUNT(*) as cnt'))
@@ -855,6 +884,9 @@ class MigraDeltaMssql extends Command
 
         if (!empty($onlyPrefix)) {
             $dupQuery->where('id_magazzino', (int) $onlyPrefix);
+        }
+        if (!empty($exclude)) {
+            $dupQuery->whereNotIn('id_magazzino', $exclude);
         }
         if ($baseMagazzino !== null && $baseCarico !== null) {
             $dupQuery->where('id_magazzino', $baseMagazzino)
@@ -890,7 +922,28 @@ class MigraDeltaMssql extends Command
 
             $existing = DB::table('articoli')
                 ->whereIn('id', $ids->all())
-                ->pluck('codice', 'id');
+                ->select('id', 'codice', 'created_at')
+                ->get()
+                ->keyBy('id');
+
+            if (!empty($onlySince)) {
+                $since = $onlySince;
+                $allRecent = true;
+                foreach ($ids as $id) {
+                    if (!$existing->has($id)) {
+                        $allRecent = false;
+                        break;
+                    }
+                    $createdAt = $existing[$id]->created_at ? substr((string) $existing[$id]->created_at, 0, 10) : null;
+                    if ($createdAt === null || $createdAt < $since) {
+                        $allRecent = false;
+                        break;
+                    }
+                }
+                if (!$allRecent) {
+                    continue;
+                }
+            }
 
             $desired = [];
             foreach ($ids as $index => $id) {
@@ -899,7 +952,7 @@ class MigraDeltaMssql extends Command
 
             $needsUpdate = false;
             foreach ($desired as $id => $code) {
-                if (!isset($existing[$id]) || $existing[$id] !== $code) {
+                if (!$existing->has($id) || $existing[$id]->codice !== $code) {
                     $needsUpdate = true;
                     break;
                 }
@@ -1115,6 +1168,113 @@ class MigraDeltaMssql extends Command
         }
 
         return [$desiredAll, $existingAll];
+    }
+
+    private function normalizeCodiciFromMssql(?string $onlyPrefix, ?string $excludePrefix, ?string $onlySince): void
+    {
+        $table = $this->resolveMssqlArticoliTable();
+        if (!$table) {
+            $this->warn('⚠️  Nessuna tabella/vista MSSQL trovata (elenco_articoli_magazzino/mag_articoli), skip');
+            $this->newLine();
+            return;
+        }
+
+        $this->info('🧷 NORMALIZZA CODICI DA MSSQL (SINGLETON)');
+        if (!empty($onlyPrefix)) {
+            $this->line("  Prefisso: {$onlyPrefix}");
+        }
+        if (!empty($excludePrefix)) {
+            $this->line("  Esclusi prefissi: {$excludePrefix}");
+        }
+        if (!empty($onlySince)) {
+            $this->line("  Solo creati dal: {$onlySince}");
+        }
+
+        $exclude = [];
+        if (!empty($excludePrefix)) {
+            $exclude = array_values(array_filter(array_map('intval', explode(',', $excludePrefix))));
+        }
+
+        $prefixFilter = '';
+        $params = [];
+        if (!empty($onlyPrefix)) {
+            $prefixFilter = 'WHERE t.id_magazzino = ?';
+            $params[] = (int) $onlyPrefix;
+        }
+
+        $sql = "
+            WITH singles AS (
+                SELECT id_magazzino, carico
+                FROM {$table}
+                GROUP BY id_magazzino, carico
+                HAVING COUNT(*) = 1
+            )
+            SELECT t.id, t.id_magazzino, t.carico
+            FROM {$table} t
+            INNER JOIN singles s
+                ON s.id_magazzino = t.id_magazzino
+               AND s.carico = t.carico
+            {$prefixFilter}
+        ";
+
+        $rows = DB::connection('mssql_prod')->select($sql, $params);
+        $total = count($rows);
+        $this->line("  Candidati: {$total}");
+        if ($total === 0 || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $updated = 0;
+        $skippedConflict = 0;
+        foreach ($rows as $row) {
+            $magazzino = (int) ($row->id_magazzino ?? 0);
+            if (!empty($exclude) && in_array($magazzino, $exclude, true)) {
+                continue;
+            }
+            $carico = $row->carico ?? $row->id;
+            $desired = $magazzino . '-' . $carico;
+
+            $current = DB::table('articoli')
+                ->where('id', $row->id)
+                ->select('codice', 'created_at')
+                ->first();
+            if ($current === null) {
+                continue;
+            }
+            if (!empty($onlySince)) {
+                $createdAt = $current->created_at ? substr((string) $current->created_at, 0, 10) : null;
+                if ($createdAt === null || $createdAt < $onlySince) {
+                    continue;
+                }
+            }
+            if ($current->codice === $desired) {
+                continue;
+            }
+
+            $conflict = DB::table('articoli')
+                ->where('codice', $desired)
+                ->where('id', '!=', $row->id)
+                ->exists();
+            if ($conflict) {
+                $skippedConflict++;
+                continue;
+            }
+
+            DB::table('articoli')
+                ->where('id', $row->id)
+                ->update([
+                    'codice' => $desired,
+                    'updated_at' => now(),
+                ]);
+            $updated++;
+        }
+
+        $this->line("  Codici aggiornati: {$updated}");
+        if ($skippedConflict > 0) {
+            $this->line("  Saltati per conflitto: {$skippedConflict}");
+        }
+        $this->newLine();
     }
 
     private function fetchMssqlRowsByIds(string $primaryTable, array $ids)
