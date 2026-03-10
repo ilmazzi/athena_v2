@@ -544,7 +544,7 @@ class MigraDeltaMssql extends Command
             return;
         }
 
-        $query = DB::table('articoli')
+        $query = Articolo::query()
             ->whereNotNull('numero_documento_carico')
             ->where('numero_documento_carico', '!=', '')
             ->whereDoesntHave('ddtDettaglio');
