@@ -116,8 +116,13 @@
                                     </td>
                                     <td>
                                         <span class="badge bg-light-primary text-primary">
-                                            {{ $movimentazione->dettagli_count }}
+                                            {{ $movimentazione->dettagli_distinct_count ?? $movimentazione->dettagli_count }}
                                         </span>
+                                        @if(($movimentazione->dettagli_pf_count ?? 0) > 0)
+                                            <span class="badge bg-light-warning text-warning ms-1">
+                                                PF {{ $movimentazione->dettagli_pf_count }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td>{{ \Illuminate\Support\Str::limit($movimentazione->note, 40) }}</td>
                                     <td class="text-end">

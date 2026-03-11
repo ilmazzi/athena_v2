@@ -6,6 +6,7 @@ use App\Models\Sede;
 use App\Models\Articolo;
 use App\Models\ProdottoFinito;
 use App\Models\Movimentazione;
+use App\Models\MovimentazioneDettaglio;
 use App\Services\GiacenzaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,14 @@ class MovimentazioneInternaController extends Controller
                 'creataDa',
             ])
             ->withCount('dettagli')
+            ->addSelect([
+                'dettagli_distinct_count' => MovimentazioneDettaglio::selectRaw(
+                    "COUNT(DISTINCT IF(prodotto_finito_id IS NOT NULL, CONCAT('PF-', prodotto_finito_id), CONCAT('A-', articolo_id)))"
+                )->whereColumn('movimentazione_id', 'movimentazioni.id'),
+                'dettagli_pf_count' => MovimentazioneDettaglio::selectRaw(
+                    "COUNT(DISTINCT prodotto_finito_id)"
+                )->whereColumn('movimentazione_id', 'movimentazioni.id'),
+            ])
             ->orderBy('data_movimentazione', 'desc');
 
         if ($request->filled('stato')) {

@@ -94,12 +94,54 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($movimentazione->dettagli as $dettaglio)
+                        @php
+                            $pfGroups = [];
+                            $pfOrder = [];
+                            $righe = [];
+                            foreach ($movimentazione->dettagli as $dettaglio) {
+                                if ($dettaglio->prodottoFinito) {
+                                    $pfId = $dettaglio->prodottoFinito->id;
+                                    if (!isset($pfGroups[$pfId])) {
+                                        $pfGroups[$pfId] = [
+                                            'pf' => $dettaglio->prodottoFinito,
+                                            'quantita' => null,
+                                            'componenti' => [],
+                                        ];
+                                        $pfOrder[] = $pfId;
+                                    }
+                                    if ($dettaglio->articolo_id === $dettaglio->prodottoFinito->articolo_risultante_id) {
+                                        $pfGroups[$pfId]['quantita'] = (int) $dettaglio->quantita;
+                                    } else {
+                                        $pfGroups[$pfId]['componenti'][] = $dettaglio;
+                                    }
+                                    continue;
+                                }
+                                $righe[] = $dettaglio;
+                            }
+                        @endphp
+
+                        @foreach($righe as $dettaglio)
                             <tr>
                                 <td><strong>{{ $dettaglio->articolo->codice ?? 'N/D' }}</strong></td>
                                 <td>{{ $dettaglio->articolo->descrizione ?? 'N/D' }}</td>
                                 <td class="text-center">{{ $dettaglio->quantita }}</td>
                             </tr>
+                        @endforeach
+
+                        @foreach($pfOrder as $pfId)
+                            @php($pfRow = $pfGroups[$pfId])
+                            <tr class="table-warning">
+                                <td><strong>{{ $pfRow['pf']->codice ?? 'PF' }}</strong></td>
+                                <td>{{ $pfRow['pf']->descrizione ?? 'Prodotto finito' }}</td>
+                                <td class="text-center">{{ $pfRow['quantita'] ?? 1 }}</td>
+                            </tr>
+                            @foreach($pfRow['componenti'] as $comp)
+                                <tr>
+                                    <td class="ps-4">{{ $comp->articolo->codice ?? 'N/D' }}</td>
+                                    <td class="text-muted">{{ $comp->articolo->descrizione ?? 'N/D' }}</td>
+                                    <td class="text-center">{{ $comp->quantita }}</td>
+                                </tr>
+                            @endforeach
                         @endforeach
                     </tbody>
                 </table>

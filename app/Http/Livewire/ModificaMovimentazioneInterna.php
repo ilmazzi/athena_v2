@@ -31,6 +31,7 @@ class ModificaMovimentazioneInterna extends Component
         $this->movimentazioneId = $movimentazione;
         $this->movimentazione = Movimentazione::with([
             'dettagli.articolo',
+            'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
             'creataDa',
@@ -41,7 +42,7 @@ class ModificaMovimentazioneInterna extends Component
         $this->trasportoMezzo = $this->movimentazione->trasporto_mezzo ?? '';
         $this->aspettoBeni = $this->movimentazione->aspetto_beni ?? '';
         $this->colli = $this->movimentazione->colli ?? '';
-        $this->vettore = $this->movimentazione->vettore ?? '';
+        $this->vettore = $this->movimentazione->vettore ?? ''; 
     }
 
     public function salvaModifiche()
