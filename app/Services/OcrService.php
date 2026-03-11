@@ -1124,6 +1124,20 @@ class OcrService
             }
         }
 
+        $prezzoLines = $this->extractSectionLines(
+            $text,
+            '/Prezzo/i',
+            ['/Sconto/i', '/%/i', '/Importo/i']
+        );
+        $prezzi = $this->buildRolexAmounts($prezzoLines);
+
+        $importoLines = $this->extractSectionLines(
+            $text,
+            '/Importo/i',
+            ['/Totale/i', '/IVA/i']
+        );
+        $importi = $this->buildRolexAmounts($importoLines);
+
         $articoli = [];
         foreach ($codici as $idx => $codice) {
             $qty = $quantitaList[$idx] ?? 1;
@@ -1135,6 +1149,14 @@ class OcrService
 
             if (isset($serials[$idx])) {
                 $articolo['numero_seriale'] = $serials[$idx];
+            }
+
+            if (isset($prezzi[$idx])) {
+                $articolo['prezzo_unitario'] = $prezzi[$idx];
+            }
+
+            if (isset($importi[$idx])) {
+                $articolo['prezzo_totale'] = $importi[$idx];
             }
 
             $articoli[$codice] = $articolo;
@@ -1179,6 +1201,26 @@ class OcrService
         }
 
         return array_values(array_filter($descrizioni, static fn ($value) => $value !== ''));
+    }
+
+    /**
+     * Estrae importi numerici da una colonna Rolex.
+     */
+    protected function buildRolexAmounts(array $lines): array
+    {
+        $values = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || preg_match('/\b(TOTALE|IVA|IMPOSTA)\b/i', $line)) {
+                continue;
+            }
+
+            if (preg_match('/(\d{1,3}(?:\.\d{3})*,\d{2})/', $line, $m)) {
+                $values[] = $this->parsePriceToFloat($m[1]);
+            }
+        }
+
+        return $values;
     }
 
     /**
