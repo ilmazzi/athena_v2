@@ -11,7 +11,12 @@ return [
     |
     */
 
-    'tesseract_path' => env('TESSERACT_PATH', 'C:/Program Files/Tesseract-OCR/tesseract.exe'),
+    'tesseract_path' => env(
+        'TESSERACT_PATH',
+        PHP_OS_FAMILY === 'Windows'
+            ? 'C:/Program Files/Tesseract-OCR/tesseract.exe'
+            : 'tesseract'
+    ),
     
     'tesseract_lang' => env('TESSERACT_LANG', 'ita'),
     
