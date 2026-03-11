@@ -1116,7 +1116,8 @@ class OcrService
             if ($line === '') {
                 continue;
             }
-            if (preg_match('/^[A-Z0-9]{6,12}$/', $line)) {
+            // Seriali Rolex: alfanumerico 6-12 con almeno una cifra
+            if (preg_match('/^(?=.*\d)[A-Z0-9]{6,12}$/', $line)) {
                 $serials[] = $line;
             }
         }
@@ -1153,6 +1154,11 @@ class OcrService
             ['/Totale/i', '/IVA/i']
         );
         $importi = $this->buildRolexAmounts($importoLines);
+
+        $expectedCount = count($codici);
+        if ($expectedCount > 0) {
+            $descrizioni = $this->normalizeRolexDescriptions($descrizioni, $expectedCount);
+        }
 
         $articoli = [];
         foreach ($codici as $idx => $codice) {
@@ -1242,6 +1248,81 @@ class OcrService
 
             $normalized = preg_replace('/\s+/', ' ', $chunk);
             $descrizioni[] = $normalized;
+        }
+
+        return $descrizioni;
+    }
+
+    /**
+     * Normalizza la lista descrizioni per allinearla al numero di codici.
+     */
+    protected function normalizeRolexDescriptions(array $descrizioni, int $expected): array
+    {
+        $descrizioni = array_values(array_filter($descrizioni, static fn ($v) => $v !== ''));
+        $count = count($descrizioni);
+
+        if ($count === $expected || $expected === 0) {
+            return $descrizioni;
+        }
+
+        $startRegex = '/\b(ROLEX|DATEJUST|SUBMARINER|SKY-DWELLER|DEEPSEA|GMT-MASTER|EXPLORER|DAY-DATE|BLACK BAY|PERPETUAL|OYSTER|1908)\b/i';
+
+        // Se abbiamo meno descrizioni dei codici, prova a splittare le più lunghe.
+        while ($count < $expected) {
+            $splitDone = false;
+            foreach ($descrizioni as $idx => $desc) {
+                if (preg_match_all($startRegex, $desc, $m, PREG_OFFSET_CAPTURE) && count($m[0]) > 1) {
+                    $parts = preg_split($startRegex, $desc, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+                    if (count($parts) >= 2) {
+                        $rebuild = [];
+                        $buffer = '';
+                        foreach ($parts as $part) {
+                            if (preg_match($startRegex, $part) && $buffer !== '') {
+                                $rebuild[] = trim($buffer);
+                                $buffer = $part;
+                            } else {
+                                $buffer = trim($buffer . ' ' . $part);
+                            }
+                        }
+                        if ($buffer !== '') {
+                            $rebuild[] = trim($buffer);
+                        }
+
+                        if (count($rebuild) > 1) {
+                            array_splice($descrizioni, $idx, 1, $rebuild);
+                            $splitDone = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $count = count($descrizioni);
+            if (!$splitDone) {
+                break;
+            }
+        }
+
+        // Se abbiamo più descrizioni dei codici, unisci le più corte alle successive.
+        while ($count > $expected) {
+            $shortestIdx = 0;
+            $shortestLen = PHP_INT_MAX;
+            foreach ($descrizioni as $idx => $desc) {
+                $len = strlen($desc);
+                if ($len < $shortestLen) {
+                    $shortestLen = $len;
+                    $shortestIdx = $idx;
+                }
+            }
+
+            if (isset($descrizioni[$shortestIdx + 1])) {
+                $descrizioni[$shortestIdx] = trim($descrizioni[$shortestIdx] . ' ' . $descrizioni[$shortestIdx + 1]);
+                array_splice($descrizioni, $shortestIdx + 1, 1);
+            } else {
+                break;
+            }
+
+            $count = count($descrizioni);
         }
 
         return $descrizioni;
