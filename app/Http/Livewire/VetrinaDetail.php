@@ -361,9 +361,25 @@ class VetrinaDetail extends Component
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
-            'articolo.prodottoFinito.componentiArticoli.articolo',
+            'articolo.prodottoFinito' => function ($query) {
+                $query->with([
+                    'componentiArticoli' => function ($componentiQuery) {
+                        $componentiQuery->with([
+                            'articolo' => function ($articoloQuery) {
+                                $articoloQuery->withoutGlobalScopes();
+                            },
+                        ]);
+                    },
+                ]);
+            },
             'prodottoFinito.categoriaMerceologica.sede',
-            'prodottoFinito.componentiArticoli.articolo',
+            'prodottoFinito.componentiArticoli' => function ($componentiQuery) {
+                $componentiQuery->with([
+                    'articolo' => function ($articoloQuery) {
+                        $articoloQuery->withoutGlobalScopes();
+                    },
+                ]);
+            },
             'categoriaMerceologica',
             'sede',
         ])
