@@ -6,7 +6,6 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Sede;
 use App\Models\Articolo;
-use App\Models\ProdottoFinito;
 use App\Models\CategoriaMerceologica;
 use App\Services\MovimentazioneService;
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
@@ -40,13 +39,11 @@ class MovimentazioneInternaNew extends Component
     public $vettore = '';
     
     // Filtri
-    public $tipoItem = 'articoli'; // 'articoli' | 'prodotti_finiti'
     public $categoriaId = null;
     public $search = '';
     
     // Selezioni
     public $articoliSelezionati = [];
-    public $prodottiFinitiSelezionati = [];
     
     // Modal
     public $showMovimentazioneModal = false;
@@ -143,11 +140,11 @@ class MovimentazioneInternaNew extends Component
     
     public function getArticoliDisponibiliProperty()
     {
-        if (!$this->sedeOrigineId || $this->tipoItem !== 'articoli') {
+        if (!$this->sedeOrigineId) {
             return collect();
         }
 
-        $query = Articolo::with(['categoriaMerceologica', 'giacenza'])
+        $query = Articolo::with(['categoriaMerceologica', 'giacenza', 'prodottoFinito.componentiArticoli.articolo'])
             ->where('sede_id', $this->sedeOrigineId)
             ->where('stato', 'disponibile')
             // SOLO articoli con giacenza disponibile
@@ -171,27 +168,6 @@ class MovimentazioneInternaNew extends Component
         return $query->orderBy('codice')->paginate(20);
     }
     
-    public function getProdottiFinitiDisponibiliProperty()
-    {
-        if (!$this->sedeOrigineId || $this->tipoItem !== 'prodotti_finiti') {
-            return collect();
-        }
-        
-        $query = ProdottoFinito::with(['componentiArticoli.articolo'])
-            ->whereHas('componentiArticoli.articolo', function($q) {
-                $q->where('sede_id', $this->sedeOrigineId);
-            })
-            ->where('stato', 'completato');
-            
-        if ($this->search) {
-            $query->where(function($q) {
-                $q->where('codice', 'like', "%{$this->search}%")
-                  ->orWhere('descrizione', 'like', "%{$this->search}%");
-            });
-        }
-        
-        return $query->orderBy('codice')->paginate(20);
-    }
     
     // ==========================================
     // ACTIONS
@@ -202,7 +178,7 @@ class MovimentazioneInternaNew extends Component
         if (isset($this->articoliSelezionati[$articoloId])) {
             unset($this->articoliSelezionati[$articoloId]);
         } else {
-            $articolo = Articolo::with('giacenza')->findOrFail($articoloId);
+            $articolo = Articolo::with(['giacenza', 'categoriaMerceologica', 'prodottoFinito.componentiArticoli.articolo'])->findOrFail($articoloId);
             
             // Verifica se in conto deposito
             if ($articolo->isInContoDeposito()) {
@@ -218,15 +194,30 @@ class MovimentazioneInternaNew extends Component
                 return;
             }
             
+            $isPf = (bool) $articolo->prodottoFinito;
+            $componenti = [];
+            if ($isPf) {
+                $componenti = $articolo->prodottoFinito->componentiArticoli->map(function ($componente) {
+                    return [
+                        'articolo_id' => $componente->articolo_id,
+                        'codice' => $componente->articolo->codice ?? 'N/A',
+                        'descrizione' => $componente->articolo->descrizione ?? 'N/A',
+                        'quantita' => $componente->quantita,
+                    ];
+                })->values()->all();
+            }
+
             $this->articoliSelezionati[$articoloId] = [
                 'articolo_id' => $articoloId,
                 'quantita' => 1,
-                'max_quantita' => $quantitaDisponibile,
+                'max_quantita' => $isPf ? min(1, $quantitaDisponibile) : $quantitaDisponibile,
                 'codice' => $articolo->codice,
                 'descrizione' => $articolo->descrizione,
                 'categoria' => $articolo->categoriaMerceologica->nome ?? 'N/A',
                 'in_vetrina' => $articolo->isInVetrina(),
                 'warning_vetrina' => $articolo->isInVetrina() ? "Articolo in vetrina - sarà rimosso automaticamente" : null,
+                'is_pf' => $isPf,
+                'componenti' => $componenti,
             ];
             
             // Alert se in vetrina
@@ -236,44 +227,16 @@ class MovimentazioneInternaNew extends Component
         }
     }
     
-    public function toggleProdottoFinito($pfId)
-    {
-        if (isset($this->prodottiFinitiSelezionati[$pfId])) {
-            unset($this->prodottiFinitiSelezionati[$pfId]);
-        } else {
-            $pf = ProdottoFinito::with('componentiArticoli.articolo')->findOrFail($pfId);
-            $componenti = $pf->componentiArticoli->map(function ($componente) {
-                return [
-                    'articolo_id' => $componente->articolo_id,
-                    'codice' => $componente->articolo->codice ?? 'N/A',
-                    'descrizione' => $componente->articolo->descrizione ?? 'N/A',
-                    'quantita' => $componente->quantita,
-                ];
-            })->values()->all();
-            
-            $this->prodottiFinitiSelezionati[$pfId] = [
-                'prodotto_finito_id' => $pfId,
-                'quantita' => 1,
-                'codice' => $pf->codice,
-                'descrizione' => $pf->descrizione,
-                'componenti' => $componenti,
-            ];
-        }
-    }
 
     public function rimuoviArticoloSelezionato($articoloId)
     {
         unset($this->articoliSelezionati[$articoloId]);
     }
 
-    public function rimuoviProdottoFinitoSelezionato($pfId)
-    {
-        unset($this->prodottiFinitiSelezionati[$pfId]);
-    }
     
     public function apriMovimentazioneModal()
     {
-        if (empty($this->articoliSelezionati) && empty($this->prodottiFinitiSelezionati)) {
+        if (empty($this->articoliSelezionati)) {
             session()->flash('error', 'Seleziona almeno un articolo o prodotto finito da spostare');
             return;
         }
@@ -297,11 +260,11 @@ class MovimentazioneInternaNew extends Component
         \Log::info("🚀 INIZIO eseguiMovimentazione");
         \Log::info("📊 Dati: sedeOrigine={$this->sedeOrigineId}, sedeDestinazione={$this->sedeDestinazioneId}");
         \Log::info("📦 Articoli selezionati: " . count($this->articoliSelezionati));
-        \Log::info("🏆 PF selezionati: " . count($this->prodottiFinitiSelezionati));
+        \Log::info("🏆 PF selezionati: " . collect($this->articoliSelezionati)->where('is_pf', true)->count());
         
         $this->validate();
         
-        if (empty($this->articoliSelezionati) && empty($this->prodottiFinitiSelezionati)) {
+        if (empty($this->articoliSelezionati)) {
             session()->flash('error', 'Seleziona almeno un articolo o prodotto finito da spostare');
             return;
         }
@@ -316,10 +279,6 @@ class MovimentazioneInternaNew extends Component
                 $articoloCampione = null;
                 if (!empty($this->articoliSelezionati)) {
                     $articoloCampione = Articolo::findOrFail(reset($this->articoliSelezionati)['articolo_id']);
-                } elseif (!empty($this->prodottiFinitiSelezionati)) {
-                    $pfCampione = ProdottoFinito::with('componentiArticoli.articolo')
-                        ->findOrFail(reset($this->prodottiFinitiSelezionati)['prodotto_finito_id']);
-                    $articoloCampione = $pfCampione->componentiArticoli->first()?->articolo;
                 }
 
                 if (!$articoloCampione) {
@@ -344,6 +303,55 @@ class MovimentazioneInternaNew extends Component
                 foreach ($this->articoliSelezionati as $articoloData) {
                     $articolo = Articolo::findOrFail($articoloData['articolo_id']);
                     
+                    if (!empty($articoloData['is_pf'])) {
+                        $pf = $articolo->prodottoFinito()->with('componentiArticoli.articolo')->first();
+                        if (!$pf) {
+                            throw new \Exception("Il PF {$articolo->codice} non è collegato correttamente.");
+                        }
+                        $destCategoriaResult = $this->getPfCategoriaBySede($this->sedeDestinazioneId);
+                        if (!$articolo->giacenza || $articolo->giacenza->quantita_residua <= 0) {
+                            throw new \Exception("Il PF {$articolo->codice} non ha giacenza disponibile per movimentazione.");
+                        }
+
+                        $dto = new MovimentazioneDTO(
+                            articoloId: $articolo->id,
+                            quantita: $articoloData['quantita'] ?? 1,
+                            magazzinoOrigineId: $articolo->categoria_merceologica_id,
+                            magazzinoDestinazioneId: $destCategoriaResult,
+                            dataMovimentazione: $this->dataMovimentazione,
+                            note: "Spostamento PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
+                            prodottoFinitoId: $pf->id
+                        );
+                        $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
+                        $totaleMovimentazioni++;
+
+                        $articolo->update([
+                            'sede_id' => $this->sedeDestinazioneId,
+                            'categoria_merceologica_id' => $destCategoriaResult,
+                        ]);
+                        $pf->update(['magazzino_id' => $destCategoriaResult]);
+
+                        foreach ($pf->componentiArticoli as $componente) {
+                            $articoloComponente = $componente->articolo;
+                            $destCategoria = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloComponente);
+
+                            $dto = new MovimentazioneDTO(
+                                articoloId: $articoloComponente->id,
+                                quantita: $componente->quantita,
+                                magazzinoOrigineId: $articoloComponente->categoria_merceologica_id,
+                                magazzinoDestinazioneId: $destCategoria,
+                                dataMovimentazione: $this->dataMovimentazione,
+                                note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
+                                prodottoFinitoId: $pf->id
+                            );
+                            $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
+                            $totaleMovimentazioni++;
+                            $articoloComponente->update(['sede_id' => $this->sedeDestinazioneId]);
+                        }
+
+                        continue;
+                    }
+
                     // Verifica finale prima della movimentazione
                     if ($articolo->isInContoDeposito()) {
                         throw new \Exception("L'articolo {$articolo->codice} è in conto deposito e non può essere movimentato.");
@@ -374,33 +382,9 @@ class MovimentazioneInternaNew extends Component
                     $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
                 }
                 
-                // Movimenta prodotti finiti (sposta tutti i componenti)
-                foreach ($this->prodottiFinitiSelezionati as $pfData) {
-                    $pf = ProdottoFinito::with('componentiArticoli.articolo')->findOrFail($pfData['prodotto_finito_id']);
-                    
-                    foreach ($pf->componentiArticoli as $componente) {
-                        $articolo = $componente->articolo;
-                        
-                        $dto = new MovimentazioneDTO(
-                            articoloId: $articolo->id,
-                            quantita: $componente->quantita,
-                            magazzinoOrigineId: $articolo->categoria_merceologica_id,
-                            magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
-                            dataMovimentazione: $this->dataMovimentazione,
-                            note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : '')
-                        );
-                        
-                        $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
-                        $totaleMovimentazioni++;
-                        
-                        // Sposta l'articolo componente nella nuova sede
-                        $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
-                    }
-                }
                 
                 // Reset selezioni
                 $this->articoliSelezionati = [];
-                $this->prodottiFinitiSelezionati = [];
                 $this->chiudiMovimentazioneModal();
                 
                 session()->flash('success', "Movimentazione completata! {$totaleMovimentazioni} articoli spostati.");
@@ -436,10 +420,15 @@ class MovimentazioneInternaNew extends Component
         
         return $categoria->id;
     }
+
+    private function getPfCategoriaBySede(int $sedeId): int
+    {
+        return $sedeId === 5 ? 22 : 9;
+    }
     
     public function getTotaleSelezionati(): int
     {
-        return count($this->articoliSelezionati) + count($this->prodottiFinitiSelezionati);
+        return count($this->articoliSelezionati);
     }
     
     public function render()
@@ -448,7 +437,6 @@ class MovimentazioneInternaNew extends Component
             'sedi' => $this->sedi,
             'categorie' => $this->categorie,
             'articoliDisponibili' => $this->articoliDisponibili,
-            'prodottiFinitiDisponibili' => $this->prodottiFinitiDisponibili,
         ]);
     }
 }

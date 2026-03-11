@@ -14,6 +14,7 @@ class MovimentazioneDTO
         public readonly int $magazzinoDestinazioneId,
         public readonly string $dataMovimentazione,
         public readonly ?string $note = null,
+        public readonly ?int $prodottoFinitoId = null,
     ) {
     }
 

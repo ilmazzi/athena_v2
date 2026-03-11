@@ -194,13 +194,7 @@
                     <h5 class="card-title mb-0">Articoli in Deposito</h5>
                     <div class="d-flex flex-wrap gap-2">
                         <span class="badge bg-light text-dark">
-                            Articoli: {{ $this->totaleQuantitaArticoliInDeposito }}
-                        </span>
-                        <span class="badge bg-light text-dark">
-                            PF: {{ $this->totaleProdottiFinitiInDeposito }}
-                        </span>
-                        <span class="badge bg-primary">
-                            Totale: {{ $this->totaleItemsInDeposito }}
+                            Totale articoli/PF: {{ $this->totaleItemsInDeposito }}
                         </span>
                     </div>
                 </div>
@@ -796,13 +790,7 @@
                                 <input type="text" class="form-control" wire:model.live="search" 
                                        placeholder="Cerca per codice o descrizione...">
                             </div>
-                            <div class="col-md-4">
-                                <select class="form-select" wire:model.live="tipoItem">
-                                    <option value="articoli">Articoli</option>
-                                    <option value="prodotti_finiti">Prodotti Finiti</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
+                            <div class="col-md-6">
                                 <div class="text-end">
                                     <span class="badge bg-primary fs-6">{{ $this->getTotaleSelezionati() }} selezionati</span>
                                 </div>
@@ -815,20 +803,11 @@
                                 <div class="d-flex flex-wrap gap-2">
                                     @foreach($articoliSelezionati as $articoloId => $articoloData)
                                         <span class="badge bg-light text-dark border">
-                                            ART {{ $articoloData['codice'] ?? $articoloId }}
+                                            {{ !empty($articoloData['is_pf']) ? 'PF' : 'ART' }}
+                                            {{ $articoloData['codice'] ?? $articoloId }}
                                             @if(!empty($articoloData['quantita'])) x{{ $articoloData['quantita'] }} @endif
                                             <button type="button" class="btn btn-link btn-sm ms-1 p-0 text-danger"
                                                     wire:click="toggleArticolo({{ $articoloId }})"
-                                                    title="Deseleziona">
-                                                ✕
-                                            </button>
-                                        </span>
-                                    @endforeach
-                                    @foreach($prodottiFinitiSelezionati as $pfId => $pfData)
-                                        <span class="badge bg-light text-dark border">
-                                            PF {{ $pfData['codice'] ?? $pfId }}
-                                            <button type="button" class="btn btn-link btn-sm ms-1 p-0 text-danger"
-                                                    wire:click="toggleProdottoFinito({{ $pfId }})"
                                                     title="Deseleziona">
                                                 ✕
                                             </button>
@@ -839,112 +818,75 @@
                         @endif
 
                         {{-- Lista Articoli --}}
-                        @if($tipoItem === 'articoli')
-                            <div class="table-responsive" style="max-height: 400px;">
-                                <table class="table table-sm table-hover">
-                                    <thead class="table-light sticky-top">
-                                        <tr>
-                                            <th width="50">Sel.</th>
-                                            <th>Codice</th>
-                                            <th>Descrizione</th>
-                                            <th>Categoria</th>
-                                            <th>Disp.</th>
-                                            <th>Qtà</th>
-                                            <th>Costo</th>
+                        <div class="table-responsive" style="max-height: 400px;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th width="50">Sel.</th>
+                                        <th>Codice</th>
+                                        <th>Descrizione</th>
+                                        <th>Categoria</th>
+                                        <th>Disp.</th>
+                                        <th>Qtà</th>
+                                        <th>Costo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($articoliDisponibili as $articolo)
+                                        @php($isPf = (bool) $articolo->prodottoFinito)
+                                        <tr wire:key="add-articolo-{{ $articolo->id }}" class="{{ $this->isArticoloSelezionato($articolo->id) ? 'table-primary' : '' }}">
+                                            <td>
+                                                <input type="checkbox" class="form-check-input" 
+                                                       wire:change="toggleArticolo({{ $articolo->id }})"
+                                                       {{ $this->isArticoloSelezionato($articolo->id) ? 'checked' : '' }}>
+                                            </td>
+                                            <td>
+                                                <span class="fw-bold text-primary">{{ $articolo->codice }}</span>
+                                                @if($isPf)
+                                                    <span class="badge bg-light-warning text-warning ms-1">PF</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                {{ Str::limit($articolo->descrizione, 30) }}
+                                                @if($isPf && $articolo->prodottoFinito?->componentiArticoli?->count())
+                                                    <div class="small text-muted mt-1">
+                                                        <strong>Componenti:</strong>
+                                                        @foreach($articolo->prodottoFinito->componentiArticoli as $componente)
+                                                            <div>• {{ $componente->articolo->codice ?? 'N/A' }} - {{ Str::limit($componente->articolo->descrizione ?? 'N/A', 30) }} (x{{ $componente->quantita }})</div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light-info text-info">
+                                                    {{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}
+                                                </span>
+                                            </td>
+                                            <td>{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}</td>
+                                            <td>
+                                                @if($this->isArticoloSelezionato($articolo->id))
+                                                    <input type="number" class="form-control form-control-sm" 
+                                                           style="width: 80px;"
+                                                           wire:model="articoliSelezionati.{{ $articolo->id }}.quantita"
+                                                           min="1" 
+                                                           max="{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}">
+                                                @else
+                                                    -
+                                                @endif
+                                            </td>
+                                            <td class="small">€{{ number_format($articolo->prezzo_acquisto ?? 0, 2, ',', '.') }}</td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        @forelse($articoliDisponibili as $articolo)
-                                            <tr wire:key="add-articolo-{{ $articolo->id }}" class="{{ $this->isArticoloSelezionato($articolo->id) ? 'table-primary' : '' }}">
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input" 
-                                                           wire:change="toggleArticolo({{ $articolo->id }})"
-                                                           {{ $this->isArticoloSelezionato($articolo->id) ? 'checked' : '' }}>
-                                                </td>
-                                                <td>
-                                                    <span class="fw-bold text-primary">{{ $articolo->codice }}</span>
-                                                </td>
-                                                <td>{{ Str::limit($articolo->descrizione, 30) }}</td>
-                                                <td>
-                                                    <span class="badge bg-light-info text-info">
-                                                        {{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}
-                                                    </span>
-                                                </td>
-                                                <td>{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}</td>
-                                                <td>
-                                                    @if($this->isArticoloSelezionato($articolo->id))
-                                                        <input type="number" class="form-control form-control-sm" 
-                                                               style="width: 80px;"
-                                                               wire:model="articoliSelezionati.{{ $articolo->id }}.quantita"
-                                                               min="1" 
-                                                               max="{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}">
-                                                    @else
-                                                        -
-                                                    @endif
-                                                </td>
-                                                <td class="small">€{{ number_format($articolo->prezzo_acquisto ?? 0, 2, ',', '.') }}</td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="7" class="text-center py-3">
-                                                    <p class="text-muted mb-0">Nessun articolo disponibile</p>
-                                                </td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="text-center py-3">
+                                                <p class="text-muted mb-0">Nessun articolo disponibile</p>
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
 
-                        {{-- Lista Prodotti Finiti --}}
-                        @if($tipoItem === 'prodotti_finiti')
-                            <div class="table-responsive" style="max-height: 400px;">
-                                <table class="table table-sm table-hover">
-                                    <thead class="table-light sticky-top">
-                                        <tr>
-                                            <th width="50">Sel.</th>
-                                            <th>Codice</th>
-                                            <th>Descrizione</th>
-                                            <th>Categoria</th>
-                                            <th>Stato</th>
-                                            <th>Costo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @forelse($prodottiFinitiDisponibili as $pf)
-                                            <tr wire:key="add-pf-{{ $pf->id }}" class="{{ $this->isProdottoFinitoSelezionato($pf->id) ? 'table-primary' : '' }}">
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input" 
-                                                           wire:change="toggleProdottoFinito({{ $pf->id }})"
-                                                           {{ $this->isProdottoFinitoSelezionato($pf->id) ? 'checked' : '' }}>
-                                                </td>
-                                                <td>
-                                                    <span class="fw-bold text-primary">{{ $pf->codice }}</span>
-                                                </td>
-                                                <td>{{ Str::limit($pf->descrizione, 30) }}</td>
-                                                <td>
-                                                    <span class="badge bg-light-info text-info">
-                                                        {{ $pf->categoriaMerceologica->nome ?? 'N/A' }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge bg-light-success text-success">
-                                                        {{ ucfirst($pf->stato) }}
-                                                    </span>
-                                                </td>
-                                                <td class="small">€{{ number_format($pf->costo_totale ?? 0, 2, ',', '.') }}</td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="6" class="text-center py-3">
-                                                    <p class="text-muted mb-0">Nessun prodotto finito disponibile</p>
-                                                </td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" wire:click="chiudiAggiungiArticoliModal">

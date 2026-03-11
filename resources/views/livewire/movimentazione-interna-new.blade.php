@@ -46,17 +46,8 @@
                     </select>
                 </div>
 
-                <!-- Tipo Item -->
-                <div class="col-md-2">
-                    <label class="form-label">Tipo</label>
-                    <select wire:model.live="tipoItem" class="form-select">
-                        <option value="articoli">Articoli</option>
-                        <option value="prodotti_finiti">Prodotti Finiti</option>
-                    </select>
-                </div>
-
                 <!-- Ricerca -->
-                <div class="col-md-2">
+                <div class="col-md-4">
                     <label class="form-label">Ricerca</label>
                     <input type="text" wire:model.live.debounce.300ms="search" 
                            class="form-control" placeholder="Codice o descrizione...">
@@ -99,12 +90,24 @@
                     <tbody>
                         @foreach($articoliSelezionati as $articoloId => $data)
                             <tr @if($data['in_vetrina'] ?? false) class="table-warning" @endif>
-                                <td><span class="badge bg-light-primary text-primary">ART</span></td>
+                                <td>
+                                    <span class="badge {{ ($data['is_pf'] ?? false) ? 'bg-light-warning text-warning' : 'bg-light-primary text-primary' }}">
+                                        {{ ($data['is_pf'] ?? false) ? 'PF' : 'ART' }}
+                                    </span>
+                                </td>
                                 <td><strong>{{ $data['codice'] }}</strong></td>
                                 <td>
                                     {{ $data['descrizione'] }}
                                     @if($data['warning_vetrina'] ?? false)
                                         <div class="small text-warning">⚠️ {{ $data['warning_vetrina'] }}</div>
+                                    @endif
+                                    @if(!empty($data['componenti']))
+                                        <div class="small text-muted mt-1">
+                                            <strong>Componenti:</strong>
+                                            @foreach($data['componenti'] as $componente)
+                                                <div>• {{ $componente['codice'] }} - {{ $componente['descrizione'] }} (x{{ $componente['quantita'] }})</div>
+                                            @endforeach
+                                        </div>
                                     @endif
                                 </td>
                                 <td>
@@ -116,31 +119,6 @@
                                 <td>
                                     <button type="button" class="btn btn-outline-danger btn-sm"
                                             wire:click="rimuoviArticoloSelezionato({{ $articoloId }})">
-                                        <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-
-                        @foreach($prodottiFinitiSelezionati as $pfId => $data)
-                            <tr>
-                                <td><span class="badge bg-light-warning text-warning">PF</span></td>
-                                <td><strong>{{ $data['codice'] }}</strong></td>
-                                <td>
-                                    {{ $data['descrizione'] }}
-                                    @if(!empty($data['componenti']))
-                                        <div class="small text-muted mt-1">
-                                            <strong>Componenti:</strong>
-                                            @foreach($data['componenti'] as $componente)
-                                                <div>• {{ $componente['codice'] }} - {{ $componente['descrizione'] }} (x{{ $componente['quantita'] }})</div>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                </td>
-                                <td class="text-center"><span class="badge bg-light-success text-success">1</span></td>
-                                <td>
-                                    <button type="button" class="btn btn-outline-danger btn-sm"
-                                            wire:click="rimuoviProdottoFinitoSelezionato({{ $pfId }})">
                                         <iconify-icon icon="solar:trash-bin-minimalistic-bold"></iconify-icon>
                                     </button>
                                 </td>
@@ -158,132 +136,85 @@
     <div class="card">
         <div class="card-header">
             <h5 class="card-title mb-0">
-                @if($tipoItem === 'articoli')
-                    <iconify-icon icon="solar:box-bold" class="me-1"></iconify-icon>
-                    Articoli Disponibili
-                @else
-                    <iconify-icon icon="solar:star-bold" class="me-1"></iconify-icon>
-                    Prodotti Finiti Disponibili
-                @endif
+                <iconify-icon icon="solar:box-bold" class="me-1"></iconify-icon>
+                Articoli Disponibili
             </h5>
         </div>
         <div class="card-body">
-            @if($tipoItem === 'articoli')
-                <!-- Lista Articoli -->
-                @if($articoliDisponibili->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th width="50">Sel.</th>
-                                    <th>Codice</th>
-                                    <th>Descrizione</th>
-                                    <th>Magazzino</th>
-                                    <th>Giacenza</th>
-                                    <th>Stato</th>
-                                    <th>Prezzo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($articoliDisponibili as $articolo)
-                                <tr>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                                wire:click="toggleArticolo({{ $articolo->id }})"
-                                                @if(isset($articoliSelezionati[$articolo->id])) disabled @endif>
-                                            <iconify-icon icon="solar:plus-circle-bold"></iconify-icon>
-                                        </button>
-                                    </td>
-                                    <td><strong>{{ $articolo->codice }}</strong></td>
-                                    <td>{{ Str::limit($articolo->descrizione, 50) }}</td>
-                                    <td>{{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}</td>
-                                    <td>
-                                        @if($articolo->giacenza)
-                                            <span class="badge bg-light-info text-info">
-                                                {{ $articolo->giacenza->quantita_residua }}
-                                            </span>
-                                        @else
-                                            <span class="badge bg-light-secondary">0</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($articolo->isInVetrina())
-                                            <span class="badge bg-warning text-dark" title="In vetrina">
-                                                <iconify-icon icon="solar:eye-bold" style="font-size: 10px;"></iconify-icon>
-                                                Vetrina
-                                            </span>
-                                        @else
-                                            <span class="badge bg-success text-white">
-                                                <iconify-icon icon="solar:check-circle-bold" style="font-size: 10px;"></iconify-icon>
-                                                Disponibile
-                                            </span>
-                                        @endif
-                                    </td>
-                                    <td>€{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    {{ $articoliDisponibili->links() }}
-                @else
-                    <div class="text-center py-4 text-muted">
-                        <iconify-icon icon="solar:box-outline" style="font-size: 3rem;"></iconify-icon>
-                        <p class="mt-2">Nessun articolo disponibile</p>
-                    </div>
-                @endif
-            @else
-                <!-- Lista Prodotti Finiti -->
-                @if($prodottiFinitiDisponibili->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th width="50">Sel.</th>
-                                    <th>Codice</th>
-                                    <th>Descrizione</th>
-                                    <th>Componenti</th>
-                                    <th>Costo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($prodottiFinitiDisponibili as $pf)
-                                <tr>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                                wire:click="toggleProdottoFinito({{ $pf->id }})"
-                                                @if(isset($prodottiFinitiSelezionati[$pf->id])) disabled @endif>
-                                            <iconify-icon icon="solar:plus-circle-bold"></iconify-icon>
-                                        </button>
-                                    </td>
-                                    <td><strong>{{ $pf->codice }}</strong></td>
-                                    <td>{{ Str::limit($pf->descrizione, 50) }}</td>
-                                    <td>
-                                        <span class="badge bg-light-secondary">
-                                            {{ $pf->componentiArticoli->count() }} comp.
-                                        </span>
+            @if($articoliDisponibili->count() > 0)
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th width="50">Sel.</th>
+                                <th>Codice</th>
+                                <th>Descrizione</th>
+                                <th>Magazzino</th>
+                                <th>Giacenza</th>
+                                <th>Stato</th>
+                                <th>Prezzo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($articoliDisponibili as $articolo)
+                            <tr>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            wire:click="toggleArticolo({{ $articolo->id }})"
+                                            @if(isset($articoliSelezionati[$articolo->id])) disabled @endif>
+                                        <iconify-icon icon="solar:plus-circle-bold"></iconify-icon>
+                                    </button>
+                                </td>
+                                <td><strong>{{ $articolo->codice }}</strong></td>
+                                <td>
+                                    {{ Str::limit($articolo->descrizione, 50) }}
+                                    @if($articolo->prodottoFinito && $articolo->prodottoFinito->componentiArticoli->isNotEmpty())
                                         <div class="small text-muted mt-1">
-                                            @foreach($pf->componentiArticoli as $componente)
+                                            <strong>Componenti:</strong>
+                                            @foreach($articolo->prodottoFinito->componentiArticoli as $componente)
                                                 <div>
                                                     • {{ $componente->articolo->codice ?? 'N/A' }} - {{ Str::limit($componente->articolo->descrizione ?? 'N/A', 30) }}
                                                     (x{{ $componente->quantita }})
                                                 </div>
                                             @endforeach
                                         </div>
-                                    </td>
-                                    <td>€{{ number_format($pf->costo_totale, 2, ',', '.') }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                    {{ $prodottiFinitiDisponibili->links() }}
-                @else
-                    <div class="text-center py-4 text-muted">
-                        <iconify-icon icon="solar:star-outline" style="font-size: 3rem;"></iconify-icon>
-                        <p class="mt-2">Nessun prodotto finito disponibile</p>
-                    </div>
-                @endif
+                                    @endif
+                                </td>
+                                <td>{{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}</td>
+                                <td>
+                                    @if($articolo->giacenza)
+                                        <span class="badge bg-light-info text-info">
+                                            {{ $articolo->giacenza->quantita_residua }}
+                                        </span>
+                                    @else
+                                        <span class="badge bg-light-secondary">0</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($articolo->isInVetrina())
+                                        <span class="badge bg-warning text-dark" title="In vetrina">
+                                            <iconify-icon icon="solar:eye-bold" style="font-size: 10px;"></iconify-icon>
+                                            Vetrina
+                                        </span>
+                                    @else
+                                        <span class="badge bg-success text-white">
+                                            <iconify-icon icon="solar:check-circle-bold" style="font-size: 10px;"></iconify-icon>
+                                            Disponibile
+                                        </span>
+                                    @endif
+                                </td>
+                                <td>€{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                {{ $articoliDisponibili->links() }}
+            @else
+                <div class="text-center py-4 text-muted">
+                    <iconify-icon icon="solar:box-outline" style="font-size: 3rem;"></iconify-icon>
+                    <p class="mt-2">Nessun articolo disponibile</p>
+                </div>
             @endif
         </div>
     </div>
@@ -373,18 +304,14 @@
                             <tbody>
                                 @foreach($articoliSelezionati as $data)
                                 <tr>
-                                    <td><span class="badge bg-light-primary text-primary">ART</span></td>
+                                    <td>
+                                        <span class="badge {{ ($data['is_pf'] ?? false) ? 'bg-light-warning text-warning' : 'bg-light-primary text-primary' }}">
+                                            {{ ($data['is_pf'] ?? false) ? 'PF' : 'ART' }}
+                                        </span>
+                                    </td>
                                     <td>{{ $data['codice'] }}</td>
                                     <td>{{ $data['descrizione'] }}</td>
                                     <td>{{ $data['quantita'] }}</td>
-                                </tr>
-                                @endforeach
-                                @foreach($prodottiFinitiSelezionati as $data)
-                                <tr>
-                                    <td><span class="badge bg-light-warning text-warning">PF</span></td>
-                                    <td>{{ $data['codice'] }}</td>
-                                    <td>{{ $data['descrizione'] }}</td>
-                                    <td>1 (comp. inclusi)</td>
                                 </tr>
                                 @endforeach
                             </tbody>

@@ -178,9 +178,9 @@
                                 <td>
                                     <div class="fw-semibold">{{ Str::limit($articoloVetrina->descrizione_display, 40) }}</div>
                                     <small class="text-muted">{{ $articoloVetrina->sede_display }}</small>
-                                    @if($articoloVetrina->is_prodotto_finito && $articoloVetrina->prodottoFinito)
+                                    @if($articoloVetrina->articolo?->prodottoFinito)
                                         @php
-                                            $componenti = $articoloVetrina->prodottoFinito->componentiArticoli
+                                            $componenti = $articoloVetrina->articolo->prodottoFinito->componentiArticoli
                                                 ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
                                                 ->filter()
                                                 ->take(6)
@@ -279,7 +279,7 @@
                             </div>
                         </div>
 
-                        @if($addMode === 'interno' && !$selectedArticolo && !$selectedProdottoFinito)
+                        @if($addMode === 'interno' && !$selectedArticolo)
                             <!-- Selezione Articolo -->
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Cerca e Seleziona Articolo</label>
@@ -301,15 +301,9 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @forelse($articoliDisponibili->concat($prodottiFinitiDisponibili) as $item)
+                                        @forelse($articoliDisponibili as $item)
                                             <tr>
-                                                <td>
-                                                    @if($item instanceof \App\Models\Articolo)
-                                                        <span class="badge bg-light-success text-success">Articolo</span>
-                                                    @else
-                                                        <span class="badge bg-light-warning text-warning">PF</span>
-                                                    @endif
-                                                </td>
+                                                <td><span class="badge bg-light-success text-success">Articolo</span></td>
                                                 <td>
                                                     <span class="fw-bold text-primary">{{ $item->codice }}</span>
                                                 </td>
@@ -321,7 +315,7 @@
                                                 </td>
                                                 <td class="text-center">
                                                     <button class="btn btn-primary btn-sm" 
-                                                            wire:click="selectItem('{{ $item instanceof \App\Models\Articolo ? 'articolo' : 'pf' }}', {{ $item->id }})">
+                                                            wire:click="selectArticolo({{ $item->id }})">
                                                         <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                                                         Seleziona
                                                     </button>
@@ -340,11 +334,7 @@
                         @elseif($addMode === 'interno')
                             <!-- Form Dettagli Vetrina -->
                             <div class="alert alert-info">
-                                @if($selectedItemType === 'pf' && $selectedProdottoFinito)
-                                    <strong>PF Selezionato:</strong> {{ $selectedProdottoFinito->codice }} - {{ $selectedProdottoFinito->descrizione }}
-                                @else
-                                    <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice ?? '' }} - {{ $selectedArticolo->descrizione ?? '' }}
-                                @endif
+                                <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice ?? '' }} - {{ $selectedArticolo->descrizione ?? '' }}
                             </div>
 
                             <form wire:submit.prevent="addArticoloToVetrina">
@@ -640,7 +630,7 @@
                             <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
                             Annulla
                         </button>
-                        @if($addMode === 'interno' && ($selectedArticolo || $selectedProdottoFinito))
+                        @if($addMode === 'interno' && $selectedArticolo)
                             <button type="button" class="btn btn-primary" wire:click="addArticoloToVetrina">
                                 <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                                 Aggiungi alla Vetrina

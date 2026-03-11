@@ -729,6 +729,18 @@
                                         @if($articolo->descrizione_estesa)
                                             <br><small class="text-muted">{{ Str::limit($articolo->descrizione_estesa, 40) }}</small>
                                         @endif
+                                        @if($articolo->prodottoFinito && $articolo->prodottoFinito->componentiArticoli->isNotEmpty())
+                                            @php
+                                                $componenti = $articolo->prodottoFinito->componentiArticoli
+                                                    ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
+                                                    ->filter()
+                                                    ->take(6)
+                                                    ->implode(', ');
+                                            @endphp
+                                            @if($componenti)
+                                                <br><small class="text-muted">Componenti: {{ $componenti }}</small>
+                                            @endif
+                                        @endif
                                         
                                         <!-- Marca e Referenza -->
                                         <br><small class="text-muted">

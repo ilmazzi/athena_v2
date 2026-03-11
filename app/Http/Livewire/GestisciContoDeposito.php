@@ -266,13 +266,13 @@ class GestisciContoDeposito extends Component
 
     public function getArticoliDisponibiliProperty()
     {
-        if (!$this->showAggiungiArticoliModal || $this->tipoItem !== 'articoli') {
+        if (!$this->showAggiungiArticoliModal) {
             return collect();
         }
 
         $sedeMittenteId = $this->deposito->sede_mittente_id;
 
-        return Articolo::with(['categoriaMerceologica', 'sede', 'giacenza'])
+        return Articolo::with(['categoriaMerceologica', 'sede', 'giacenza', 'prodottoFinito.componentiArticoli.articolo'])
             ->where(function ($query) use ($sedeMittenteId) {
                 $query->where('sede_id', $sedeMittenteId)
                       ->orWhereHas('giacenzePerSede', function ($sub) use ($sedeMittenteId) {
@@ -307,22 +307,7 @@ class GestisciContoDeposito extends Component
 
     public function getProdottiFinitiDisponibiliProperty()
     {
-        if (!$this->showAggiungiArticoliModal || $this->tipoItem !== 'prodotti_finiti') {
-            return collect();
-        }
-
-        return ProdottoFinito::with(['categoriaMerceologica'])
-            ->where('stato', 'completato')
-            ->where('in_conto_deposito', false)
-            ->when($this->search, function ($query) {
-                $query->where(function ($q) {
-                    $q->where('codice', 'like', '%' . $this->search . '%')
-                      ->orWhere('descrizione', 'like', '%' . $this->search . '%');
-                });
-            })
-            ->orderBy('codice')
-            ->limit(50)
-            ->get();
+        return collect();
     }
 
     public function getArticoliInDepositoProperty()
@@ -463,14 +448,32 @@ class GestisciContoDeposito extends Component
         if (isset($this->articoliSelezionati[$articoloId])) {
             unset($this->articoliSelezionati[$articoloId]);
         } else {
-            $articolo = Articolo::with('giacenza')->find($articoloId);
+            $articolo = Articolo::with(['giacenza', 'prodottoFinito.componentiArticoli.articolo'])->find($articoloId);
+            if (!$articolo) {
+                return;
+            }
+
+            $isPf = (bool) $articolo->prodottoFinito;
+            $componenti = [];
+            if ($isPf && $articolo->prodottoFinito?->componentiArticoli) {
+                $componenti = $articolo->prodottoFinito->componentiArticoli->map(function ($componente) {
+                    return [
+                        'codice' => $componente->articolo->codice ?? 'N/A',
+                        'descrizione' => $componente->articolo->descrizione ?? 'N/A',
+                        'quantita' => $componente->quantita,
+                    ];
+                })->values()->all();
+            }
             $this->articoliSelezionati[$articoloId] = [
                 'articolo_id' => $articoloId,
+                'prodotto_finito_id' => $isPf ? $articolo->prodottoFinito->id : null,
+                'is_pf' => $isPf,
                 'codice' => $articolo->codice,
                 'descrizione' => $articolo->descrizione,
                 'quantita' => 1,
                 'max_quantita' => $articolo->getQuantitaDisponibilePerMovimentazione(),
-                'costo_unitario' => $articolo->prezzo_acquisto ?? 0
+                'costo_unitario' => $isPf ? ($articolo->prodottoFinito->costo_totale ?? 0) : ($articolo->prezzo_acquisto ?? 0),
+                'componenti' => $componenti,
             ];
         }
     }
@@ -505,24 +508,22 @@ class GestisciContoDeposito extends Component
             $service = new ContoDepositoService();
             $articoliAggiunti = 0;
 
-            // Aggiungi articoli selezionati
+            // Aggiungi articoli/PF selezionati
             foreach ($this->articoliSelezionati as $articoloData) {
-                $service->inviaArticoloInDeposito(
-                    $this->deposito,
-                    $articoloData['articolo_id'],
-                    $articoloData['quantita'],
-                    $articoloData['costo_unitario']
-                );
-                $articoliAggiunti++;
-            }
-
-            // Aggiungi prodotti finiti selezionati
-            foreach ($this->prodottiFinitiSelezionati as $pfData) {
-                $service->inviaProdottoFinitoInDeposito(
-                    $this->deposito,
-                    $pfData['prodotto_finito_id'],
-                    $pfData['costo_unitario']
-                );
+                if (!empty($articoloData['is_pf']) && !empty($articoloData['prodotto_finito_id'])) {
+                    $service->inviaProdottoFinitoInDeposito(
+                        $this->deposito,
+                        $articoloData['prodotto_finito_id'],
+                        $articoloData['costo_unitario']
+                    );
+                } else {
+                    $service->inviaArticoloInDeposito(
+                        $this->deposito,
+                        $articoloData['articolo_id'],
+                        $articoloData['quantita'],
+                        $articoloData['costo_unitario']
+                    );
+                }
                 $articoliAggiunti++;
             }
 
@@ -1466,7 +1467,7 @@ class GestisciContoDeposito extends Component
 
     public function getTotaleSelezionati(): int
     {
-        return count($this->articoliSelezionati) + count($this->prodottiFinitiSelezionati);
+        return count($this->articoliSelezionati);
     }
 
     public function isArticoloSelezionatoReso($articoloId): bool

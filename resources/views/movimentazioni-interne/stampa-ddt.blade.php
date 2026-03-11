@@ -298,6 +298,21 @@
                     $righeArticoli = [];
 
                     foreach ($righe as $dettaglio) {
+                        if ($dettaglio->prodottoFinito) {
+                            $pfId = $dettaglio->prodottoFinito->id;
+                            if (!isset($pfGroups[$pfId])) {
+                                $pfGroups[$pfId] = [
+                                    'pf' => $dettaglio->prodottoFinito,
+                                    'quantita' => null,
+                                ];
+                                $pfOrder[] = $pfId;
+                            }
+                            if ($dettaglio->articolo_id === $dettaglio->prodottoFinito->articolo_risultante_id) {
+                                $pfGroups[$pfId]['quantita'] = (int) $dettaglio->quantita;
+                            }
+                            continue;
+                        }
+
                         $pfCode = null;
                         $pfDescrizione = null;
                         if (!empty($dettaglio->note)) {
@@ -313,10 +328,12 @@
                                     'codice' => $pfCode,
                                     'descrizione' => $pfDescrizione,
                                     'componenti' => [],
+                                    'quantita' => 0,
                                 ];
                                 $pfOrder[] = $pfCode;
                             }
                             $pfGroups[$pfCode]['componenti'][] = $dettaglio;
+                            $pfGroups[$pfCode]['quantita'] = $pfGroups[$pfCode]['quantita'] ?? (int) $dettaglio->quantita;
                         } else {
                             $righeArticoli[] = $dettaglio;
                         }
@@ -325,28 +342,42 @@
                     $index = 1;
                 @endphp
 
-                @foreach($pfOrder as $pfCode)
-                    @php($pf = $pfGroups[$pfCode])
+                @foreach($pfOrder as $pfKey)
+                    @php($pfRow = $pfGroups[$pfKey])
                     <tr>
                         <td class="text-center">{{ $index++ }}</td>
                         <td class="text-center">
                             <span class="tipo-badge" style="background-color: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis);">PF</span>
                         </td>
-                        <td><strong class="text-primary">{{ $pf['codice'] }}</strong></td>
                         <td>
-                            {{ $pf['descrizione'] ?: 'Prodotto finito' }}
+                            <strong class="text-primary">
+                                {{ $pfRow['pf']->codice ?? $pfRow['codice'] ?? 'PF' }}
+                            </strong>
+                        </td>
+                        <td>
+                            {{ $pfRow['pf']->descrizione ?? $pfRow['descrizione'] ?? 'Prodotto finito' }}
                             <div style="margin-top: 4px; font-size: 9px; color: var(--bs-secondary);">
                                 <div><strong>Componenti:</strong></div>
-                                @foreach($pf['componenti'] as $comp)
-                                    <div>
-                                        {{ $comp->articolo->codice ?? 'N/D' }} -
-                                        {{ $comp->articolo->descrizione ?? 'N/D' }}
-                                        x{{ $comp->quantita }}
-                                    </div>
-                                @endforeach
+                                @if(!empty($pfRow['pf']))
+                                    @foreach($pfRow['pf']->componentiArticoli as $comp)
+                                        <div>
+                                            {{ $comp->articolo->codice ?? 'N/D' }} -
+                                            {{ $comp->articolo->descrizione ?? 'N/D' }}
+                                            x{{ $comp->quantita }}
+                                        </div>
+                                    @endforeach
+                                @else
+                                    @foreach(($pfRow['componenti'] ?? []) as $comp)
+                                        <div>
+                                            {{ $comp->articolo->codice ?? 'N/D' }} -
+                                            {{ $comp->articolo->descrizione ?? 'N/D' }}
+                                            x{{ $comp->quantita }}
+                                        </div>
+                                    @endforeach
+                                @endif
                             </div>
                         </td>
-                        <td class="text-center"><strong>1</strong></td>
+                        <td class="text-center"><strong>{{ $pfRow['quantita'] ?? 1 }}</strong></td>
                     </tr>
                 @endforeach
 

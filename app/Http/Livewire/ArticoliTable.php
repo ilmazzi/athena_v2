@@ -1314,6 +1314,7 @@ class ArticoliTable extends Component
             'sede',
             'giacenza',
             'categoriaMerceologica',
+            'prodottoFinito.componentiArticoli.articolo',
         ];
 
         if (($this->visibleColumns['dati_carico'] ?? true)) {

@@ -101,6 +101,7 @@ class MovimentazioneInternaController extends Controller
     {
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo',
+            'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'
@@ -116,6 +117,7 @@ class MovimentazioneInternaController extends Controller
     {
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo',
+            'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'

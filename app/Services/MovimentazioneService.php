@@ -64,6 +64,7 @@ class MovimentazioneService
             MovimentazioneDettaglio::create([
                 'movimentazione_id' => $movimentazione->id,
                 'articolo_id' => $dto->articoloId,
+                'prodotto_finito_id' => $dto->prodottoFinitoId,
                 'quantita' => $dto->quantita,
                 'note' => $dto->note,
             ]);
@@ -120,11 +121,15 @@ class MovimentazioneService
             if ($dettaglio) {
                 $dettaglio->quantita += $dto->quantita;
                 $dettaglio->note = $dto->note ?: $dettaglio->note;
+                if ($dto->prodottoFinitoId) {
+                    $dettaglio->prodotto_finito_id = $dto->prodottoFinitoId;
+                }
                 $dettaglio->save();
             } else {
                 MovimentazioneDettaglio::create([
                     'movimentazione_id' => $movimentazione->id,
                     'articolo_id' => $dto->articoloId,
+                    'prodotto_finito_id' => $dto->prodottoFinitoId,
                     'quantita' => $dto->quantita,
                     'note' => $dto->note,
                 ]);

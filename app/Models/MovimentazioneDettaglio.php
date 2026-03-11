@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\ProdottoFinito;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,6 +18,7 @@ class MovimentazioneDettaglio extends Model
     protected $fillable = [
         'movimentazione_id',
         'articolo_id',
+        'prodotto_finito_id',
         'quantita',
         'note',
     ];
@@ -37,5 +39,10 @@ class MovimentazioneDettaglio extends Model
     public function articolo(): BelongsTo
     {
         return $this->belongsTo(Articolo::class, 'articolo_id');
+    }
+
+    public function prodottoFinito(): BelongsTo
+    {
+        return $this->belongsTo(ProdottoFinito::class, 'prodotto_finito_id');
     }
 }
