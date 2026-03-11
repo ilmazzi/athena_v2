@@ -41,6 +41,7 @@ class ArticoliTable extends Component
     public $dataDocumentoTo = '';
     public $soloVetrina = false;
     public $fotoFilter = ''; // '', 'con', 'senza'
+    public $inDepositoFilter = ''; // '', '1'
 
     // Prezzi fornitori (aggiornamento massivo)
     public $prezziFornitoreId = '';
@@ -140,6 +141,7 @@ class ArticoliTable extends Component
         'dataDocumentoTo' => ['except' => ''],
         'soloVetrina' => ['except' => false],
         'fotoFilter' => ['except' => ''],
+        'inDepositoFilter' => ['except' => ''],
         'sortField' => ['except' => 'created_at'],
         'sortDirection' => ['except' => 'desc'],
     ];
@@ -367,6 +369,7 @@ class ArticoliTable extends Component
         $this->dataDocumentoTo = '';
         $this->soloVetrina = false;
         $this->fotoFilter = '';
+        $this->inDepositoFilter = '';
         $this->sortField = 'created_at';
         $this->sortDirection = 'desc';
         $this->resetPage();
@@ -1019,8 +1022,16 @@ class ArticoliTable extends Component
         }
 
         if ($this->ubicazioneFilter) {
-            $query->whereHas('giacenza', function($q) {
-                $q->where('sede_id', $this->ubicazioneFilter);
+            $query->where(function ($q) {
+                $q->whereHas('giacenza', function($subQ) {
+                    $subQ->where('sede_id', $this->ubicazioneFilter);
+                })->orWhere(function ($subQ) {
+                    $subQ->whereNotNull('articoli.conto_deposito_corrente_id')
+                        ->where('articoli.quantita_in_deposito', '>', 0)
+                        ->whereHas('contoDepositoCorrente', function ($cdQ) {
+                            $cdQ->where('sede_destinataria_id', $this->ubicazioneFilter);
+                        });
+                });
             });
         }
 
@@ -1094,6 +1105,11 @@ class ArticoliTable extends Component
                 $q->whereNull('articoli.foto_principale')
                     ->orWhere('articoli.foto_principale', '=', '');
             });
+        }
+
+        if ($this->inDepositoFilter === '1') {
+            $query->whereNotNull('articoli.conto_deposito_corrente_id')
+                ->where('articoli.quantita_in_deposito', '>', 0);
         }
 
         return $query;
@@ -1315,6 +1331,7 @@ class ArticoliTable extends Component
             'giacenza',
             'categoriaMerceologica',
             'prodottoFinito.componentiArticoli.articolo',
+            'contoDepositoCorrente.sedeDestinataria',
         ];
 
         if (($this->visibleColumns['dati_carico'] ?? true)) {
@@ -1377,9 +1394,17 @@ class ArticoliTable extends Component
         }
 
         if ($this->ubicazioneFilter) {
-            // Filtra per sede (ubicazione_magazzino → sede_id)
-            $query->whereHas('giacenza', function($q) {
-                $q->where('sede_id', $this->ubicazioneFilter);
+            // Filtra per sede fisica (giacenza o conto deposito)
+            $query->where(function ($q) {
+                $q->whereHas('giacenza', function($subQ) {
+                    $subQ->where('sede_id', $this->ubicazioneFilter);
+                })->orWhere(function ($subQ) {
+                    $subQ->whereNotNull('conto_deposito_corrente_id')
+                        ->where('quantita_in_deposito', '>', 0)
+                        ->whereHas('contoDepositoCorrente', function ($cdQ) {
+                            $cdQ->where('sede_destinataria_id', $this->ubicazioneFilter);
+                        });
+                });
             });
         }
 
@@ -1457,6 +1482,11 @@ class ArticoliTable extends Component
                 $q->whereNull('foto_principale')
                     ->orWhere('foto_principale', '=', '');
             });
+        }
+
+        if ($this->inDepositoFilter === '1') {
+            $query->whereNotNull('conto_deposito_corrente_id')
+                ->where('quantita_in_deposito', '>', 0);
         }
 
         // Applica sorting

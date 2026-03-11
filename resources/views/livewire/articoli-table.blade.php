@@ -47,6 +47,9 @@
             $fotoLabel = $fotoFilter === 'con' ? 'Con foto' : 'Senza foto';
             $filtriAttivi[] = ['label' => 'Foto', 'value' => $fotoLabel, 'field' => 'fotoFilter'];
         }
+        if($inDepositoFilter === '1') {
+            $filtriAttivi[] = ['label' => 'Conto deposito', 'value' => 'Solo in deposito', 'field' => 'inDepositoFilter'];
+        }
     @endphp
 
     @if(count($filtriAttivi) > 0)
@@ -336,6 +339,10 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" wire:model.live="soloVetrina" id="soloVetrina">
                                 <label class="form-check-label small" for="soloVetrina">In Vetrina</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" wire:model.live="inDepositoFilter" value="1" id="inDepositoFilter">
+                                <label class="form-check-label small" for="inDepositoFilter">In Deposito</label>
                             </div>
                         </div>
                     </div>
@@ -716,6 +723,11 @@
                                                 @else
                                                     <iconify-icon icon="solar:camera-off-bold" class="text-muted" title="Nessuna foto"></iconify-icon>
                                                 @endif
+                                                @if($articolo->contoDepositoCorrente && $articolo->quantita_in_deposito > 0)
+                                                    <span class="badge bg-warning-subtle text-warning">
+                                                        Deposito {{ $articolo->contoDepositoCorrente->sedeDestinataria->nome ?? 'N/D' }}
+                                                    </span>
+                                                @endif
                                             </div>
                                             <small class="text-muted">#{{ $articoli->firstItem() + $index }}</small>
                                         </div>
@@ -1056,7 +1068,17 @@
                                 @endif
                                 @if($visibleColumns['ubicazione'] ?? true)
                                 <td>
-                                    @if($articolo->giacenza && $articolo->giacenza->sede)
+                                    @if($articolo->contoDepositoCorrente && $articolo->quantita_in_deposito > 0)
+                                        <div class="text-center">
+                                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                                <iconify-icon icon="solar:map-point-bold" class="text-warning"></iconify-icon>
+                                                <span class="fw-semibold">{{ $articolo->contoDepositoCorrente->sedeDestinataria->nome ?? 'N/D' }}</span>
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ $articolo->contoDepositoCorrente->sedeDestinataria->citta ?? 'Conto deposito' }}
+                                            </small>
+                                        </div>
+                                    @elseif($articolo->giacenza && $articolo->giacenza->sede)
                                         <div class="text-center">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:map-point-bold" class="text-danger"></iconify-icon>
