@@ -1178,10 +1178,10 @@ class OcrService
             }
         }
 
+        $codiciFromText = $this->extractRolexCodesFromText($text);
         if (empty($codici)) {
-            $codici = $this->extractRolexCodesFromText($text);
+            $codici = $codiciFromText;
         } else {
-            $codiciFromText = $this->extractRolexCodesFromText($text);
             foreach ($codiciFromText as $code) {
                 if (!in_array($code, $codici, true)) {
                     $codici[] = $code;
@@ -1463,6 +1463,16 @@ class OcrService
     {
         $report = [];
         $report['has_page_break'] = str_contains($text, '===PAGE_BREAK===');
+        $report['pdf_text_available'] = false;
+        $report['pdf_table_rows'] = 0;
+
+        if (!empty($this->currentPdfPath)) {
+            $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+            if ($pdfText) {
+                $report['pdf_text_available'] = true;
+                $report['pdf_table_rows'] = count($this->parseRolexTableRows($pdfText));
+            }
+        }
         $pages = $report['has_page_break']
             ? array_filter(array_map('trim', explode('===PAGE_BREAK===', $text)))
             : [$text];
@@ -1484,7 +1494,7 @@ class OcrService
                 '/\bReferenza\b/i',
                 ['/N\.\s*serie/i', '/Descrizione/i', '/Quantit/i']
             );
-            $page['referenze'] = $this->extractRolexCodesFromText(implode("\n", $referenzeLines));
+            $page['referenze'] = $this->extractRolexCodesFromText($pageText);
 
             $serialLines = $this->extractAllSectionLines(
                 $pageText,
