@@ -6,6 +6,8 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Sede;
 use App\Models\Articolo;
+use App\Models\Giacenza;
+use App\Models\GiacenzaSede;
 use App\Models\CategoriaMerceologica;
 use App\Services\MovimentazioneService;
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
@@ -329,6 +331,7 @@ class MovimentazioneInternaNew extends Component
                             'sede_id' => $this->sedeDestinazioneId,
                             'categoria_merceologica_id' => $destCategoriaResult,
                         ]);
+                        $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
                         $pf->update(['magazzino_id' => $destCategoriaResult]);
 
                         foreach ($pf->componentiArticoli as $componente) {
@@ -347,6 +350,7 @@ class MovimentazioneInternaNew extends Component
                             $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
                             $totaleMovimentazioni++;
                             $articoloComponente->update(['sede_id' => $this->sedeDestinazioneId]);
+                            $this->syncSedeGiacenza($articoloComponente->id, $this->sedeDestinazioneId);
                         }
 
                         continue;
@@ -380,6 +384,7 @@ class MovimentazioneInternaNew extends Component
                     
                     // Sposta l'articolo nella nuova sede
                     $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
+                    $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
                 }
                 
                 
@@ -424,6 +429,22 @@ class MovimentazioneInternaNew extends Component
     private function getPfCategoriaBySede(int $sedeId): int
     {
         return $sedeId === 5 ? 22 : 9;
+    }
+
+    private function syncSedeGiacenza(int $articoloId, int $sedeId): void
+    {
+        $giacenza = Giacenza::where('articolo_id', $articoloId)->first();
+        if ($giacenza) {
+            $giacenza->update(['sede_id' => $sedeId]);
+        }
+
+        GiacenzaSede::where('articolo_id', $articoloId)->delete();
+        if ($giacenza) {
+            GiacenzaSede::updateOrCreate(
+                ['articolo_id' => $articoloId, 'sede_id' => $sedeId],
+                ['quantita' => (int) $giacenza->quantita, 'quantita_residua' => (int) $giacenza->quantita_residua]
+            );
+        }
     }
     
     public function getTotaleSelezionati(): int
