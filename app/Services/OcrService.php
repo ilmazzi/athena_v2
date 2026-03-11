@@ -1048,7 +1048,7 @@ class OcrService
             return [];
         }
 
-        $referenzeLines = $this->extractSectionLines(
+        $referenzeLines = $this->extractAllSectionLines(
             $text,
             '/\bReferenza\b/i',
             ['/N\.\s*serie/i', '/Descrizione/i', '/Quantit/i']
@@ -1089,7 +1089,7 @@ class OcrService
             return [];
         }
 
-        $serialLines = $this->extractSectionLines(
+        $serialLines = $this->extractAllSectionLines(
             $text,
             '/N\.\s*serie/i',
             ['/Descrizione/i', '/Quantit/i']
@@ -1105,14 +1105,14 @@ class OcrService
             }
         }
 
-        $descrizioneLines = $this->extractSectionLines(
+        $descrizioneLines = $this->extractAllSectionLines(
             $text,
             '/Descrizione/i',
             ['/Quantit/i', '/Prezzo/i', '/%/i', '/Importo/i']
         );
         $descrizioni = $this->buildRolexDescriptions($descrizioneLines);
 
-        $quantitaLines = $this->extractSectionLines(
+        $quantitaLines = $this->extractAllSectionLines(
             $text,
             '/Quantit/i',
             ['/Prezzo/i', '/%/i', '/Importo/i']
@@ -1124,14 +1124,14 @@ class OcrService
             }
         }
 
-        $prezzoLines = $this->extractSectionLines(
+        $prezzoLines = $this->extractAllSectionLines(
             $text,
             '/Prezzo/i',
             ['/Sconto/i', '/%/i', '/Importo/i']
         );
         $prezzi = $this->buildRolexAmounts($prezzoLines);
 
-        $importoLines = $this->extractSectionLines(
+        $importoLines = $this->extractAllSectionLines(
             $text,
             '/Importo/i',
             ['/Totale/i', '/IVA/i']
@@ -1244,6 +1244,42 @@ class OcrService
                         return $section;
                     }
                 }
+                $section[] = $line;
+            }
+        }
+
+        return $section;
+    }
+
+    /**
+     * Estrae tutte le righe di sezione ripetute nel documento.
+     */
+    protected function extractAllSectionLines(string $text, string $startPattern, array $endPatterns): array
+    {
+        $lines = preg_split('/\R/', $text);
+        $collect = false;
+        $section = [];
+
+        foreach ($lines as $line) {
+            if (preg_match($startPattern, $line)) {
+                $collect = true;
+                continue;
+            }
+
+            if ($collect) {
+                $isEnd = false;
+                foreach ($endPatterns as $endPattern) {
+                    if (preg_match($endPattern, $line)) {
+                        $isEnd = true;
+                        break;
+                    }
+                }
+
+                if ($isEnd) {
+                    $collect = false;
+                    continue;
+                }
+
                 $section[] = $line;
             }
         }

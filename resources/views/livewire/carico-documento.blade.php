@@ -295,7 +295,7 @@
                         <tr>
                             <th width="40">#</th>
                             <th width="50">Stato</th>
-                            <th width="180">Codice *</th>
+                            <th width="180">Codice / Referenza *</th>
                             <th>Descrizione</th>
                             <th width="160">Magazzino *</th>
                             <th width="100">Quantità *</th>
@@ -325,7 +325,7 @@
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
                                        class="form-control form-control-sm @error('articoli.'.$index.'.codice') is-invalid @enderror"
-                                       placeholder="Codice">
+                                       placeholder="Codice / Referenza">
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.descrizione"
