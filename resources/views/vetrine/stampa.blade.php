@@ -243,10 +243,6 @@
                                 @endphp
                                 @if($giorni >= 1)
                                     {{ intval($giorni) }} gg in vetrina
-                                @elseif($giorni > 0)
-                                    Oggi
-                                @else
-                                    Nuovo
                                 @endif
                             </div>
                         </td>
