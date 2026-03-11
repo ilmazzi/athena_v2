@@ -7,8 +7,13 @@ use App\Models\Fattura;
 use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
+use App\Models\Stampante;
+use App\Models\DdtDettaglio;
+use App\Models\FatturaDettaglio;
+use App\Services\EtichettaService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -46,6 +51,17 @@ class DocumentiAcquistoTable extends Component
         'importo_totale' => '',
         'note' => '',
     ];
+
+    // Modal stampa etichette
+    public $showPrintModal = false;
+    public $printDocId = null;
+    public $printDocTipo = null;
+    public $printRows = [];
+    public $stampantiDisponibili = [];
+    public $stampanteId = '';
+    public $codicePrezzoTipo = 'G';
+    public $codicePrezzoSuffix = '';
+    public $etichetteTotali = 0;
     
     protected $queryString = [
         'search' => ['except' => ''],
@@ -174,6 +190,144 @@ class DocumentiAcquistoTable extends Component
         ];
         
         $this->dispatch('open-edit-modal');
+    }
+
+    public function openPrintModal(string $tipo, int $id): void
+    {
+        $this->printDocTipo = $tipo;
+        $this->printDocId = $id;
+        $this->stampanteId = '';
+        $this->codicePrezzoTipo = 'G';
+        $this->codicePrezzoSuffix = '';
+
+        if ($tipo === 'ddt') {
+            $righe = DdtDettaglio::with('articolo')
+                ->where('ddt_id', $id)
+                ->get();
+        } else {
+            $righe = FatturaDettaglio::with('articolo')
+                ->where('fattura_id', $id)
+                ->get();
+        }
+
+        $this->printRows = $righe->map(function ($riga) {
+            return [
+                'articolo_id' => $riga->articolo_id,
+                'codice' => $riga->articolo->codice ?? '',
+                'descrizione' => $riga->descrizione ?? ($riga->articolo->descrizione ?? ''),
+                'quantita' => (int) ($riga->quantita ?? 1),
+                'prezzo_unitario' => $riga->prezzo_unitario ?? ($riga->articolo->prezzo_fornitore ?? $riga->articolo->prezzo_acquisto ?? null),
+                'prezzo_etichetta' => '',
+            ];
+        })->toArray();
+
+        $this->etichetteTotali = 0;
+        $this->showPrintModal = true;
+    }
+
+    public function closePrintModal(): void
+    {
+        $this->showPrintModal = false;
+        $this->printDocId = null;
+        $this->printDocTipo = null;
+        $this->printRows = [];
+        $this->etichetteTotali = 0;
+    }
+
+    public function applicaCodicePrezzoTutti(): void
+    {
+        foreach ($this->printRows as $index => $row) {
+            $this->printRows[$index]['prezzo_etichetta'] = $this->buildCodicePrezzo(
+                $row['prezzo_unitario'] ?? null,
+                $this->codicePrezzoTipo,
+                $this->codicePrezzoSuffix
+            );
+        }
+        $this->etichetteTotali = $this->calcolaEtichetteTotali();
+    }
+
+    public function applicaCodicePrezzoRiga(int $index): void
+    {
+        if (!isset($this->printRows[$index])) {
+            return;
+        }
+        $row = $this->printRows[$index];
+        $this->printRows[$index]['prezzo_etichetta'] = $this->buildCodicePrezzo(
+            $row['prezzo_unitario'] ?? null,
+            $this->codicePrezzoTipo,
+            $this->codicePrezzoSuffix
+        );
+        $this->etichetteTotali = $this->calcolaEtichetteTotali();
+    }
+
+    public function ricalcolaEtichetteTotali(): void
+    {
+        $this->etichetteTotali = $this->calcolaEtichetteTotali();
+    }
+
+    public function stampaEtichetteDocumento(): void
+    {
+        $service = app(EtichettaService::class);
+        $success = 0;
+        $errors = 0;
+
+        foreach ($this->printRows as $row) {
+            $prezzoEtichetta = trim((string) ($row['prezzo_etichetta'] ?? ''));
+            if ($prezzoEtichetta === '') {
+                continue;
+            }
+
+            $articolo = \App\Models\Articolo::find($row['articolo_id']);
+            if (!$articolo) {
+                $errors++;
+                continue;
+            }
+
+            $quantita = max(1, (int) ($row['quantita'] ?? 1));
+            $formatoPrezzo = $this->guessFormatoPrezzo($prezzoEtichetta);
+            $stampante = $this->stampanteId
+                ? Stampante::find($this->stampanteId)
+                : $service->getStampanteDefault($articolo);
+
+            if (!$stampante) {
+                $errors++;
+                continue;
+            }
+
+            for ($i = 0; $i < $quantita; $i++) {
+                try {
+                    $zpl = $service->generaEtichettaZPLConPrezzo(
+                        $articolo,
+                        $prezzoEtichetta,
+                        $formatoPrezzo,
+                        $stampante->id,
+                        'standard'
+                    );
+                    $ok = $service->inviaAllaStampante($stampante->ip_address, $stampante->port, $zpl);
+                    $ok ? $success++ : $errors++;
+                } catch (\Exception $e) {
+                    Log::warning('Errore stampa etichetta documento', [
+                        'articolo_id' => $articolo->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $errors++;
+                }
+            }
+        }
+
+        $this->etichetteTotali = $this->calcolaEtichetteTotali();
+
+        if ($errors > 0) {
+            $this->dispatch('show-toast',
+                type: 'warning',
+                message: "Etichette stampate: {$success}, errori: {$errors}"
+            );
+        } else {
+            $this->dispatch('show-toast',
+                type: 'success',
+                message: "Etichette stampate: {$success}"
+            );
+        }
     }
 
     public function updateDocument()
@@ -453,8 +607,57 @@ class DocumentiAcquistoTable extends Component
             ->get(['id', 'nome', 'codice']);
         
         $sedi = Sede::orderBy('nome')->get(['id', 'nome']);
+
+        $this->stampantiDisponibili = Stampante::where('attiva', true)
+            ->orderBy('nome')
+            ->get(['id', 'nome', 'modello']);
         
         return view('livewire.documenti-acquisto-table', compact('documenti', 'stats', 'fornitori', 'categorie', 'sedi'));
+    }
+
+    protected function buildCodicePrezzo($costoUnitario, string $tipo, string $suffix): string
+    {
+        $prezzo = $this->normalizePrice($costoUnitario);
+        if ($prezzo === null) {
+            return '';
+        }
+        $valore = rtrim(rtrim(number_format($prezzo, 2, '.', ''), '0'), '.');
+        $tipo = strtoupper(trim($tipo));
+        $suffix = trim((string) $suffix);
+
+        return 'X' . $valore . ($tipo === 'P' ? 'P' : 'G') . $suffix;
+    }
+
+    protected function normalizePrice($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $normalized = str_replace(['.', ','], ['', '.'], (string) $value);
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+        return (float) $normalized;
+    }
+
+    protected function guessFormatoPrezzo(string $prezzo): string
+    {
+        $numeric = preg_replace('/[^\d,.]/', '', $prezzo);
+        $numeric = str_replace(',', '.', $numeric);
+        return is_numeric($numeric) ? 'euro' : 'codificato';
+    }
+
+    protected function calcolaEtichetteTotali(): int
+    {
+        $totale = 0;
+        foreach ($this->printRows as $row) {
+            $prezzoEtichetta = trim((string) ($row['prezzo_etichetta'] ?? ''));
+            if ($prezzoEtichetta === '') {
+                continue;
+            }
+            $totale += max(1, (int) ($row['quantita'] ?? 1));
+        }
+        return $totale;
     }
 }
 

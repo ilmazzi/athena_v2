@@ -1,4 +1,14 @@
 <div class="container-xxl">
+    <style>
+        .carico-doc-table input,
+        .carico-doc-table textarea,
+        .carico-doc-table select {
+            width: 100%;
+        }
+        .carico-doc-table textarea {
+            resize: vertical;
+        }
+    </style>
     {{-- Overlay blocco UI durante elaborazione OCR --}}
     <div wire:loading wire:target="processaPdf"
          wire:loading.class.remove="d-none"
@@ -195,33 +205,38 @@
         
         {{-- Intestazione Documento --}}
         <div class="card border-0 shadow-sm mb-3">
-            <div class="card-body py-3">
-                <div class="row g-3 align-items-center">
-                    
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="mb-0 fw-semibold">Dati Documento</h6>
+                        <small class="text-muted">Compila le informazioni principali prima di salvare.</small>
+                    </div>
                     @if($confidenceScore > 0)
-                    <div class="col-auto">
                         <span class="badge {{ $confidenceScore >= 70 ? 'bg-success' : 'bg-warning' }} fs-6 px-3 py-2">
                             <i class="ri-bar-chart-line me-1"></i>
                             {{ number_format($confidenceScore, 0) }}%
                         </span>
-                    </div>
                     @endif
-
-                    <div class="col-md-2">
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Numero {{ strtoupper($tipoDocumento) }} *</label>
                         <input type="text" wire:model.defer="numeroDocumento" 
-                               class="form-control form-control-sm @error('numeroDocumento') is-invalid @enderror">
+                               class="form-control form-control-sm @error('numeroDocumento') is-invalid @enderror"
+                               placeholder="Es. 2900025592">
                         @error('numeroDocumento')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Data *</label>
                         <input type="date" wire:model.defer="dataDocumento" 
                                class="form-control form-control-sm @error('dataDocumento') is-invalid @enderror">
                         @error('dataDocumento')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-6">
                         <label class="form-label small text-muted mb-1">Fornitore</label>
                         <select wire:model.defer="fornitoreId" class="form-select form-select-sm">
                             <option value="">Nessuno</option>
@@ -230,8 +245,12 @@
                             @endforeach
                         </select>
                     </div>
+                </div>
 
-                    <div class="col-md-2">
+                <hr class="my-3">
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Sede *</label>
                         <select wire:model.defer="sedeId" class="form-select form-select-sm @error('sedeId') is-invalid @enderror">
                             <option value="">Seleziona...</option>
@@ -242,8 +261,8 @@
                         @error('sedeId')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    <div class="col-md-2">
-                        <label class="form-label small text-muted mb-1">Magazzino *</label>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Magazzino globale</label>
                         <select wire:model.live="categoriaId" class="form-select form-select-sm @error('categoriaId') is-invalid @enderror">
                             <option value="">Seleziona...</option>
                             @foreach($categorie as $categoria)
@@ -251,17 +270,17 @@
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">Modifica qui per applicare il magazzino a tutti gli articoli.</div>
+                        <div class="form-text">Applica il magazzino a tutte le righe (opzionale).</div>
                     </div>
 
                     @if($tipoDocumento === 'fattura')
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label class="form-label small text-muted mb-1">Partita IVA</label>
                             <input type="text" wire:model.defer="partitaIva"
                                    class="form-control form-control-sm" placeholder="ITxxxxxxxxxxx">
                         </div>
 
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <label class="form-label small text-muted mb-1">Totale Fattura</label>
                             <input type="text" wire:model.defer="importoTotale"
                                    class="form-control form-control-sm text-end" placeholder="0,00">
@@ -279,7 +298,7 @@
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body py-3">
                 <div class="row g-3 align-items-center">
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="stampaEtichette"
                                    wire:model="stampaEtichette">
@@ -289,7 +308,7 @@
                         </div>
                         <small class="text-muted d-block">Stampa solo se il prezzo etichetta è compilato.</small>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <label class="form-label small text-muted mb-1">Stampante</label>
                         <select class="form-select form-select-sm" wire:model="stampanteId">
                             <option value="">Automatica</option>
@@ -300,14 +319,20 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label small text-muted mb-1">Layout Etichetta</label>
-                        <select class="form-select form-select-sm" wire:model="layoutEtichetta">
-                            <option value="standard">Standard</option>
-                            <option value="nc_prezzo">NC Prezzo</option>
-                            <option value="nc_prezzo_carati">NC Prezzo + Carati</option>
-                            <option value="nc_prezzo_completo">NC Prezzo Completo</option>
-                        </select>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1">Codice prezzo automatico</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">X</span>
+                            <select class="form-select" wire:model="codicePrezzoTipo">
+                                <option value="G">G</option>
+                                <option value="P">P</option>
+                            </select>
+                            <input type="text" class="form-control" wire:model="codicePrezzoSuffix" placeholder="N (es. 3.5)">
+                            <button class="btn btn-outline-primary" type="button" wire:click="applicaCodicePrezzoTutti">
+                                Applica a tutte
+                            </button>
+                        </div>
+                        <small class="text-muted">Formato: X + costo unitario + G/P + N</small>
                     </div>
                 </div>
             </div>
@@ -329,25 +354,25 @@
             </div>
             
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
+                <table class="table table-hover align-middle mb-0 carico-doc-table">
                     <thead class="table-light">
                         <tr>
                             <th width="40">#</th>
                             <th width="50">Stato</th>
-                            <th width="180">Codice / Referenza *</th>
-                            <th width="380">Descrizione</th>
-                            <th width="160">Magazzino *</th>
-                            <th width="100">Quantità *</th>
-                            <th width="90">Carati</th>
+                            <th width="200">Codice / Referenza *</th>
+                            <th width="420">Descrizione</th>
+                            <th width="180">Magazzino *</th>
+                            <th width="110">Quantità *</th>
+                            <th width="100">Carati</th>
                             <th width="140">
                                 {{ $tipoDocumento === 'ddt' ? 'Prezzo Fornitore' : 'Costo Unit.' }}
                             </th>
                             <th width="140">
                                 {{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}
                             </th>
-                            <th width="140">Prezzo Etichetta</th>
-                            <th width="150">Seriale</th>
-                            <th width="150">EAN</th>
+                            <th width="160">Prezzo Etichetta</th>
+                            <th width="160">Seriale</th>
+                            <th width="160">EAN</th>
                             <th width="60"></th>
                         </tr>
                     </thead>
@@ -365,14 +390,13 @@
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
                                        class="form-control form-control-sm @error('articoli.'.$index.'.codice') is-invalid @enderror"
-                                       style="min-width: 180px;"
                                        placeholder="Codice / Referenza">
                             </td>
                             <td>
                                 <textarea wire:model.defer="articoli.{{ $index }}.descrizione"
                                           class="form-control form-control-sm"
-                                          rows="2"
-                                          style="min-width: 340px; white-space: pre-wrap;"
+                                          rows="3"
+                                          style="white-space: pre-wrap;"
                                           placeholder="Descrizione"></textarea>
                             </td>
                             <td>
@@ -407,14 +431,19 @@
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
                                        class="form-control form-control-sm text-end"
                                        placeholder="Prezzo etichetta">
+                                <button type="button"
+                                        class="btn btn-link btn-sm p-0"
+                                        wire:click="applicaCodicePrezzoRiga({{ $index }})">
+                                    Applica auto
+                                </button>
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
-                                       class="form-control form-control-sm" style="min-width: 140px;" placeholder="Seriale">
+                                       class="form-control form-control-sm" placeholder="Seriale">
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.ean"
-                                       class="form-control form-control-sm" style="min-width: 140px;" placeholder="EAN">
+                                       class="form-control form-control-sm" placeholder="EAN">
                             </td>
                             <td class="text-center">
                                 <button type="button" wire:click="rimuoviArticolo({{ $index }})" 
@@ -444,13 +473,13 @@
             
             <button type="button"
                     class="btn btn-success"
-                    wire:click="salvaCarico"
+                    wire:click="richiestaSalvaCarico"
                     wire:loading.attr="disabled"
-                    wire:target="salvaCarico">
-                <span wire:loading.remove wire:target="salvaCarico">
+                    wire:target="salvaCarico,richiestaSalvaCarico">
+                <span wire:loading.remove wire:target="salvaCarico,richiestaSalvaCarico">
                     <iconify-icon icon="solar:diskette-bold-duotone" class="me-1"></iconify-icon> Salva Carico
                 </span>
-                <span wire:loading wire:target="salvaCarico">
+                <span wire:loading wire:target="salvaCarico,richiestaSalvaCarico">
                     <span class="spinner-border spinner-border-sm me-2"></span>
                     Salvataggio...
                 </span>
@@ -486,6 +515,30 @@
             </div>
         </div>
     </div>
+    @endif
+
+    @if($showConfirmModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Conferma Salvataggio</h5>
+                        <button type="button" class="btn-close" wire:click="annullaSalvaCarico"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">Stai per salvare il carico.</p>
+                        <p class="mb-0">
+                            Etichette da stampare: <strong>{{ $etichetteTotali }}</strong>
+                        </p>
+                        <small class="text-muted">Verranno stampate solo le righe con prezzo etichetta compilato.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" wire:click="annullaSalvaCarico">Annulla</button>
+                        <button class="btn btn-success" type="button" wire:click="confermaSalvaCarico">Conferma</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     @endif
 
 </div>

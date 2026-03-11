@@ -54,6 +54,10 @@ class CaricoDocumento extends Component
     public $stampaEtichette = true;
     public $stampanteId = '';
     public $layoutEtichetta = 'standard';
+    public $showConfirmModal = false;
+    public $etichetteTotali = 0;
+    public $codicePrezzoTipo = 'G';
+    public $codicePrezzoSuffix = '';
 
     // Regole di validazione (Livewire 2)
     protected function rules(): array
@@ -63,7 +67,7 @@ class CaricoDocumento extends Component
             'numeroDocumento' => 'required|string|max:50',
             'dataDocumento' => 'required|date',
             'sedeId' => 'required|exists:sedi,id',
-            'categoriaId' => 'required|exists:categorie_merceologiche,id',
+            'categoriaId' => 'nullable|exists:categorie_merceologiche,id',
             'articoli.*.codice' => 'required|string|max:50',
             'articoli.*.quantita' => 'required|integer|min:1',
             'articoli.*.caratura' => 'nullable|string|max:50',
@@ -196,6 +200,58 @@ class CaricoDocumento extends Component
             'title' => 'Magazzino aggiornato',
             'text' => 'Tutti gli articoli sono stati impostati su questo magazzino.',
         ]);
+    }
+
+    public function richiestaSalvaCarico()
+    {
+        $this->validate();
+
+        if ($this->stampaEtichette) {
+            $this->etichetteTotali = $this->calcolaEtichetteTotali();
+            $this->showConfirmModal = true;
+            return;
+        }
+
+        $this->salvaCarico();
+    }
+
+    public function confermaSalvaCarico()
+    {
+        $this->showConfirmModal = false;
+        $this->salvaCarico();
+    }
+
+    public function annullaSalvaCarico()
+    {
+        $this->showConfirmModal = false;
+    }
+
+    public function applicaCodicePrezzoTutti()
+    {
+        if (empty($this->articoli)) {
+            return;
+        }
+
+        foreach ($this->articoli as $index => $articolo) {
+            $this->articoli[$index]['prezzo_etichetta'] = $this->buildCodicePrezzo(
+                $articolo['prezzo_unitario'] ?? null,
+                $this->codicePrezzoTipo,
+                $this->codicePrezzoSuffix
+            );
+        }
+    }
+
+    public function applicaCodicePrezzoRiga($index)
+    {
+        if (!isset($this->articoli[$index])) {
+            return;
+        }
+
+        $this->articoli[$index]['prezzo_etichetta'] = $this->buildCodicePrezzo(
+            $this->articoli[$index]['prezzo_unitario'] ?? null,
+            $this->codicePrezzoTipo,
+            $this->codicePrezzoSuffix
+        );
     }
 
     /**
@@ -560,6 +616,32 @@ class CaricoDocumento extends Component
         $numeric = str_replace(',', '.', $numeric);
 
         return is_numeric($numeric) ? 'euro' : 'codificato';
+    }
+
+    protected function calcolaEtichetteTotali(): int
+    {
+        $totale = 0;
+        foreach ($this->articoli as $articolo) {
+            $prezzoEtichetta = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
+            if ($prezzoEtichetta === '') {
+                continue;
+            }
+            $totale += max(1, (int) ($articolo['quantita'] ?? 1));
+        }
+        return $totale;
+    }
+
+    protected function buildCodicePrezzo($costoUnitario, string $tipo, string $suffix): string
+    {
+        $prezzo = $this->normalizePrice($costoUnitario);
+        if ($prezzo === null) {
+            return '';
+        }
+        $valore = rtrim(rtrim(number_format($prezzo, 2, '.', ''), '0'), '.');
+        $tipo = strtoupper(trim($tipo));
+        $suffix = trim((string) $suffix);
+
+        return 'X' . $valore . ($tipo === 'P' ? 'P' : 'G') . $suffix;
     }
 }
 

@@ -323,6 +323,12 @@
                                                     title="Modifica Documento">
                                                 <iconify-icon icon="solar:pen-bold-duotone" class="text-primary"></iconify-icon>
                                             </button>
+                                            <button type="button"
+                                                    class="btn btn-light"
+                                                    wire:click="openPrintModal('{{ $doc->tipo_documento }}', {{ $doc->id }})"
+                                                    title="Ristampa etichette">
+                                                <iconify-icon icon="solar:printer-bold-duotone" class="text-success"></iconify-icon>
+                                            </button>
                                             @if($doc->tipo_carico === 'ocr' && $doc->ocrDocument)
                                                 <a href="{{ route('ocr.documents.pdf', $doc->ocrDocument) }}" 
                                                    class="btn btn-light" 
@@ -378,6 +384,104 @@
             </div>
         @endif
     </div>
+
+    @if($showPrintModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Ristampa Etichette</h5>
+                        <button type="button" class="btn-close" wire:click="closePrintModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1">Stampante</label>
+                                <select class="form-select form-select-sm" wire:model="stampanteId">
+                                    <option value="">Automatica</option>
+                                    @foreach($stampantiDisponibili as $stampante)
+                                        <option value="{{ $stampante->id }}">
+                                            {{ $stampante->nome }} ({{ $stampante->modello }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1">Codice prezzo automatico</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">X</span>
+                                    <select class="form-select" wire:model="codicePrezzoTipo">
+                                        <option value="G">G</option>
+                                        <option value="P">P</option>
+                                    </select>
+                                    <input type="text" class="form-control" wire:model="codicePrezzoSuffix" placeholder="N (es. 3.5)">
+                                    <button class="btn btn-outline-primary" type="button" wire:click="applicaCodicePrezzoTutti">
+                                        Applica a tutte
+                                    </button>
+                                </div>
+                                <small class="text-muted">Formato: X + costo unitario + G/P + N</small>
+                            </div>
+                            <div class="col-md-2 text-md-end">
+                                <div class="small text-muted">Etichette da stampare</div>
+                                <div class="fw-semibold">{{ $etichetteTotali }}</div>
+                                <button class="btn btn-link btn-sm p-0" type="button" wire:click="ricalcolaEtichetteTotali">
+                                    Ricalcola
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="200">Codice</th>
+                                        <th>Descrizione</th>
+                                        <th width="90" class="text-center">Qta</th>
+                                        <th width="140" class="text-end">Costo Unit.</th>
+                                        <th width="180">Prezzo Etichetta</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($printRows as $index => $row)
+                                        <tr>
+                                            <td><strong>{{ $row['codice'] }}</strong></td>
+                                            <td>{{ $row['descrizione'] }}</td>
+                                            <td class="text-center">{{ $row['quantita'] }}</td>
+                                            <td class="text-end">
+                                                {{ is_null($row['prezzo_unitario']) ? '-' : number_format((float) $row['prezzo_unitario'], 2, ',', '.') }}
+                                            </td>
+                                            <td>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text"
+                                                           class="form-control"
+                                                           wire:model.defer="printRows.{{ $index }}.prezzo_etichetta"
+                                                           placeholder="Prezzo etichetta">
+                                                    <button class="btn btn-outline-secondary" type="button" wire:click="applicaCodicePrezzoRiga({{ $index }})">
+                                                        Auto
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-3">Nessun articolo nel documento</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted">Verranno stampate solo le righe con prezzo etichetta compilato.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" wire:click="closePrintModal">Chiudi</button>
+                        <button class="btn btn-success" type="button" wire:click="stampaEtichetteDocumento">
+                            Stampa Etichette
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     <!-- Modal Modifica Documento -->
     <div class="modal fade" id="editModal" tabindex="-1" wire:ignore.self>
