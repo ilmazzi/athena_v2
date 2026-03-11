@@ -185,7 +185,9 @@
                                     @if($pfComponenti && $pfComponenti->isNotEmpty())
                                         @php
                                             $componenti = $pfComponenti
-                                                ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
+                                                ->map(fn($c) => $c->articolo?->codice
+                                                    ?: $c->articolo?->descrizione
+                                                    ?: ('ID ' . $c->articolo_id))
                                                 ->filter()
                                                 ->take(6)
                                                 ->implode(', ');
