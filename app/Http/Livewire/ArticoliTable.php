@@ -1490,7 +1490,14 @@ class ArticoliTable extends Component
         }
 
         // Applica sorting
-        $query->orderBy($this->sortField, $this->sortDirection);
+        if ($this->sortField === 'codice') {
+            $dir = $this->sortDirection === 'asc' ? 'asc' : 'desc';
+            $query->orderByRaw("SUBSTRING_INDEX(articoli.codice, '-', 1) {$dir}")
+                ->orderByRaw("CAST(SUBSTRING_INDEX(articoli.codice, '-', -1) AS UNSIGNED) {$dir}")
+                ->orderBy('articoli.codice', $dir);
+        } else {
+            $query->orderBy($this->sortField, $this->sortDirection);
+        }
 
         $articoli = $query->paginate($this->perPage);
 
