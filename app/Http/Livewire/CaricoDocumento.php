@@ -354,7 +354,7 @@ class CaricoDocumento extends Component
                 if (empty($articolo['articolo_id'])) {
                     // Genera codice progressivo per magazzino
                     $codiceService = app(\App\Services\CodiceService::class);
-                    $codiceVO = $codiceService->prossimoCodiceDisponibile($this->categoriaId);
+                    $codiceVO = $codiceService->prossimoCodiceDisponibile($articoloCategoriaId);
                     
                     // Prepara caratteristiche JSON con referenza fornitore
                     $caratteristiche = [
