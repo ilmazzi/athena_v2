@@ -20,8 +20,8 @@ class VetrinaController extends Controller
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
+            'articolo.prodottoFinito',
             'prodottoFinito.categoriaMerceologica',
-            'prodottoFinito.componentiArticoli.articolo',
             'categoriaMerceologica',
             'sede',
         ])
@@ -30,6 +30,28 @@ class VetrinaController extends Controller
             ->orderBy('posizione')
             ->orderBy('created_at', 'desc')
             ->get();
+
+        $pfIds = $articoliInVetrina->map(function ($item) {
+            if ($item->prodotto_finito_id) {
+                return $item->prodotto_finito_id;
+            }
+            return $item->articolo?->prodotto_finito_id;
+        })->filter()->unique()->values();
+
+        $componentiByPfId = collect();
+        if ($pfIds->isNotEmpty()) {
+            $componentiByPfId = \DB::table('componenti_prodotto as cp')
+                ->leftJoin('articoli as a', 'a.id', '=', 'cp.articolo_id')
+                ->whereIn('cp.prodotto_finito_id', $pfIds)
+                ->select([
+                    'cp.prodotto_finito_id',
+                    'cp.articolo_id',
+                    'a.codice as articolo_codice',
+                    'a.descrizione as articolo_descrizione',
+                ])
+                ->get()
+                ->groupBy('prodotto_finito_id');
+        }
 
         // Genera QR codes per ogni articolo
         $articoliConQr = $articoliInVetrina->map(function ($articoloVetrina) {
@@ -50,6 +72,7 @@ class VetrinaController extends Controller
         return view('vetrine.stampa', [
             'vetrina' => $vetrina,
             'articoli' => $articoliConQr,
+            'componentiByPfId' => $componentiByPfId,
         ]);
     }
 

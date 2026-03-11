@@ -216,19 +216,26 @@
                             @else
                                 <div style="font-weight: bold; margin-bottom: 2px;">{{ Str::limit($articoloVetrina->descrizione_display, 50) }}</div>
                             @endif
-                            @if($articoloVetrina->is_prodotto_finito && $articoloVetrina->prodottoFinito)
-                                @php
-                                    $componenti = $articoloVetrina->prodottoFinito->componentiArticoli
-                                        ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
-                                        ->filter()
-                                        ->take(8)
-                                        ->implode(', ');
-                                @endphp
-                                @if($componenti)
-                                    <div style="font-size: 9px; color: var(--bs-secondary); margin-top: 2px;">
-                                        Componenti: {{ $componenti }}
-                                    </div>
-                                @endif
+                            @php
+                                $pfId = $articoloVetrina->prodotto_finito_id
+                                    ?? $articoloVetrina->articolo?->prodotto_finito_id;
+                                $pfComponenti = $pfId
+                                    ? ($componentiByPfId[$pfId] ?? collect())
+                                    : collect();
+                                $componenti = $pfComponenti
+                                    ->map(function ($c) {
+                                        return $c->articolo_codice
+                                            ?: $c->articolo_descrizione
+                                            ?: ('ID ' . $c->articolo_id);
+                                    })
+                                    ->filter()
+                                    ->take(8)
+                                    ->implode(', ');
+                            @endphp
+                            @if($pfId && $componenti)
+                                <div style="font-size: 9px; color: var(--bs-secondary); margin-top: 2px;">
+                                    Componenti: {{ $componenti }}
+                                </div>
                             @endif
                             <div style="font-size: 9px; color: var(--bs-secondary);">
                                 @php
