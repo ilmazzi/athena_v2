@@ -474,6 +474,12 @@ class OcrService
             'italy', 'italia', 'switzerland', 'svizzera'
         ];
 
+        // Parsing specifico ROLEX: blocchi "Referenza" con codici Mxxxx-0000
+        $rolexArticoli = $this->parseRolexArticoli($text);
+        if (!empty($rolexArticoli)) {
+            return $rolexArticoli;
+        }
+
         // Parsing specifico POMELLATO: riga tabellare con codice + variante + quantità + NR
         foreach ($lines as $idx => $line) {
             $lineTrim = trim($line);
@@ -1031,6 +1037,131 @@ class OcrService
         }
         
         return array_values($articoli); // Re-index array
+    }
+
+    /**
+     * Parsing specifico ROLEX per documenti con blocchi "Referenza".
+     */
+    protected function parseRolexArticoli(string $text): array
+    {
+        if (!preg_match('/\bROLEX\b/i', $text) || !preg_match('/\bReferenza\b/i', $text)) {
+            return [];
+        }
+
+        $referenzeLines = $this->extractSectionLines(
+            $text,
+            '/\bReferenza\b/i',
+            ['/N\.\s*serie/i', '/Descrizione/i', '/Quantit/i']
+        );
+
+        if (empty($referenzeLines)) {
+            return [];
+        }
+
+        $codici = [];
+        $lineCount = count($referenzeLines);
+        for ($i = 0; $i < $lineCount; $i++) {
+            $line = trim($referenzeLines[$i]);
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/^M[0-9A-Z]{5,12}-\d{4}$/', $line)) {
+                $codici[] = $line;
+                continue;
+            }
+
+            if (preg_match('/^M[0-9A-Z]{5,12}-$/', $line) && isset($referenzeLines[$i + 1])) {
+                $next = trim($referenzeLines[$i + 1]);
+                if (preg_match('/^\d{4}$/', $next)) {
+                    $codici[] = $line . $next;
+                    $i++;
+                    continue;
+                }
+            }
+
+            if (preg_match('/^(M[0-9A-Z]{5,12})\s*-\s*(\d{4})$/', $line, $m)) {
+                $codici[] = $m[1] . '-' . $m[2];
+            }
+        }
+
+        if (empty($codici)) {
+            return [];
+        }
+
+        $serialLines = $this->extractSectionLines(
+            $text,
+            '/N\.\s*serie/i',
+            ['/Descrizione/i', '/Quantit/i']
+        );
+        $serials = [];
+        foreach ($serialLines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (preg_match('/^[A-Z0-9]{6,12}$/', $line)) {
+                $serials[] = $line;
+            }
+        }
+
+        $quantitaLines = $this->extractSectionLines(
+            $text,
+            '/Quantit/i',
+            ['/Prezzo/i', '/%/i', '/Importo/i']
+        );
+        $quantitaList = [];
+        foreach ($quantitaLines as $line) {
+            if (preg_match('/^\s*(\d{1,3})\b/', $line, $m)) {
+                $quantitaList[] = (int) $m[1];
+            }
+        }
+
+        $articoli = [];
+        foreach ($codici as $idx => $codice) {
+            $qty = $quantitaList[$idx] ?? 1;
+            $articolo = [
+                'codice' => $codice,
+                'descrizione' => 'ROLEX ' . $codice,
+                'quantita' => max(1, $qty),
+            ];
+
+            if (isset($serials[$idx])) {
+                $articolo['numero_seriale'] = $serials[$idx];
+            }
+
+            $articoli[$codice] = $articolo;
+        }
+
+        return $articoli;
+    }
+
+    /**
+     * Estrae le righe comprese tra un header e il successivo.
+     */
+    protected function extractSectionLines(string $text, string $startPattern, array $endPatterns): array
+    {
+        $lines = preg_split('/\R/', $text);
+        $collect = false;
+        $section = [];
+
+        foreach ($lines as $line) {
+            if (!$collect && preg_match($startPattern, $line)) {
+                $collect = true;
+                continue;
+            }
+
+            if ($collect) {
+                foreach ($endPatterns as $endPattern) {
+                    if (preg_match($endPattern, $line)) {
+                        return $section;
+                    }
+                }
+                $section[] = $line;
+            }
+        }
+
+        return $section;
     }
 
     /**

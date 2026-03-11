@@ -79,6 +79,7 @@ return [
         // Numero Fattura - pattern multipli
         'numero_fattura' => [
             '/FATTURA[:\s#\/\-]*N?[°\s\.]*(\d{1,6}[\/-]\d{2,4})/i', // FATTURA N. 123/2025
+            '/FATTURA[:\s#\/\-]*([A-Z]{1,4}\d{4,12})/i', // FATTURA VO2400492
             '/FATTURA[:\s#\/\-]*(\d{4,10})/i', // FATTURA 0001234567
             '/FATT?[:\s]*(\d{1,6}[\/-]\d{2,4})/i', // FATT 123/2025
         ],
