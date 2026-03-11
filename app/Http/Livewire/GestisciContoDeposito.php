@@ -499,6 +499,10 @@ class GestisciContoDeposito extends Component
             session()->flash('error', 'Deposito bloccato: non è possibile aggiungere articoli dopo l\'invio.');
             return;
         }
+        if (!$this->deposito->isInterSocieta()) {
+            session()->flash('error', 'Questo conto deposito non è inter-società. Per trasferimenti interni usa le movimentazioni interne.');
+            return;
+        }
         // Validazione specifica per aggiunta articoli (solo quantità degli articoli selezionati)
         $this->validate([
             'articoliSelezionati.*.quantita' => 'required|integer|min:1',

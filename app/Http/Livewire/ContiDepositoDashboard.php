@@ -243,6 +243,14 @@ class ContiDepositoDashboard extends Component
         $this->validate();
 
         try {
+            $sedeMittente = \App\Models\Sede::with('societa')->findOrFail($this->sedeMittenteId);
+            $sedeDestinataria = \App\Models\Sede::with('societa')->findOrFail($this->sedeDestinatariaId);
+            if ($sedeMittente->societa_id && $sedeDestinataria->societa_id
+                && $sedeMittente->societa_id === $sedeDestinataria->societa_id) {
+                session()->flash('error', 'Il conto deposito è solo tra società diverse. Per sedi della stessa società usa le movimentazioni interne.');
+                return;
+            }
+
             // Per ora creiamo solo il deposito vuoto
             // L'aggiunta di articoli/PF sarà gestita in un secondo step
             $deposito = ContoDeposito::create([
