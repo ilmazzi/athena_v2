@@ -474,7 +474,7 @@ class VetrinaDetail extends Component
                 ->when($this->vetrina->sede_id, function ($query) {
                     $sedeId = $this->vetrina->sede_id;
                     $query->where(function ($q) use ($sedeId) {
-                        $q->where('sede_id', $sedeId)
+                        $q->where('articoli.sede_id', $sedeId)
                           ->orWhereHas('contoDepositoCorrente', function ($sub) use ($sedeId) {
                               $sub->where('sede_destinataria_id', $sedeId);
                           });
