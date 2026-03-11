@@ -276,6 +276,43 @@
             Il magazzino in testata imposta automaticamente il magazzino su tutte le righe. Puoi comunque cambiarlo per singolo articolo.
         </div>
 
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body py-3">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="stampaEtichette"
+                                   wire:model="stampaEtichette">
+                            <label class="form-check-label fw-semibold" for="stampaEtichette">
+                                Stampa etichette a fine carico
+                            </label>
+                        </div>
+                        <small class="text-muted d-block">Stampa solo se il prezzo etichetta è compilato.</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Stampante</label>
+                        <select class="form-select form-select-sm" wire:model="stampanteId">
+                            <option value="">Automatica</option>
+                            @foreach($stampantiDisponibili as $stampante)
+                                <option value="{{ $stampante->id }}">
+                                    {{ $stampante->nome }} ({{ $stampante->modello }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Layout Etichetta</label>
+                        <select class="form-select form-select-sm" wire:model="layoutEtichetta">
+                            <option value="standard">Standard</option>
+                            <option value="nc_prezzo">NC Prezzo</option>
+                            <option value="nc_prezzo_carati">NC Prezzo + Carati</option>
+                            <option value="nc_prezzo_completo">NC Prezzo Completo</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- Tabella Articoli --}}
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
@@ -298,7 +335,7 @@
                             <th width="40">#</th>
                             <th width="50">Stato</th>
                             <th width="180">Codice / Referenza *</th>
-                            <th>Descrizione</th>
+                            <th width="380">Descrizione</th>
                             <th width="160">Magazzino *</th>
                             <th width="100">Quantità *</th>
                             <th width="90">Carati</th>
@@ -308,6 +345,7 @@
                             <th width="140">
                                 {{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}
                             </th>
+                            <th width="140">Prezzo Etichetta</th>
                             <th width="150">Seriale</th>
                             <th width="150">EAN</th>
                             <th width="60"></th>
@@ -327,11 +365,15 @@
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
                                        class="form-control form-control-sm @error('articoli.'.$index.'.codice') is-invalid @enderror"
+                                       style="min-width: 180px;"
                                        placeholder="Codice / Referenza">
                             </td>
                             <td>
-                                <input type="text" wire:model.defer="articoli.{{ $index }}.descrizione"
-                                       class="form-control form-control-sm" placeholder="Descrizione">
+                                <textarea wire:model.defer="articoli.{{ $index }}.descrizione"
+                                          class="form-control form-control-sm"
+                                          rows="2"
+                                          style="min-width: 340px; white-space: pre-wrap;"
+                                          placeholder="Descrizione"></textarea>
                             </td>
                             <td>
                                 <select wire:model.defer="articoli.{{ $index }}.categoria_id"
@@ -362,12 +404,17 @@
                                        placeholder="0,00">
                             </td>
                             <td>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
+                                       class="form-control form-control-sm text-end"
+                                       placeholder="Prezzo etichetta">
+                            </td>
+                            <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
-                                       class="form-control form-control-sm" placeholder="Seriale">
+                                       class="form-control form-control-sm" style="min-width: 140px;" placeholder="Seriale">
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.ean"
-                                       class="form-control form-control-sm" placeholder="EAN">
+                                       class="form-control form-control-sm" style="min-width: 140px;" placeholder="EAN">
                             </td>
                             <td class="text-center">
                                 <button type="button" wire:click="rimuoviArticolo({{ $index }})" 
@@ -378,7 +425,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="12" class="text-center py-5">
+                            <td colspan="13" class="text-center py-5">
                                 <iconify-icon icon="solar:inbox-line-bold-duotone" class="fs-1 text-muted d-block mb-2" style="font-size: 3rem;"></iconify-icon>
                                 <p class="text-muted">Nessun articolo trovato</p>
                             </td>

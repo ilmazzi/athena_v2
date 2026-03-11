@@ -12,7 +12,10 @@ use App\Models\Giacenza;
 use App\Models\Fornitore;
 use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
+use App\Models\Stampante;
+use App\Services\EtichettaService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class CaricoDocumento extends Component
@@ -45,6 +48,12 @@ class CaricoDocumento extends Component
     public $fornitori = [];
     public $sedi = [];
     public $categorie = [];
+    public $stampantiDisponibili = [];
+
+    // Stampa etichette
+    public $stampaEtichette = true;
+    public $stampanteId = '';
+    public $layoutEtichetta = 'standard';
 
     // Regole di validazione (Livewire 2)
     protected function rules(): array
@@ -61,6 +70,7 @@ class CaricoDocumento extends Component
             'articoli.*.categoria_id' => 'required|exists:categorie_merceologiche,id',
             'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
             'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
+            'articoli.*.prezzo_etichetta' => 'nullable|string|max:50',
             'importoTotale' => 'nullable|numeric|min:0',
         ];
 
@@ -81,6 +91,9 @@ class CaricoDocumento extends Component
             $categorieQuery->where('sede_id', $userSedeId);
         }
         $this->categorie = $categorieQuery->get();
+        $this->stampantiDisponibili = Stampante::where('attiva', true)
+            ->orderBy('nome')
+            ->get(['id', 'nome', 'modello']);
     }
 
     /**
@@ -141,6 +154,7 @@ class CaricoDocumento extends Component
             $this->articoli[$index]['esiste'] = !is_null($articoloEsistente);
             $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
             $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
+            $this->articoli[$index]['prezzo_etichetta'] = $articolo['prezzo_etichetta'] ?? '';
             $this->articoli[$index]['categoria_id'] = $articoloEsistente?->categoria_merceologica_id
                 ?? $articolo['categoria_id']
                 ?? $this->categoriaId;
@@ -159,6 +173,7 @@ class CaricoDocumento extends Component
             'caratura' => '',
             'prezzo_unitario' => null,
             'prezzo_totale' => null,
+            'prezzo_etichetta' => '',
             'numero_seriale' => '',
             'ean' => '',
             'articolo_id' => null,
@@ -269,6 +284,8 @@ class CaricoDocumento extends Component
             }
 
             // 2. Processa articoli
+            $articoliDaStampare = [];
+
             foreach ($this->articoli as $articolo) {
                 $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
                 $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
@@ -390,6 +407,12 @@ class CaricoDocumento extends Component
                 // Conta articoli e quantità
                 $numeroArticoli++;
                 $quantitaTotale += $articolo['quantita'];
+
+                $articoliDaStampare[] = [
+                    'articolo_id' => $articoloId,
+                    'quantita' => (int) ($articolo['quantita'] ?? 1),
+                    'prezzo_etichetta' => $articolo['prezzo_etichetta'] ?? '',
+                ];
             }
             
             // Aggiorna il documento con i totali
@@ -410,6 +433,8 @@ class CaricoDocumento extends Component
             DB::commit();
 
             $this->step = 3;
+
+            $this->stampaEtichetteCarico($articoliDaStampare);
 
             $this->dispatch('swal:success', 
                 title: 'Carico Completato!',
@@ -457,6 +482,84 @@ class CaricoDocumento extends Component
         }
 
         return (float) $normalized;
+    }
+
+    protected function stampaEtichetteCarico(array $articoliDaStampare): void
+    {
+        if (!$this->stampaEtichette) {
+            return;
+        }
+        if (empty($articoliDaStampare)) {
+            return;
+        }
+
+        $service = app(EtichettaService::class);
+        $success = 0;
+        $errors = 0;
+
+        foreach ($articoliDaStampare as $item) {
+            $articolo = Articolo::find($item['articolo_id']);
+            if (!$articolo) {
+                $errors++;
+                continue;
+            }
+
+            $quantita = max(1, (int) ($item['quantita'] ?? 1));
+            $prezzoEtichetta = trim((string) ($item['prezzo_etichetta'] ?? ''));
+            if ($prezzoEtichetta === '') {
+                // Non stampare se il prezzo etichetta non è compilato
+                continue;
+            }
+            $formatoPrezzo = $this->guessFormatoPrezzo($prezzoEtichetta);
+
+            $stampante = $this->stampanteId
+                ? Stampante::find($this->stampanteId)
+                : $service->getStampanteDefault($articolo);
+
+            if (!$stampante) {
+                $errors++;
+                continue;
+            }
+
+            for ($i = 0; $i < $quantita; $i++) {
+                try {
+                    $zpl = $service->generaEtichettaZPLConPrezzo(
+                        $articolo,
+                        $prezzoEtichetta,
+                        $formatoPrezzo,
+                        $stampante->id,
+                        $this->layoutEtichetta
+                    );
+                    $ok = $service->inviaAllaStampante($stampante->ip_address, $stampante->port, $zpl);
+
+                    $ok ? $success++ : $errors++;
+                } catch (\Exception $e) {
+                    Log::warning('Errore stampa etichetta carico', [
+                        'articolo_id' => $articolo->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $errors++;
+                }
+            }
+        }
+
+        if ($errors > 0) {
+            session()->flash('warning', "Etichette stampate: {$success}, errori: {$errors}");
+        } else {
+            session()->flash('success', "Etichette stampate: {$success}");
+        }
+    }
+
+    protected function guessFormatoPrezzo(string $prezzo): string
+    {
+        if ($prezzo === '') {
+            return 'euro';
+        }
+
+        $numeric = preg_replace('/[^\d,.]/', '', $prezzo);
+        $numeric = str_replace(',', '.', $numeric);
+
+        return is_numeric($numeric) ? 'euro' : 'codificato';
     }
 }
 
