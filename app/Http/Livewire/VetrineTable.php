@@ -165,7 +165,11 @@ class VetrineTable extends Component
     {
         $vetrine = Vetrina::query()
             ->with('sede')
-            ->withCount('articoli')
+            ->withCount([
+                'articoli as articoli_count' => function ($query) {
+                    $query->whereNull('data_rimozione');
+                },
+            ])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('codice', 'like', '%' . $this->search . '%')
