@@ -1048,6 +1048,11 @@ class OcrService
             return [];
         }
 
+        $tableRows = $this->parseRolexTableRows($text);
+        if (!empty($tableRows)) {
+            return $tableRows;
+        }
+
         $referenzeLines = $this->extractAllSectionLines(
             $text,
             '/\bReferenza\b/i',
@@ -1174,6 +1179,39 @@ class OcrService
         }
 
         return $articoli;
+    }
+
+    /**
+     * Parsing tabellare Rolex con colonne Referenza | N. serie | Descrizione | Quantità | Prezzo | % Sconto.
+     */
+    protected function parseRolexTableRows(string $text): array
+    {
+        $rows = [];
+        $pattern = '/\|\s*(M[0-9A-Z]{5,12})\s*-\s*([0-9]{4})\s*\|\s*([A-Z0-9]{6,12})\s*\|\s*([\s\S]*?)\s*\|\s*(\d{1,3})\s*\|\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*\|\s*[\d,\.%]+\s*\|/i';
+
+        if (!preg_match_all($pattern, $text, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        foreach ($matches as $match) {
+            $codice = strtoupper(trim($match[1] . '-' . $match[2]));
+            $seriale = strtoupper(trim($match[3]));
+            $descrizioneRaw = trim($match[4]);
+            $descrizione = preg_replace('/\s+/', ' ', $descrizioneRaw);
+            $quantita = (int) $match[5];
+            $prezzoUnitario = $this->parsePriceToFloat($match[6]);
+
+            $rows[$codice] = [
+                'codice' => $codice,
+                'descrizione' => $descrizione,
+                'quantita' => max(1, $quantita),
+                'numero_seriale' => $seriale,
+                'prezzo_unitario' => $prezzoUnitario,
+                'prezzo_totale' => $prezzoUnitario !== null ? $prezzoUnitario * max(1, $quantita) : null,
+            ];
+        }
+
+        return $rows;
     }
 
     /**
