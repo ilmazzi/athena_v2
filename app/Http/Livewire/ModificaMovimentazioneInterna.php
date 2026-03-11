@@ -30,7 +30,7 @@ class ModificaMovimentazioneInterna extends Component
     {
         $this->movimentazioneId = $movimentazione;
         $this->movimentazione = Movimentazione::with([
-            'dettagli.articolo',
+            'dettagli.articolo.prodottoFinito.componentiArticoli.articolo',
             'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),

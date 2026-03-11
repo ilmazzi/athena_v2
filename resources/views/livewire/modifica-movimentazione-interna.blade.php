@@ -99,17 +99,20 @@
                             $pfOrder = [];
                             $righe = [];
                             foreach ($movimentazione->dettagli as $dettaglio) {
-                                if ($dettaglio->prodottoFinito) {
-                                    $pfId = $dettaglio->prodottoFinito->id;
+                                $pfFromDettaglio = $dettaglio->prodottoFinito;
+                                $pfFromArticolo = $dettaglio->articolo?->prodottoFinito;
+                                $pf = $pfFromDettaglio ?: $pfFromArticolo;
+                                if ($pf) {
+                                    $pfId = $pf->id;
                                     if (!isset($pfGroups[$pfId])) {
                                         $pfGroups[$pfId] = [
-                                            'pf' => $dettaglio->prodottoFinito,
+                                            'pf' => $pf,
                                             'quantita' => null,
                                             'componenti' => [],
                                         ];
                                         $pfOrder[] = $pfId;
                                     }
-                                    if ($dettaglio->articolo_id === $dettaglio->prodottoFinito->articolo_risultante_id) {
+                                    if ($dettaglio->articolo_id === $pf->articolo_risultante_id) {
                                         $pfGroups[$pfId]['quantita'] = (int) $dettaglio->quantita;
                                     } else {
                                         $pfGroups[$pfId]['componenti'][] = $dettaglio;
