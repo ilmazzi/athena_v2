@@ -8,8 +8,7 @@ use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
 use App\Models\Stampante;
-use App\Models\DdtDettaglio;
-use App\Models\FatturaDettaglio;
+use App\Models\CaricoDettaglio;
 use App\Services\EtichettaService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -200,19 +199,23 @@ class DocumentiAcquistoTable extends Component
         $this->codicePrezzoTipo = 'G';
         $this->codicePrezzoSuffix = '';
 
-        if ($tipo === 'ddt') {
-            $righe = DdtDettaglio::with('articolo')
-                ->where('ddt_id', $id)
-                ->get();
-        } else {
-            $righe = FatturaDettaglio::with('articolo')
-                ->where('fattura_id', $id)
-                ->get();
-        }
+        $righe = CaricoDettaglio::with([
+            'articolo' => function ($query) {
+                $query->withoutGlobalScopes()->withTrashed();
+            }
+        ])
+            ->when($tipo === 'ddt', function ($query) use ($id) {
+                $query->where('ddt_id', $id);
+            }, function ($query) use ($id) {
+                $query->where('fattura_id', $id);
+            })
+            ->orderBy('id')
+            ->get();
 
         $this->printRows = $righe->map(function ($riga) {
             return [
                 'articolo_id' => $riga->articolo_id,
+                'referenza' => $riga->referenza_fornitore ?? ($riga->articolo?->caratteristiche['referenza'] ?? ''),
                 'codice' => $riga->articolo->codice ?? '',
                 'descrizione' => $riga->descrizione ?? ($riga->articolo->descrizione ?? ''),
                 'quantita' => (int) ($riga->quantita ?? 1),

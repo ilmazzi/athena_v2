@@ -434,7 +434,8 @@
                             <table class="table table-sm table-hover align-middle">
                                 <thead class="table-light">
                                     <tr>
-                                        <th width="200">Codice</th>
+                                        <th width="180">Referenza</th>
+                                        <th width="160">Codice</th>
                                         <th>Descrizione</th>
                                         <th width="90" class="text-center">Qta</th>
                                         <th width="140" class="text-end">Costo Unit.</th>
@@ -444,6 +445,7 @@
                                 <tbody>
                                     @forelse($printRows as $index => $row)
                                         <tr>
+                                            <td><strong>{{ $row['referenza'] }}</strong></td>
                                             <td><strong>{{ $row['codice'] }}</strong></td>
                                             <td>{{ $row['descrizione'] }}</td>
                                             <td class="text-center">{{ $row['quantita'] }}</td>
