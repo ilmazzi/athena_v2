@@ -35,6 +35,7 @@ class FixCodiciMagazzinoCarico extends Command
         }
 
         $codiceService = app(CodiceService::class);
+        $nextByMagazzino = [];
         $fixed = 0;
 
         foreach ($righe as $riga) {
@@ -56,7 +57,11 @@ class FixCodiciMagazzinoCarico extends Command
                 continue;
             }
 
-            $nuovoCodice = $codiceService->prossimoCodiceDisponibile($magazzino)->toString();
+            if (!isset($nextByMagazzino[$magazzino])) {
+                $nextByMagazzino[$magazzino] = $codiceService->prossimoCodiceDisponibile($magazzino)->getCarico();
+            }
+            $nuovoCodice = $magazzino . '-' . $nextByMagazzino[$magazzino];
+            $nextByMagazzino[$magazzino]++;
 
             $this->line("{$articolo->id}: {$articolo->codice} -> {$nuovoCodice} (magazzino {$magazzino})");
             $fixed++;
