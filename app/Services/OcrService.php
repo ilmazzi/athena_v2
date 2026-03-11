@@ -1219,37 +1219,32 @@ class OcrService
      */
     protected function buildRolexDescriptions(array $lines): array
     {
+        $text = implode("\n", $lines);
+        $text = preg_replace('/^\s*Descrizione\s*$/im', '', $text);
+        $text = preg_replace('/^\s*Rolex Italia S\.p\.A\..*$/im', '', $text);
+        $text = preg_replace('/^\s*REA:.*$/im', '', $text);
+        $text = trim($text);
+
+        if ($text === '') {
+            return [];
+        }
+
+        // In molti PDF Rolex la descrizione di un singolo articolo ha una riga vuota interna.
+        // Usiamo 2+ righe vuote come separatore tra articoli.
+        $chunks = preg_split('/\R{2,}/', $text);
         $descrizioni = [];
-        $current = [];
 
-        $startRegex = '/\b(ROLEX|DATEJUST|SUBMARINER|SKY-DWELLER|DEEPSEA|GMT-MASTER|EXPLORER|DAY-DATE|BLACK BAY|PERPETUAL|OYSTER|1908)\b/i';
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                if (!empty($current)) {
-                    $descrizioni[] = trim(implode(' ', $current));
-                    $current = [];
-                }
+        foreach ($chunks as $chunk) {
+            $chunk = trim($chunk);
+            if ($chunk === '') {
                 continue;
             }
 
-            if (preg_match('/^Descrizione\b/i', $line)) {
-                continue;
-            }
-
-            if (!empty($current) && preg_match($startRegex, $line)) {
-                $descrizioni[] = trim(implode(' ', $current));
-                $current = [];
-            }
-
-            $current[] = $line;
+            $normalized = preg_replace('/\s+/', ' ', $chunk);
+            $descrizioni[] = $normalized;
         }
 
-        if (!empty($current)) {
-            $descrizioni[] = trim(implode(' ', $current));
-        }
-
-        return array_values(array_filter($descrizioni, static fn ($value) => $value !== ''));
+        return $descrizioni;
     }
 
     /**
