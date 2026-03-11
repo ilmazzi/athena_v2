@@ -233,7 +233,7 @@
                                     ->implode(', ');
                             @endphp
                             @if($pfId && $componenti)
-                                <div style="font-size: 9px; color: var(--bs-secondary); margin-top: 2px;">
+                                <div style="font-size: 11px; color: var(--bs-dark); margin-top: 4px; font-weight: 600;">
                                     Componenti: {{ $componenti }}
                                 </div>
                             @endif
