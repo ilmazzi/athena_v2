@@ -202,7 +202,7 @@ class OcrService
             
             try {
                 $text = $ocr->run();
-                $fullText .= $text . "\n\n";
+                $fullText .= $text . "\n\n===PAGE_BREAK===\n\n";
             } catch (\Exception $e) {
                 Log::error("OCR failed for image: {$imagePath}", ['error' => $e->getMessage()]);
             }
@@ -1048,11 +1048,34 @@ class OcrService
             return [];
         }
 
+        if (str_contains($text, '===PAGE_BREAK===')) {
+            $pages = array_filter(array_map('trim', explode('===PAGE_BREAK===', $text)));
+            $articoli = [];
+            foreach ($pages as $pageText) {
+                $pageRows = $this->parseRolexArticoliPage($pageText);
+                foreach ($pageRows as $codice => $row) {
+                    $articoli[$codice] = $row;
+                }
+            }
+
+            if (!empty($articoli)) {
+                return $articoli;
+            }
+        }
+
         $tableRows = $this->parseRolexTableRows($text);
         if (!empty($tableRows)) {
             return $tableRows;
         }
 
+        return $this->parseRolexArticoliPage($text);
+    }
+
+    /**
+     * Parsing Rolex per singola pagina OCR (per mantenere allineamento colonne).
+     */
+    protected function parseRolexArticoliPage(string $text): array
+    {
         $referenzeLines = $this->extractAllSectionLines(
             $text,
             '/\bReferenza\b/i',
@@ -1117,7 +1140,7 @@ class OcrService
                 continue;
             }
             // Seriali Rolex: alfanumerico 6-12 con almeno una cifra
-            if (preg_match('/^(?=.*\d)[A-Z0-9]{6,12}$/', $line)) {
+            if (preg_match('/^(?=.*\d)(?=.*[A-Z])[A-Z0-9]{6,12}$/', $line)) {
                 $serials[] = $line;
             }
         }
@@ -1158,6 +1181,9 @@ class OcrService
         $expectedCount = count($codici);
         if ($expectedCount > 0) {
             $descrizioni = $this->normalizeRolexDescriptions($descrizioni, $expectedCount);
+            $serials = $this->normalizeRolexList($serials, $expectedCount);
+            $prezzi = $this->normalizeRolexList($prezzi, $expectedCount);
+            $importi = $this->normalizeRolexList($importi, $expectedCount);
         }
 
         $articoli = [];
@@ -1346,6 +1372,21 @@ class OcrService
         }
 
         return $values;
+    }
+
+    /**
+     * Normalizza una lista per allinearla al numero atteso (padding con null).
+     */
+    protected function normalizeRolexList(array $values, int $expected): array
+    {
+        $values = array_values($values);
+        if ($expected <= 0) {
+            return $values;
+        }
+        if (count($values) >= $expected) {
+            return array_slice($values, 0, $expected);
+        }
+        return array_pad($values, $expected, null);
     }
 
     /**
