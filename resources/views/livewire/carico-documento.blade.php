@@ -1,6 +1,8 @@
 <div class="container-xxl">
     {{-- Overlay blocco UI durante elaborazione OCR --}}
-    <div wire:loading wire:target="processaPdf" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+    <div wire:loading wire:target="processaPdf"
+         wire:loading.class.remove="d-none"
+         class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
          style="background: rgba(0,0,0,0.55); z-index: 2000;">
         <div class="text-center text-white">
             <div class="spinner-border text-light mb-3" role="status"></div>
