@@ -1086,6 +1086,17 @@ class OcrService
         }
 
         if (empty($codici)) {
+            $codici = $this->extractRolexCodesFromText($text);
+        } else {
+            $codiciFromText = $this->extractRolexCodesFromText($text);
+            foreach ($codiciFromText as $code) {
+                if (!in_array($code, $codici, true)) {
+                    $codici[] = $code;
+                }
+            }
+        }
+
+        if (empty($codici)) {
             return [];
         }
 
@@ -1221,6 +1232,45 @@ class OcrService
         }
 
         return $values;
+    }
+
+    /**
+     * Estrae codici Rolex dal testo completo (fallback multi-pagina).
+     */
+    protected function extractRolexCodesFromText(string $text): array
+    {
+        $lines = preg_split('/\R/', $text);
+        $codes = [];
+        $lineCount = count($lines);
+
+        for ($i = 0; $i < $lineCount; $i++) {
+            $line = trim($lines[$i]);
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/\b(M[0-9A-Z]{5,12}-\d{4})\b/', $line, $m)) {
+                $codes[] = $m[1];
+                continue;
+            }
+
+            if (preg_match('/\b(M[0-9A-Z]{5,12})-\b/', $line, $m) && isset($lines[$i + 1])) {
+                $next = trim($lines[$i + 1]);
+                if (preg_match('/^\d{4}$/', $next)) {
+                    $codes[] = $m[1] . '-' . $next;
+                    $i++;
+                }
+            }
+        }
+
+        $unique = [];
+        foreach ($codes as $code) {
+            if (!in_array($code, $unique, true)) {
+                $unique[] = $code;
+            }
+        }
+
+        return $unique;
     }
 
     /**
