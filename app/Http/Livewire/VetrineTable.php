@@ -4,6 +4,7 @@ namespace App\Http\Livewire;
 
 use App\Models\Vetrina;
 use App\Models\CategoriaMerceologica;
+use App\Models\Sede;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -23,6 +24,7 @@ class VetrineTable extends Component
     public $nome = '';
     public $tipologia = 'gioielleria';
     public $ubicazione = '';
+    public $sede_id = '';
     public $attiva = true;
     public $note = '';
 
@@ -37,6 +39,7 @@ class VetrineTable extends Component
         'nome' => 'required|string|max:255',
         'tipologia' => 'required|in:gioielleria,orologeria',
         'ubicazione' => 'nullable|string|max:255',
+        'sede_id' => 'nullable|exists:sedi,id',
         'attiva' => 'boolean',
         'note' => 'nullable|string',
     ];
@@ -71,6 +74,7 @@ class VetrineTable extends Component
         $this->nome = $vetrina->nome;
         $this->tipologia = $vetrina->tipologia;
         $this->ubicazione = $vetrina->ubicazione;
+        $this->sede_id = $vetrina->sede_id;
         $this->attiva = $vetrina->attiva;
         $this->note = $vetrina->note;
         
@@ -89,6 +93,7 @@ class VetrineTable extends Component
                     'nome' => $this->nome,
                     'tipologia' => $this->tipologia,
                     'ubicazione' => $this->ubicazione,
+                    'sede_id' => $this->sede_id ?: null,
                     'attiva' => $this->attiva,
                     'note' => $this->note,
                 ]);
@@ -101,6 +106,7 @@ class VetrineTable extends Component
                     'nome' => $this->nome,
                     'tipologia' => $this->tipologia,
                     'ubicazione' => $this->ubicazione,
+                    'sede_id' => $this->sede_id ?: null,
                     'attiva' => $this->attiva,
                     'note' => $this->note,
                 ]);
@@ -149,6 +155,7 @@ class VetrineTable extends Component
         $this->nome = '';
         $this->tipologia = 'gioielleria';
         $this->ubicazione = '';
+        $this->sede_id = '';
         $this->attiva = true;
         $this->note = '';
         $this->resetErrorBag();
@@ -157,6 +164,7 @@ class VetrineTable extends Component
     public function render()
     {
         $vetrine = Vetrina::query()
+            ->with('sede')
             ->withCount('articoli')
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {

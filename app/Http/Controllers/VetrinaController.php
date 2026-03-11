@@ -20,6 +20,8 @@ class VetrinaController extends Controller
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
+            'prodottoFinito.categoriaMerceologica',
+            'prodottoFinito.componentiArticoli.articolo',
             'categoriaMerceologica',
             'sede',
         ])
@@ -31,7 +33,7 @@ class VetrinaController extends Controller
 
         // Genera QR codes per ogni articolo
         $articoliConQr = $articoliInVetrina->map(function ($articoloVetrina) {
-            $codice = $articoloVetrina->articolo?->codice;
+            $codice = $articoloVetrina->codice_display;
             if ($articoloVetrina->is_esterno || empty($codice)) {
                 $articoloVetrina->qr_code_base64 = null;
                 return $articoloVetrina;

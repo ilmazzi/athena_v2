@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\CategoriaMerceologica;
+use App\Models\Sede;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -24,6 +25,7 @@ class Vetrina extends Model
         'nome',
         'tipologia',
         'ubicazione',
+        'sede_id',
         'attiva',
         'note',
     ];
@@ -44,6 +46,11 @@ class Vetrina extends Model
     public function articoli(): HasMany
     {
         return $this->hasMany(ArticoloVetrina::class, 'vetrina_id');
+    }
+
+    public function sede(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class, 'sede_id');
     }
     
     // ==========================================

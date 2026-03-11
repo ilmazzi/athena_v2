@@ -121,6 +121,7 @@
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
+                            <th></th>
                             <th>Pos.</th>
                             <th>Codice</th>
                             <th>Descrizione</th>
@@ -131,9 +132,14 @@
                             <th class="text-center">Azioni</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="js-sortable">
                         @forelse($articoliInVetrina as $articoloVetrina)
-                            <tr>
+                            <tr data-id="{{ $articoloVetrina->id }}">
+                                <td class="text-center">
+                                    <span class="text-muted drag-handle" style="cursor: grab;">
+                                        <iconify-icon icon="solar:menu-dots-bold"></iconify-icon>
+                                    </span>
+                                </td>
                                 <td>
                                     <span class="badge bg-light-primary text-primary">{{ $articoloVetrina->posizione ?: '-' }}</span>
                                 </td>
@@ -158,6 +164,8 @@
                                             <span class="fw-bold text-primary">{{ $articoloVetrina->codice_display }}</span>
                                             @if($articoloVetrina->is_esterno)
                                                 <span class="badge bg-light-warning text-warning ms-1">NC</span>
+                                            @elseif($articoloVetrina->is_prodotto_finito)
+                                                <span class="badge bg-light-info text-info ms-1">PF</span>
                                             @endif
                                             <br>
                                             <small class="text-muted">{{ $articoloVetrina->categoria_display }}</small>
@@ -167,6 +175,18 @@
                                 <td>
                                     <div class="fw-semibold">{{ Str::limit($articoloVetrina->descrizione_display, 40) }}</div>
                                     <small class="text-muted">{{ $articoloVetrina->sede_display }}</small>
+                                    @if($articoloVetrina->is_prodotto_finito && $articoloVetrina->prodottoFinito)
+                                        @php
+                                            $componenti = $articoloVetrina->prodottoFinito->componentiArticoli
+                                                ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
+                                                ->filter()
+                                                ->take(6)
+                                                ->implode(', ');
+                                        @endphp
+                                        @if($componenti)
+                                            <div class="small text-muted mt-1">Componenti: {{ $componenti }}</div>
+                                        @endif
+                                    @endif
                                 </td>
                                 <td>
                                     <div class="text-wrap" style="max-width: 200px;">
@@ -207,7 +227,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="9" class="text-center py-4">
                                     <iconify-icon icon="solar:box-bold" class="fs-48 text-muted mb-3"></iconify-icon>
                                     <p class="text-muted mb-0">Nessun articolo in vetrina</p>
                                 </td>
@@ -256,7 +276,7 @@
                             </div>
                         </div>
 
-                        @if($addMode === 'interno' && !$selectedArticolo)
+                        @if($addMode === 'interno' && !$selectedArticolo && !$selectedProdottoFinito)
                             <!-- Selezione Articolo -->
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Cerca e Seleziona Articolo</label>
@@ -298,7 +318,7 @@
                                                 </td>
                                                 <td class="text-center">
                                                     <button class="btn btn-primary btn-sm" 
-                                                            wire:click="selectArticolo({{ $item->id }})">
+                                                            wire:click="selectItem('{{ $item instanceof \App\Models\Articolo ? 'articolo' : 'pf' }}', {{ $item->id }})">
                                                         <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                                                         Seleziona
                                                     </button>
@@ -317,7 +337,11 @@
                         @elseif($addMode === 'interno')
                             <!-- Form Dettagli Vetrina -->
                             <div class="alert alert-info">
-                                <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice }} - {{ $selectedArticolo->descrizione }}
+                                @if($selectedItemType === 'pf' && $selectedProdottoFinito)
+                                    <strong>PF Selezionato:</strong> {{ $selectedProdottoFinito->codice }} - {{ $selectedProdottoFinito->descrizione }}
+                                @else
+                                    <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice ?? '' }} - {{ $selectedArticolo->descrizione ?? '' }}
+                                @endif
                             </div>
 
                             <form wire:submit.prevent="addArticoloToVetrina">
@@ -613,7 +637,7 @@
                             <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
                             Annulla
                         </button>
-                        @if($addMode === 'interno' && $selectedArticolo)
+                        @if($addMode === 'interno' && ($selectedArticolo || $selectedProdottoFinito))
                             <button type="button" class="btn btn-primary" wire:click="addArticoloToVetrina">
                                 <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                                 Aggiungi alla Vetrina
@@ -645,7 +669,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info">
-                            <strong>Articolo:</strong> {{ $articoloToMove->articolo->codice }} - {{ $articoloToMove->articolo->descrizione }}
+                            <strong>Articolo:</strong> {{ $articoloToMove->codice_display }} - {{ $articoloToMove->descrizione_display }}
                         </div>
 
                         <div class="mb-3">
@@ -678,3 +702,32 @@
         <div class="modal-backdrop fade show"></div>
     @endif
 </div>
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script>
+        function initVetrinaSortable() {
+            const el = document.querySelector('.js-sortable');
+            if (!el || el._sortable) return;
+
+            el._sortable = new Sortable(el, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: function () {
+                    const orderedIds = Array.from(el.querySelectorAll('tr[data-id]'))
+                        .map(row => row.getAttribute('data-id'));
+                    if (orderedIds.length) {
+                        @this.call('updateOrdine', orderedIds);
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('livewire:load', function () {
+            initVetrinaSortable();
+            Livewire.hook('message.processed', function () {
+                initVetrinaSortable();
+            });
+        });
+    </script>
+@endpush

@@ -76,6 +76,7 @@
                             <th>Codice</th>
                             <th>Nome</th>
                             <th>Tipologia</th>
+                            <th>Sede</th>
                             <th>Ubicazione</th>
                             <th>Articoli</th>
                             <th>Stato</th>
@@ -94,6 +95,7 @@
                                         {{ $vetrina->getTipologiaLabel() }}
                                     </span>
                                 </td>
+                                <td>{{ $vetrina->sede?->nome ?? '-' }}</td>
                                 <td>{{ $vetrina->ubicazione ?? '-' }}</td>
                                 <td>
                                     <span class="badge bg-light-primary text-primary">
@@ -132,7 +134,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <iconify-icon icon="solar:shop-bold" class="fs-48 text-muted mb-3"></iconify-icon>
                                     <p class="text-muted mb-0">Nessuna vetrina trovata</p>
                                 </td>
@@ -208,6 +210,24 @@
                                         @enderror
                                     </div>
                                 </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Sede</label>
+                                        <select class="form-select @error('sede_id') is-invalid @enderror"
+                                                wire:model="sede_id">
+                                            <option value="">Seleziona...</option>
+                                            @foreach(\App\Models\Sede::orderBy('nome')->get() as $sede)
+                                                <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
+                                            @endforeach
+                                        </select>
+                                        @error('sede_id')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label fw-semibold">Ubicazione</label>

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Articolo;
 use App\Models\CategoriaMerceologica;
+use App\Models\ProdottoFinito;
 use App\Models\Sede;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,7 @@ class ArticoloVetrina extends Model
     protected $fillable = [
         'vetrina_id',
         'articolo_id',
+        'prodotto_finito_id',
         'tipo_articolo',
         'descrizione_esterno',
         'categoria_merceologica_id',
@@ -73,6 +75,11 @@ class ArticoloVetrina extends Model
         return $this->belongsTo(Articolo::class, 'articolo_id');
     }
 
+    public function prodottoFinito(): BelongsTo
+    {
+        return $this->belongsTo(ProdottoFinito::class, 'prodotto_finito_id');
+    }
+
     public function categoriaMerceologica(): BelongsTo
     {
         return $this->belongsTo(CategoriaMerceologica::class, 'categoria_merceologica_id');
@@ -97,10 +104,18 @@ class ArticoloVetrina extends Model
         return $this->tipo_articolo === 'esterno';
     }
 
+    public function getIsProdottoFinitoAttribute(): bool
+    {
+        return $this->tipo_articolo === 'prodotto_finito';
+    }
+
     public function getCodiceDisplayAttribute(): string
     {
         if ($this->is_esterno) {
             return 'NC';
+        }
+        if ($this->is_prodotto_finito) {
+            return $this->prodottoFinito?->codice ?? '';
         }
         return $this->articolo?->codice ?? '';
     }
@@ -110,6 +125,9 @@ class ArticoloVetrina extends Model
         if ($this->is_esterno) {
             return $this->descrizione_esterno ?? '';
         }
+        if ($this->is_prodotto_finito) {
+            return $this->prodottoFinito?->descrizione ?? '';
+        }
         return $this->articolo?->descrizione ?? '';
     }
 
@@ -117,6 +135,9 @@ class ArticoloVetrina extends Model
     {
         if ($this->is_esterno) {
             return $this->categoriaMerceologica?->nome ?? 'N/A';
+        }
+        if ($this->is_prodotto_finito) {
+            return $this->prodottoFinito?->categoriaMerceologica?->nome ?? 'N/A';
         }
         return $this->articolo?->categoriaMerceologica?->nome ?? 'N/A';
     }
@@ -126,6 +147,9 @@ class ArticoloVetrina extends Model
         if ($this->is_esterno) {
             return $this->sede?->nome ?? 'N/A';
         }
+        if ($this->is_prodotto_finito) {
+            return $this->prodottoFinito?->categoriaMerceologica?->sede?->nome ?? 'N/A';
+        }
         return $this->articolo?->sede?->nome ?? 'N/A';
     }
 
@@ -133,6 +157,9 @@ class ArticoloVetrina extends Model
     {
         if ($this->is_esterno) {
             return $this->foto_principale_esterno;
+        }
+        if ($this->is_prodotto_finito) {
+            return $this->prodottoFinito?->foto_path;
         }
         return $this->articolo?->foto_principale;
     }

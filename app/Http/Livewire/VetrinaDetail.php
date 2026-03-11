@@ -23,6 +23,8 @@ class VetrinaDetail extends Component
     public $showAddModal = false;
     public $addMode = 'interno'; // interno|esterno
     public $selectedArticolo = null;
+    public $selectedProdottoFinito = null;
+    public $selectedItemType = null; // articolo|pf
     public $prezzo_vetrina = '';
     public $testo_vetrina = '';
     public $posizione = '';
@@ -78,10 +80,19 @@ class VetrinaDetail extends Component
         $this->resetValidation();
     }
 
-    public function selectArticolo($articoloId)
+    public function selectItem(string $type, $itemId)
     {
         $this->addMode = 'interno';
-        $this->selectedArticolo = Articolo::findOrFail($articoloId);
+        $this->selectedItemType = $type;
+        $this->selectedArticolo = null;
+        $this->selectedProdottoFinito = null;
+
+        if ($type === 'pf') {
+            $this->selectedProdottoFinito = ProdottoFinito::with(['categoriaMerceologica'])->findOrFail($itemId);
+            return;
+        }
+
+        $this->selectedArticolo = Articolo::findOrFail($itemId);
         
         // Se l'articolo ha già un ultimo testo vetrina salvato, lo proponiamo
         if ($this->selectedArticolo->ultimo_testo_vetrina) {
@@ -129,10 +140,64 @@ class VetrinaDetail extends Component
                 return;
             }
 
-            // Verifica che l'articolo non sia già in una vetrina
+            if ($this->selectedItemType === 'pf') {
+                if (!$this->selectedProdottoFinito) {
+                    session()->flash('error', 'Seleziona un prodotto finito');
+                    return;
+                }
+                if ($this->vetrina->sede_id) {
+                    $sedeId = $this->vetrina->sede_id;
+                    $pfSedeId = $this->selectedProdottoFinito->categoriaMerceologica?->sede_id;
+                    $depositoSedeId = $this->selectedProdottoFinito->contoDepositoCorrente?->sede_destinataria_id;
+                    if ($pfSedeId !== $sedeId && $depositoSedeId !== $sedeId) {
+                        session()->flash('error', 'Il PF non appartiene alla sede della vetrina');
+                        return;
+                    }
+                }
+
+                $esisteInVetrina = ArticoloVetrina::where('prodotto_finito_id', $this->selectedProdottoFinito->id)
+                    ->whereNull('data_rimozione')
+                    ->exists();
+
+                if ($esisteInVetrina) {
+                    session()->flash('error', 'Il prodotto finito è già presente in una vetrina');
+                    return;
+                }
+
+                ArticoloVetrina::updateOrCreate(
+                    [
+                        'vetrina_id' => $this->vetrina->id,
+                        'prodotto_finito_id' => $this->selectedProdottoFinito->id,
+                    ],
+                    [
+                        'articolo_id' => null,
+                        'tipo_articolo' => 'prodotto_finito',
+                        'prezzo_vetrina' => $this->prezzo_vetrina,
+                        'testo_vetrina' => $this->testo_vetrina,
+                        'posizione' => $this->posizione ?: 0,
+                        'ripiano' => $this->ripiano,
+                        'data_inserimento' => now()->toDateString(),
+                        'data_rimozione' => null,
+                        'giorni_esposizione' => null,
+                    ]
+                );
+
+                session()->flash('success', "PF {$this->selectedProdottoFinito->codice} aggiunto alla vetrina");
+                $this->closeAddModal();
+                return;
+            }
+
             if (!$this->selectedArticolo) {
                 session()->flash('error', 'Seleziona un articolo');
                 return;
+            }
+            if ($this->vetrina->sede_id) {
+                $sedeId = $this->vetrina->sede_id;
+                $depositoSedeId = $this->selectedArticolo->contoDepositoCorrente?->sede_destinataria_id;
+                if ($this->selectedArticolo->sede_id !== $sedeId && $depositoSedeId !== $sedeId) {
+                    session()->flash('error', 'L\'articolo non appartiene alla sede della vetrina');
+                    return;
+                }
             }
 
             $esisteInVetrina = ArticoloVetrina::where('articolo_id', $this->selectedArticolo->id)
@@ -144,18 +209,23 @@ class VetrinaDetail extends Component
                 return;
             }
 
-            ArticoloVetrina::create([
-                'vetrina_id' => $this->vetrina->id,
-                'articolo_id' => $this->selectedArticolo->id,
-                'tipo_articolo' => 'interno',
-                'prezzo_vetrina' => $this->prezzo_vetrina,
-                'testo_vetrina' => $this->testo_vetrina,
-                'posizione' => $this->posizione ?: 0,
-                'ripiano' => $this->ripiano,
-                'data_inserimento' => now()->toDateString(),
-            ]);
+            ArticoloVetrina::updateOrCreate(
+                [
+                    'vetrina_id' => $this->vetrina->id,
+                    'articolo_id' => $this->selectedArticolo->id,
+                ],
+                [
+                    'tipo_articolo' => 'interno',
+                    'prezzo_vetrina' => $this->prezzo_vetrina,
+                    'testo_vetrina' => $this->testo_vetrina,
+                    'posizione' => $this->posizione ?: 0,
+                    'ripiano' => $this->ripiano,
+                    'data_inserimento' => now()->toDateString(),
+                    'data_rimozione' => null,
+                    'giorni_esposizione' => null,
+                ]
+            );
 
-            // Salva l'ultimo testo vetrina nell'articolo per future proposte
             $this->selectedArticolo->update([
                 'ultimo_testo_vetrina' => $this->testo_vetrina
             ]);
@@ -191,7 +261,7 @@ class VetrinaDetail extends Component
 
     public function openMoveModal($articoloVetrinaId)
     {
-        $this->articoloToMove = ArticoloVetrina::with(['articolo'])->findOrFail($articoloVetrinaId);
+        $this->articoloToMove = ArticoloVetrina::with(['articolo', 'prodottoFinito'])->findOrFail($articoloVetrinaId);
         $this->targetVetrinaId = '';
         $this->showMoveModal = true;
     }
@@ -217,15 +287,23 @@ class VetrinaDetail extends Component
             ]);
 
             // Aggiungi alla nuova vetrina
-            ArticoloVetrina::create([
-                'vetrina_id' => $this->targetVetrinaId,
-                'articolo_id' => $this->articoloToMove->articolo_id,
-                'prezzo_vetrina' => $this->articoloToMove->prezzo_vetrina,
-                'testo_vetrina' => $this->articoloToMove->testo_vetrina,
-                'posizione' => 0,
-                'ripiano' => null,
-                'data_inserimento' => now()->toDateString(),
-            ]);
+            ArticoloVetrina::updateOrCreate(
+                [
+                    'vetrina_id' => $this->targetVetrinaId,
+                    'articolo_id' => $this->articoloToMove->articolo_id,
+                    'prodotto_finito_id' => $this->articoloToMove->prodotto_finito_id,
+                ],
+                [
+                    'tipo_articolo' => $this->articoloToMove->tipo_articolo,
+                    'prezzo_vetrina' => $this->articoloToMove->prezzo_vetrina,
+                    'testo_vetrina' => $this->articoloToMove->testo_vetrina,
+                    'posizione' => 0,
+                    'ripiano' => null,
+                    'data_inserimento' => now()->toDateString(),
+                    'data_rimozione' => null,
+                    'giorni_esposizione' => null,
+                ]
+            );
 
             $targetVetrina = Vetrina::find($this->targetVetrinaId);
             session()->flash('success', "Articolo spostato in vetrina {$targetVetrina->nome}");
@@ -265,6 +343,8 @@ class VetrinaDetail extends Component
     private function resetAddForm()
     {
         $this->selectedArticolo = null;
+        $this->selectedProdottoFinito = null;
+        $this->selectedItemType = null;
         $this->prezzo_vetrina = '';
         $this->testo_vetrina = '';
         $this->posizione = '';
@@ -310,12 +390,29 @@ class VetrinaDetail extends Component
         }
 
         return [
-            'selectedArticolo' => 'required',
+            'selectedItemType' => 'required|in:articolo,pf',
+            'selectedArticolo' => 'required_if:selectedItemType,articolo',
+            'selectedProdottoFinito' => 'required_if:selectedItemType,pf',
             'prezzo_vetrina' => 'required|string|max:50',
             'testo_vetrina' => 'required|string|max:500',
             'posizione' => 'nullable|integer|min:0',
             'ripiano' => 'nullable|string|max:50',
         ];
+    }
+
+    public function updateOrdine(array $orderedIds): void
+    {
+        if (empty($orderedIds)) {
+            return;
+        }
+
+        \DB::transaction(function () use ($orderedIds) {
+            foreach ($orderedIds as $index => $id) {
+                ArticoloVetrina::where('id', $id)
+                    ->where('vetrina_id', $this->vetrina->id)
+                    ->update(['posizione' => $index + 1]);
+            }
+        });
     }
 
     public function render()
@@ -327,6 +424,8 @@ class VetrinaDetail extends Component
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
+            'prodottoFinito.categoriaMerceologica.sede',
+            'prodottoFinito.componentiArticoli.articolo',
             'categoriaMerceologica',
             'sede',
         ])
@@ -336,6 +435,10 @@ class VetrinaDetail extends Component
                 $term = $this->search;
                 $query->where(function ($q) use ($term, $hasDescrizioneEsterno, $hasTestoVetrina) {
                     $q->whereHas('articolo', function ($sub) use ($term) {
+                        $sub->where('codice', 'like', '%' . $term . '%')
+                            ->orWhere('descrizione', 'like', '%' . $term . '%');
+                    })
+                    ->orWhereHas('prodottoFinito', function ($sub) use ($term) {
                         $sub->where('codice', 'like', '%' . $term . '%')
                             ->orWhere('descrizione', 'like', '%' . $term . '%');
                     })
@@ -357,10 +460,19 @@ class VetrinaDetail extends Component
         
         if ($this->showAddModal) {
             // Articoli normali disponibili
-            $articoliDisponibili = Articolo::with(['categoriaMerceologica', 'sede', 'giacenza'])
+            $articoliDisponibili = Articolo::with(['categoriaMerceologica', 'sede', 'giacenza', 'contoDepositoCorrente'])
                 ->where('stato_articolo', '!=', 'scaricato')
                 ->whereHas('giacenza', function ($query) {
                     $query->where('quantita_residua', '>', 0);
+                })
+                ->when($this->vetrina->sede_id, function ($query) {
+                    $sedeId = $this->vetrina->sede_id;
+                    $query->where(function ($q) use ($sedeId) {
+                        $q->where('sede_id', $sedeId)
+                          ->orWhereHas('contoDepositoCorrente', function ($sub) use ($sedeId) {
+                              $sub->where('sede_destinataria_id', $sedeId);
+                          });
+                    });
                 })
                 ->whereNotExists(function ($query) {
                     $query->select(\DB::raw(1))
@@ -379,12 +491,23 @@ class VetrinaDetail extends Component
                 ->get();
 
             // Prodotti finiti disponibili
-            $prodottiFinitiDisponibili = ProdottoFinito::with(['categoriaMerceologica'])
+            $prodottiFinitiDisponibili = ProdottoFinito::with(['categoriaMerceologica.sede', 'componentiArticoli.articolo', 'contoDepositoCorrente'])
                 ->where('stato', 'completato')
+                ->when($this->vetrina->sede_id, function ($query) {
+                    $sedeId = $this->vetrina->sede_id;
+                    $query->where(function ($q) use ($sedeId) {
+                        $q->whereHas('categoriaMerceologica', function ($sub) use ($sedeId) {
+                            $sub->where('sede_id', $sedeId);
+                        })
+                        ->orWhereHas('contoDepositoCorrente', function ($sub) use ($sedeId) {
+                            $sub->where('sede_destinataria_id', $sedeId);
+                        });
+                    });
+                })
                 ->whereNotExists(function ($query) {
                     $query->select(\DB::raw(1))
                           ->from('articoli_vetrine')
-                          ->whereColumn('articoli_vetrine.articolo_id', 'prodotti_finiti.id')
+                          ->whereColumn('articoli_vetrine.prodotto_finito_id', 'prodotti_finiti.id')
                           ->whereNull('articoli_vetrine.data_rimozione');
                 })
                 ->when($this->search, function ($query) {

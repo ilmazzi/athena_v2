@@ -37,6 +37,10 @@ class MigraDeltaMssql extends Command
                             {--sync-only-prefix= : Limita sync al prefisso (es. 2)}
                             {--sync-exclude-prefix= : Escludi prefissi dal sync (es. 9)}
                             {--sync-since= : Data minima (YYYY-MM-DD) per sync codici}
+                            {--force-normalize-today-codici : Forza base per articoli creati in data}
+                            {--force-normalize-date= : Data (YYYY-MM-DD) per force-normalize}
+                            {--force-exclude-prefix= : Prefissi/categorie da escludere (es. 9)}
+                            {--force-conflict-delete : Soft-delete record in conflitto col base}
                             {--rebuild-by-id= : Ricalcola codice per ID specifici (es. 53114,52806)}';
     protected $description = 'Migrazione incrementale (delta) da MSSQL per ID: articoli, DDT e fatture';
 
@@ -86,6 +90,10 @@ class MigraDeltaMssql extends Command
         $syncOnlyPrefix = $this->option('sync-only-prefix');
         $syncExcludePrefix = $this->option('sync-exclude-prefix');
         $syncSince = $this->option('sync-since');
+        $forceNormalizeToday = $this->option('force-normalize-today-codici');
+        $forceNormalizeDate = $this->option('force-normalize-date');
+        $forceExcludePrefix = $this->option('force-exclude-prefix');
+        $forceConflictDelete = (bool) $this->option('force-conflict-delete');
         $rebuildCodici = $this->option('rebuild-codici-from-mssql');
         $rebuildOnlyPrefix = $this->option('rebuild-only-prefix');
         $rebuildOnlyBase = $this->option('rebuild-only-base');
@@ -141,6 +149,9 @@ class MigraDeltaMssql extends Command
             if ($syncCodiciMssql) {
                 $this->normalizeCodiciFromMssql($syncOnlyPrefix, $syncExcludePrefix, $syncSince);
                 $this->rebuildCodiciFromMssql($syncOnlyPrefix, null, $syncExcludePrefix, $syncSince);
+            }
+            if ($forceNormalizeToday) {
+                $this->forceNormalizeCodiciToday($forceNormalizeDate, $forceExcludePrefix, $forceConflictDelete);
             }
 
             if ($this->dryRun) {
@@ -1168,6 +1179,98 @@ class MigraDeltaMssql extends Command
         }
 
         return [$desiredAll, $existingAll];
+    }
+
+    private function forceNormalizeCodiciToday(?string $date, ?string $excludePrefix, bool $forceConflictDelete): void
+    {
+        $targetDate = $date ?: now()->toDateString();
+        $this->info('🧯 FORZA CODICI BASE (DATA)');
+        $this->line("  Data: {$targetDate}");
+
+        $exclude = [];
+        if (!empty($excludePrefix)) {
+            $exclude = array_values(array_filter(array_map('intval', explode(',', $excludePrefix))));
+            $this->line('  Esclusi prefissi: ' . implode(',', $exclude));
+        }
+
+        $rows = DB::table('articoli')
+            ->select('id', 'codice', 'categoria_merceologica_id', 'created_at')
+            ->whereDate('created_at', '>=', $targetDate)
+            ->when(!empty($exclude), function ($q) use ($exclude) {
+                $q->whereNotIn('categoria_merceologica_id', $exclude);
+            })
+            ->get();
+
+        $this->line('  Articoli target: ' . $rows->count());
+        if ($rows->isEmpty() || $this->dryRun) {
+            $this->newLine();
+            return;
+        }
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $codice = (string) $row->codice;
+            if (preg_match('/^(\d+-\d+)-\d+$/', $codice, $m)) {
+                $base = $m[1];
+            } else {
+                $base = $codice;
+            }
+            $groups[$base][] = $row;
+        }
+
+        $updated = 0;
+        $softDeleted = 0;
+        $conflicts = 0;
+
+        foreach ($groups as $base => $items) {
+            usort($items, fn($a, $b) => $a->id <=> $b->id);
+            $keep = $items[0];
+            $otherIds = array_map(fn($i) => $i->id, array_slice($items, 1));
+
+            $conflictQuery = DB::table('articoli')
+                ->where('codice', $base)
+                ->where('id', '!=', $keep->id);
+            if (!empty($exclude)) {
+                $conflictQuery->whereNotIn('categoria_merceologica_id', $exclude);
+            }
+            $conflictingIds = $conflictQuery->pluck('id')->all();
+
+            if (!empty($conflictingIds) && !$forceConflictDelete) {
+                $conflicts += count($conflictingIds);
+                continue;
+            }
+
+            DB::transaction(function () use ($keep, $base, $otherIds, $conflictingIds, &$updated, &$softDeleted, $forceConflictDelete) {
+                if (!empty($conflictingIds) && $forceConflictDelete) {
+                    $softDeleted += DB::table('articoli')
+                        ->whereIn('id', $conflictingIds)
+                        ->update(['deleted_at' => now()]);
+                }
+
+                if ($keep->codice !== $base) {
+                    DB::table('articoli')
+                        ->where('id', $keep->id)
+                        ->update([
+                            'codice' => $base,
+                            'updated_at' => now(),
+                        ]);
+                    $updated++;
+                }
+
+                if (!empty($otherIds)) {
+                    $softDeleted += DB::table('articoli')
+                        ->whereIn('id', $otherIds)
+                        ->update(['deleted_at' => now()]);
+                }
+            });
+        }
+
+        $this->line("  Codici aggiornati: {$updated}");
+        $this->line("  Soft-deleted: {$softDeleted}");
+        if ($conflicts > 0) {
+            $this->line("  Conflitti non risolti: {$conflicts}");
+        }
+        $this->newLine();
     }
 
     private function normalizeCodiciFromMssql(?string $onlyPrefix, ?string $excludePrefix, ?string $onlySince): void
