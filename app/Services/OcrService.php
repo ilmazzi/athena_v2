@@ -13,12 +13,17 @@ use thiagoalessio\TesseractOCR\TesseractOCR;
 class OcrService
 {
     /**
+     * Percorso PDF corrente (per parsing specifici).
+     */
+    protected ?string $currentPdfPath = null;
+    /**
      * Processa un PDF caricato
      */
     public function processPdf(UploadedFile $file, string $tipo): OcrDocument
     {
         // 1. Salva PDF
         $pdfPath = $this->storePdf($file);
+        $this->currentPdfPath = $pdfPath;
         
         // 2. Crea record OcrDocument
         $ocrDocument = OcrDocument::create([
@@ -30,15 +35,11 @@ class OcrService
         ]);
 
         try {
-            // 3. Prova estrazione testo nativa PDF (pdftotext)
-            $rawText = $this->extractTextFromPdf($pdfPath);
-            $imagePaths = [];
-
-            // 4. Se fallisce, usa OCR (Ghostscript + Tesseract)
-            if (!$rawText) {
-                $imagePaths = $this->convertPdfToImages($pdfPath);
-                $rawText = $this->extractTextFromImages($imagePaths);
-            }
+            // 3. Converti PDF → Immagini
+            $imagePaths = $this->convertPdfToImages($pdfPath);
+            
+            // 4. Estrai testo con OCR
+            $rawText = $this->extractTextFromImages($imagePaths);
             
             // 5. Struttura dati estratti
             $structuredData = $this->parseExtractedText($rawText, $tipo);
@@ -51,15 +52,17 @@ class OcrService
             
             // 8. Aggiorna OcrDocument
             $ocrDocument->update([
-                'ocr_raw_data' => [
-                    'text' => $rawText,
-                    'source' => $rawText ? 'pdftotext' : 'ocr',
-                ],
+                'ocr_raw_data' => ['text' => $rawText],
                 'ocr_structured_data' => $structuredData,
                 'confidence_score' => $confidenceScore,
                 'status' => 'completed',
                 'fornitore_id' => $fornitoreId,
             ]);
+
+            // Log diagnostico per Rolex
+            if ($this->isRolexDocument($rawText)) {
+                $this->logRolexDiagnostics($rawText);
+            }
             
             // 8. Cleanup immagini temporanee
             $this->cleanupImages($imagePaths);
@@ -1099,6 +1102,17 @@ class OcrService
             return [];
         }
 
+        // Tentativo nativo PDF SOLO per Rolex (non impatta altri fornitori)
+        if (!empty($this->currentPdfPath)) {
+            $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+            if ($pdfText) {
+                $tableRows = $this->parseRolexTableRows($pdfText);
+                if (!empty($tableRows)) {
+                    return $tableRows;
+                }
+            }
+        }
+
         if (str_contains($text, '===PAGE_BREAK===')) {
             $pages = array_filter(array_map('trim', explode('===PAGE_BREAK===', $text)));
             $articoli = [];
@@ -1438,6 +1452,96 @@ class OcrService
             return array_slice($values, 0, $expected);
         }
         return array_pad($values, $expected, null);
+    }
+
+    protected function isRolexDocument(string $text): bool
+    {
+        return preg_match('/\bROLEX\b/i', $text) && preg_match('/\bReferenza\b/i', $text);
+    }
+
+    protected function logRolexDiagnostics(string $text): void
+    {
+        $report = [];
+        $report['has_page_break'] = str_contains($text, '===PAGE_BREAK===');
+        $pages = $report['has_page_break']
+            ? array_filter(array_map('trim', explode('===PAGE_BREAK===', $text)))
+            : [$text];
+
+        $report['pages'] = [];
+        foreach ($pages as $index => $pageText) {
+            $page = [
+                'page' => $index + 1,
+                'referenze' => [],
+                'seriali' => [],
+                'descrizioni_count' => 0,
+                'quantita_count' => 0,
+                'prezzi_count' => 0,
+                'importi_count' => 0,
+            ];
+
+            $referenzeLines = $this->extractAllSectionLines(
+                $pageText,
+                '/\bReferenza\b/i',
+                ['/N\.\s*serie/i', '/Descrizione/i', '/Quantit/i']
+            );
+            $page['referenze'] = $this->extractRolexCodesFromText(implode("\n", $referenzeLines));
+
+            $serialLines = $this->extractAllSectionLines(
+                $pageText,
+                '/N\.\s*serie/i',
+                ['/Descrizione/i', '/Quantit/i']
+            );
+            $serials = [];
+            foreach ($serialLines as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if (preg_match('/^(?=.*\d)(?=.*[A-Z])[A-Z0-9]{6,12}$/', $line)) {
+                    $serials[] = $line;
+                }
+            }
+            $page['seriali'] = $serials;
+
+            $descrizioneLines = $this->extractAllSectionLines(
+                $pageText,
+                '/Descrizione/i',
+                ['/Quantit/i', '/Prezzo/i', '/%/i', '/Importo/i']
+            );
+            $descrizioni = $this->buildRolexDescriptions($descrizioneLines);
+            $page['descrizioni_count'] = count($descrizioni);
+
+            $quantitaLines = $this->extractAllSectionLines(
+                $pageText,
+                '/Quantit/i',
+                ['/Prezzo/i', '/%/i', '/Importo/i']
+            );
+            $quantitaList = [];
+            foreach ($quantitaLines as $line) {
+                if (preg_match('/^\s*(\d{1,3})\b/', $line, $m)) {
+                    $quantitaList[] = (int) $m[1];
+                }
+            }
+            $page['quantita_count'] = count($quantitaList);
+
+            $prezzoLines = $this->extractAllSectionLines(
+                $pageText,
+                '/Prezzo/i',
+                ['/Sconto/i', '/%/i', '/Importo/i']
+            );
+            $page['prezzi_count'] = count($this->buildRolexAmounts($prezzoLines));
+
+            $importoLines = $this->extractAllSectionLines(
+                $pageText,
+                '/Importo/i',
+                ['/Totale/i', '/IVA/i']
+            );
+            $page['importi_count'] = count($this->buildRolexAmounts($importoLines));
+
+            $report['pages'][] = $page;
+        }
+
+        Log::info('Rolex OCR diagnostics', $report);
     }
 
     /**
