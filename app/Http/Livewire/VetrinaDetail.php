@@ -87,6 +87,8 @@ class VetrinaDetail extends Component
             ->where('articolo_id', $articoloId)
             ->whereNull('data_rimozione')
             ->first();
+        // Pulisci ricerca per non filtrare la tabella dopo la selezione
+        $this->search = '';
         
         // Se l'articolo ha già un ultimo testo vetrina salvato, lo proponiamo
         if ($this->selectedArticolo->ultimo_testo_vetrina) {
@@ -130,7 +132,8 @@ class VetrinaDetail extends Component
                 ]);
 
                 session()->flash('success', 'Articolo NC aggiunto alla vetrina');
-                $this->closeAddModal();
+            $this->search = '';
+            $this->closeAddModal();
                 return;
             }
 
@@ -187,6 +190,7 @@ class VetrinaDetail extends Component
             } else {
                 session()->flash('success', "Articolo {$this->selectedArticolo->codice} aggiunto alla vetrina");
             }
+            $this->search = '';
             $this->closeAddModal();
 
         } catch (\Exception $e) {
