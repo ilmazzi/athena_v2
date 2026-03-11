@@ -30,11 +30,15 @@ class OcrService
         ]);
 
         try {
-            // 3. Converti PDF → Immagini
-            $imagePaths = $this->convertPdfToImages($pdfPath);
-            
-            // 4. Estrai testo con OCR
-            $rawText = $this->extractTextFromImages($imagePaths);
+            // 3. Prova estrazione testo nativa PDF (pdftotext)
+            $rawText = $this->extractTextFromPdf($pdfPath);
+            $imagePaths = [];
+
+            // 4. Se fallisce, usa OCR (Ghostscript + Tesseract)
+            if (!$rawText) {
+                $imagePaths = $this->convertPdfToImages($pdfPath);
+                $rawText = $this->extractTextFromImages($imagePaths);
+            }
             
             // 5. Struttura dati estratti
             $structuredData = $this->parseExtractedText($rawText, $tipo);
@@ -47,7 +51,10 @@ class OcrService
             
             // 8. Aggiorna OcrDocument
             $ocrDocument->update([
-                'ocr_raw_data' => ['text' => $rawText],
+                'ocr_raw_data' => [
+                    'text' => $rawText,
+                    'source' => $rawText ? 'pdftotext' : 'ocr',
+                ],
                 'ocr_structured_data' => $structuredData,
                 'confidence_score' => $confidenceScore,
                 'status' => 'completed',
@@ -209,6 +216,50 @@ class OcrService
         }
         
         return trim($fullText);
+    }
+
+    /**
+     * Estrai testo nativo dal PDF con pdftotext (se disponibile).
+     */
+    protected function extractTextFromPdf(string $pdfPath): ?string
+    {
+        $fullPath = Storage::path($pdfPath);
+
+        $output = [];
+        $returnCode = 1;
+        exec('command -v pdftotext 2>/dev/null', $output, $returnCode);
+        if ($returnCode !== 0 || empty($output[0])) {
+            return null;
+        }
+
+        $tempDir = Storage::path(config('ocr.storage.temp'));
+        if (!file_exists($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        $tmpFile = $tempDir . '/' . pathinfo($pdfPath, PATHINFO_FILENAME) . '_' . uniqid() . '.txt';
+        $command = sprintf(
+            'pdftotext -layout "%s" "%s" 2>/dev/null',
+            $fullPath,
+            $tmpFile
+        );
+
+        exec($command, $output, $returnCode);
+        if ($returnCode !== 0 || !file_exists($tmpFile)) {
+            return null;
+        }
+
+        $text = file_get_contents($tmpFile) ?: '';
+        @unlink($tmpFile);
+
+        if ($text === '') {
+            return null;
+        }
+
+        // Normalizza page break di pdftotext (\f) in separatore usato dal parser
+        $text = str_replace("\f", "\n\n===PAGE_BREAK===\n\n", $text);
+
+        return trim($text);
     }
 
     /**
