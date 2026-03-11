@@ -362,7 +362,7 @@ class VetrinaDetail extends Component
             'articolo.categoriaMerceologica',
             'articolo.sede',
             'articolo.prodottoFinito' => function ($query) {
-                $query->with([
+                $query->withTrashed()->with([
                     'componentiArticoli' => function ($componentiQuery) {
                         $componentiQuery->with([
                             'articolo' => function ($articoloQuery) {
@@ -373,6 +373,9 @@ class VetrinaDetail extends Component
                 ]);
             },
             'prodottoFinito.categoriaMerceologica.sede',
+            'prodottoFinito' => function ($query) {
+                $query->withTrashed();
+            },
             'prodottoFinito.componentiArticoli' => function ($componentiQuery) {
                 $componentiQuery->with([
                     'articolo' => function ($articoloQuery) {
