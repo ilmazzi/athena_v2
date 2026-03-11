@@ -1105,6 +1105,13 @@ class OcrService
             }
         }
 
+        $descrizioneLines = $this->extractSectionLines(
+            $text,
+            '/Descrizione/i',
+            ['/Quantit/i', '/Prezzo/i', '/%/i', '/Importo/i']
+        );
+        $descrizioni = $this->buildRolexDescriptions($descrizioneLines);
+
         $quantitaLines = $this->extractSectionLines(
             $text,
             '/Quantit/i',
@@ -1122,7 +1129,7 @@ class OcrService
             $qty = $quantitaList[$idx] ?? 1;
             $articolo = [
                 'codice' => $codice,
-                'descrizione' => 'ROLEX ' . $codice,
+                'descrizione' => $descrizioni[$idx] ?? ('ROLEX ' . $codice),
                 'quantita' => max(1, $qty),
             ];
 
@@ -1134,6 +1141,44 @@ class OcrService
         }
 
         return $articoli;
+    }
+
+    /**
+     * Costruisce descrizioni Rolex da righe di sezione.
+     */
+    protected function buildRolexDescriptions(array $lines): array
+    {
+        $descrizioni = [];
+        $current = [];
+
+        $startRegex = '/\b(ROLEX|DATEJUST|SUBMARINER|SKY-DWELLER|DEEPSEA|GMT-MASTER|EXPLORER|DAY-DATE|BLACK BAY|PERPETUAL|OYSTER|1908)\b/i';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                if (!empty($current)) {
+                    $descrizioni[] = trim(implode(' ', $current));
+                    $current = [];
+                }
+                continue;
+            }
+
+            if (preg_match('/^Descrizione\b/i', $line)) {
+                continue;
+            }
+
+            if (!empty($current) && preg_match($startRegex, $line)) {
+                $descrizioni[] = trim(implode(' ', $current));
+                $current = [];
+            }
+
+            $current[] = $line;
+        }
+
+        if (!empty($current)) {
+            $descrizioni[] = trim(implode(' ', $current));
+        }
+
+        return array_values(array_filter($descrizioni, static fn ($value) => $value !== ''));
     }
 
     /**
