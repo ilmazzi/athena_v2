@@ -140,6 +140,14 @@ class OcrService
      */
     protected function findGhostscript(): ?string
     {
+        // Linux/macOS: usa il binario nel PATH
+        $output = [];
+        $returnCode = 1;
+        exec('command -v gs 2>/dev/null', $output, $returnCode);
+        if ($returnCode === 0 && !empty($output[0])) {
+            return trim($output[0]);
+        }
+
         // Percorsi comuni Ghostscript su Windows
         $commonPaths = [
             'C:/Program Files/gs/gs10.04.0/bin/gswin64c.exe',
