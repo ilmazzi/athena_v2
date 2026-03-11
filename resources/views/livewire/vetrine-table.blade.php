@@ -114,19 +114,19 @@
                                         <a href="{{ route('vetrine.show', $vetrina->id) }}" 
                                            class="btn btn-light btn-sm" 
                                            title="Gestisci Articoli">
-                                            <iconify-icon icon="solar:shop-bold" class="text-primary"></iconify-icon>
+                                            <i class="bx bx-store text-primary"></i>
                                         </a>
                                         <button class="btn btn-light btn-sm" 
                                                 wire:click="editVetrina({{ $vetrina->id }})"
                                                 title="Modifica">
-                                            <iconify-icon icon="solar:pen-bold" class="text-warning"></iconify-icon>
+                                            <i class="bx bx-edit text-warning"></i>
                                         </button>
                                         @if($vetrina->articoli_count == 0)
                                             <button class="btn btn-light btn-sm" 
                                                     wire:click="deleteVetrina({{ $vetrina->id }})"
                                                     title="Elimina"
                                                     onclick="return confirm('Sei sicuro di voler eliminare questa vetrina?')">
-                                                <iconify-icon icon="solar:trash-bin-bold" class="text-danger"></iconify-icon>
+                                                <i class="bx bx-trash text-danger"></i>
                                             </button>
                                         @endif
                                     </div>
@@ -161,8 +161,8 @@
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">
-                            <iconify-icon icon="solar:shop-bold-duotone" class="me-2"></iconify-icon>
+                    <h5 class="modal-title">
+                            <i class="bx bx-store me-2"></i>
                             {{ $editingVetrina ? 'Modifica Vetrina' : 'Nuova Vetrina' }}
                         </h5>
                         <button type="button" wire:click="closeModal" class="btn-close"></button>

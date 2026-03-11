@@ -25,6 +25,7 @@ import Swal from 'sweetalert2';
 window.Swal = Swal;
 
 import 'iconify-icon';
+import Sortable from 'sortablejs';
 import 'simplebar'
 
 // Components
@@ -729,6 +730,7 @@ class ToastNotification {
 }
 
 document.addEventListener('DOMContentLoaded', function (e) {
+    window.Sortable = Sortable;
     const components = new Components();
     components.init();
     window.AppComponents = components;

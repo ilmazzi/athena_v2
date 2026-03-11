@@ -5,12 +5,15 @@
             <div class="page-title-box d-flex align-items-center justify-content-between">
                 <div>
                     <h4 class="page-title">
-                        <iconify-icon icon="solar:shop-bold-duotone" class="me-2"></iconify-icon>
+                        <i class="bx bx-store me-2"></i>
                         {{ $vetrina->nome }}
                     </h4>
                     <div class="text-muted">
                         <span class="badge bg-light-info text-info me-2">{{ $vetrina->codice }}</span>
                         <span class="badge bg-light-secondary text-secondary me-2">{{ $vetrina->getTipologiaLabel() }}</span>
+                        @if($vetrina->sede)
+                            <span class="badge bg-light-primary text-primary me-2">{{ $vetrina->sede->nome }}</span>
+                        @endif
                         @if($vetrina->ubicazione)
                             <span class="badge bg-light-primary text-primary">{{ $vetrina->ubicazione }}</span>
                         @endif
@@ -137,7 +140,7 @@
                             <tr data-id="{{ $articoloVetrina->id }}">
                                 <td class="text-center">
                                     <span class="text-muted drag-handle" style="cursor: grab;">
-                                        <iconify-icon icon="solar:menu-dots-bold"></iconify-icon>
+                                        <i class="bx bx-grid-alt"></i>
                                     </span>
                                 </td>
                                 <td>
@@ -214,13 +217,13 @@
                                         <button class="btn btn-light btn-sm" 
                                                 wire:click="openMoveModal({{ $articoloVetrina->id }})"
                                                 title="Sposta in altra vetrina">
-                                            <iconify-icon icon="solar:transfer-horizontal-bold" class="text-warning"></iconify-icon>
+                                            <i class="bx bx-transfer-alt text-warning"></i>
                                         </button>
                                         <button class="btn btn-light btn-sm" 
                                                 wire:click="removeArticoloFromVetrina({{ $articoloVetrina->id }})"
                                                 title="Rimuovi da vetrina"
                                                 onclick="return confirm('Rimuovere l\'articolo dalla vetrina?')">
-                                            <iconify-icon icon="solar:trash-bin-bold" class="text-danger"></iconify-icon>
+                                            <i class="bx bx-trash text-danger"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -704,13 +707,12 @@
 </div>
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script>
         function initVetrinaSortable() {
             const el = document.querySelector('.js-sortable');
-            if (!el || el._sortable) return;
+            if (!el || el._sortable || !window.Sortable) return;
 
-            el._sortable = new Sortable(el, {
+            el._sortable = new window.Sortable(el, {
                 handle: '.drag-handle',
                 animation: 150,
                 onEnd: function () {
@@ -723,7 +725,7 @@
             });
         }
 
-        document.addEventListener('livewire:load', function () {
+        document.addEventListener('livewire:init', function () {
             initVetrinaSortable();
             Livewire.hook('message.processed', function () {
                 initVetrinaSortable();
