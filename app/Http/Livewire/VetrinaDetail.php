@@ -482,11 +482,11 @@ class VetrinaDetail extends Component
                 })
                 ->when($this->search, function ($query) {
                     $query->where(function ($q) {
-                        $q->where('codice', 'like', '%' . $this->search . '%')
-                          ->orWhere('descrizione', 'like', '%' . $this->search . '%');
+                        $q->where('articoli.codice', 'like', '%' . $this->search . '%')
+                          ->orWhere('articoli.descrizione', 'like', '%' . $this->search . '%');
                     });
                 })
-                ->orderBy('codice')
+                ->orderBy('articoli.codice')
                 ->limit(25)
                 ->get();
 
