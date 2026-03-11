@@ -107,6 +107,11 @@ class VetrinaDetail extends Component
 
         try {
             if ($this->addMode === 'esterno') {
+                $pesoLordo = $this->normalizeNumericInput($this->peso_lordo_esterno);
+                $pesoNetto = $this->normalizeNumericInput($this->peso_netto_esterno);
+                $prezzoAcquisto = $this->normalizeNumericInput($this->prezzo_acquisto_esterno);
+                $prezzoFornitore = $this->normalizeNumericInput($this->prezzo_fornitore_esterno);
+
                 ArticoloVetrina::create([
                     'vetrina_id' => $this->vetrina->id,
                     'articolo_id' => null,
@@ -119,10 +124,10 @@ class VetrinaDetail extends Component
                     'titolo_esterno' => $this->titolo_esterno,
                     'caratura_esterno' => $this->caratura_esterno,
                     'colore_esterno' => $this->colore_esterno,
-                    'peso_lordo_esterno' => $this->peso_lordo_esterno,
-                    'peso_netto_esterno' => $this->peso_netto_esterno,
-                    'prezzo_acquisto_esterno' => $this->prezzo_acquisto_esterno,
-                    'prezzo_fornitore_esterno' => $this->prezzo_fornitore_esterno,
+                    'peso_lordo_esterno' => $pesoLordo,
+                    'peso_netto_esterno' => $pesoNetto,
+                    'prezzo_acquisto_esterno' => $prezzoAcquisto,
+                    'prezzo_fornitore_esterno' => $prezzoFornitore,
                     'note_esterno' => $this->note_esterno,
                     'prezzo_vetrina' => $this->prezzo_vetrina,
                     'testo_vetrina' => $this->testo_vetrina,
@@ -196,6 +201,22 @@ class VetrinaDetail extends Component
         } catch (\Exception $e) {
             session()->flash('error', 'Errore durante l\'aggiunta: ' . $e->getMessage());
         }
+    }
+
+    protected function normalizeNumericInput($value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+        $normalized = str_replace(['.', ','], ['', '.'], $value);
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+        return (float) $normalized;
     }
 
     public function removeArticoloFromVetrina($articoloVetrinaId)
