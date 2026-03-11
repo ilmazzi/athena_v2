@@ -195,8 +195,9 @@
                                             ->implode(', ');
                                     @endphp
                                     @if($pfId)
-                                        <div class="small text-muted mt-1">
-                                            Componenti: {{ $componenti ?: 'N/D' }}
+                                        <div class="mt-2">
+                                            <span class="badge bg-light-info text-info">Componenti</span>
+                                            <span class="ms-1 fw-semibold text-dark">{{ $componenti ?: 'N/D' }}</span>
                                         </div>
                                     @endif
                                 </td>
