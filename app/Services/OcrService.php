@@ -1284,28 +1284,103 @@ class OcrService
     protected function parseRolexTableRows(string $text): array
     {
         $rows = [];
-        $pattern = '/\|\s*(M[0-9A-Z]{5,12})\s*-\s*([0-9]{4})\s*\|\s*([A-Z0-9]{6,12})\s*\|\s*([\s\S]*?)\s*\|\s*(\d{1,3})\s*\|\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*\|\s*[\d,\.%]+\s*\|/i';
+        $lines = preg_split('/\R/', $text);
+        $inTable = false;
+        $currentCode = null;
 
-        if (!preg_match_all($pattern, $text, $matches, PREG_SET_ORDER)) {
-            return [];
-        }
+        foreach ($lines as $line) {
+            $line = rtrim($line);
 
-        foreach ($matches as $match) {
-            $codice = strtoupper(trim($match[1] . '-' . $match[2]));
-            $seriale = strtoupper(trim($match[3]));
-            $descrizioneRaw = trim($match[4]);
-            $descrizione = preg_replace('/\s+/', ' ', $descrizioneRaw);
-            $quantita = (int) $match[5];
-            $prezzoUnitario = $this->parsePriceToFloat($match[6]);
+            if (preg_match('/^\s*Referenza\s+N\.\s*serie\s+Descrizione\s+Quantit/i', $line)) {
+                $inTable = true;
+                continue;
+            }
 
-            $rows[$codice] = [
-                'codice' => $codice,
-                'descrizione' => $descrizione,
-                'quantita' => max(1, $quantita),
-                'numero_seriale' => $seriale,
-                'prezzo_unitario' => $prezzoUnitario,
-                'prezzo_totale' => $prezzoUnitario !== null ? $prezzoUnitario * max(1, $quantita) : null,
-            ];
+            if (!$inTable) {
+                continue;
+            }
+
+            if (preg_match('/Rolex Italia S\.p\.A\. a Socio Unico/i', $line)) {
+                $inTable = false;
+                $currentCode = null;
+                continue;
+            }
+
+            // Righe di totale/fine pagina
+            if (preg_match('/\bTotale\b|\bIVA\b|\bSpese\b/i', $line)) {
+                continue;
+            }
+
+            // Riga articolo completa con colonne allineate (pdftotext -layout)
+            if (preg_match(
+                '/^\s*(M[0-9A-Z]{5,12}-\d{4})\s+([A-Z0-9]{6,12})\s+(.+?)\s+(\d{1,3})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+[0-9,\.%]+\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*$/',
+                $line,
+                $m
+            )) {
+                $codice = strtoupper(trim($m[1]));
+                $seriale = strtoupper(trim($m[2]));
+                $descrizione = preg_replace('/\s+/', ' ', trim($m[3]));
+                $quantita = (int) $m[4];
+                $prezzoUnitario = $this->parsePriceToFloat($m[5]);
+                $prezzoTotale = $this->parsePriceToFloat($m[6]);
+
+                $rows[$codice] = [
+                    'codice' => $codice,
+                    'descrizione' => $descrizione,
+                    'quantita' => max(1, $quantita),
+                    'numero_seriale' => $seriale,
+                    'prezzo_unitario' => $prezzoUnitario,
+                    'prezzo_totale' => $prezzoTotale,
+                ];
+                $currentCode = $codice;
+                continue;
+            }
+
+            // Riga con codice spezzato (es: M126710BLRO- + riga successiva 0001)
+            if (preg_match(
+                '/^\s*(M[0-9A-Z]{5,12}-)\s+([A-Z0-9]{6,12})\s+(.+?)\s+(\d{1,3})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+[0-9,\.%]+\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*$/',
+                $line,
+                $m
+            )) {
+                $codice = strtoupper(trim($m[1]));
+                $seriale = strtoupper(trim($m[2]));
+                $descrizione = preg_replace('/\s+/', ' ', trim($m[3]));
+                $quantita = (int) $m[4];
+                $prezzoUnitario = $this->parsePriceToFloat($m[5]);
+                $prezzoTotale = $this->parsePriceToFloat($m[6]);
+
+                $rows[$codice] = [
+                    'codice' => $codice,
+                    'descrizione' => $descrizione,
+                    'quantita' => max(1, $quantita),
+                    'numero_seriale' => $seriale,
+                    'prezzo_unitario' => $prezzoUnitario,
+                    'prezzo_totale' => $prezzoTotale,
+                ];
+                $currentCode = $codice;
+                continue;
+            }
+
+            // Riga di continuazione con 4 cifre di codice
+            if ($currentCode && str_ends_with($currentCode, '-') && preg_match('/^\s*(\d{4})\s*(.+)?$/', $line, $m)) {
+                $newCode = $currentCode . $m[1];
+                $rows[$newCode] = $rows[$currentCode];
+                $rows[$newCode]['codice'] = $newCode;
+                unset($rows[$currentCode]);
+                $currentCode = $newCode;
+
+                if (!empty($m[2])) {
+                    $rows[$currentCode]['descrizione'] = trim($rows[$currentCode]['descrizione'] . ' ' . trim($m[2]));
+                }
+                continue;
+            }
+
+            // Riga di continuazione descrizione
+            if ($currentCode && trim($line) !== '' && !preg_match('/^\s*\d{1,3}\s+/', $line)) {
+                $rows[$currentCode]['descrizione'] = trim(
+                    $rows[$currentCode]['descrizione'] . ' ' . trim($line)
+                );
+            }
         }
 
         return $rows;
