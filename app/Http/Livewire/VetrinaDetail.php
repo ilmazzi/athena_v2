@@ -22,6 +22,7 @@ class VetrinaDetail extends Component
     public $showAddModal = false;
     public $addMode = 'interno'; // interno|esterno
     public $selectedArticolo = null;
+    public $selectedArticoloVetrina = null;
     public $prezzo_vetrina = '';
     public $testo_vetrina = '';
     public $posizione = '';
@@ -74,6 +75,7 @@ class VetrinaDetail extends Component
     {
         $this->addMode = $mode;
         $this->selectedArticolo = null;
+        $this->selectedArticoloVetrina = null;
         $this->resetValidation();
     }
 
@@ -81,6 +83,10 @@ class VetrinaDetail extends Component
     {
         $this->addMode = 'interno';
         $this->selectedArticolo = Articolo::findOrFail($articoloId);
+        $this->selectedArticoloVetrina = ArticoloVetrina::with('vetrina')
+            ->where('articolo_id', $articoloId)
+            ->whereNull('data_rimozione')
+            ->first();
         
         // Se l'articolo ha già un ultimo testo vetrina salvato, lo proponiamo
         if ($this->selectedArticolo->ultimo_testo_vetrina) {
@@ -141,13 +147,17 @@ class VetrinaDetail extends Component
                 }
             }
 
-            $esisteInVetrina = ArticoloVetrina::where('articolo_id', $this->selectedArticolo->id)
+            $vetrinaCorrente = ArticoloVetrina::where('articolo_id', $this->selectedArticolo->id)
                 ->whereNull('data_rimozione')
-                ->exists();
+                ->first();
 
-            if ($esisteInVetrina) {
-                session()->flash('error', 'L\'articolo è già presente in una vetrina');
-                return;
+            if ($vetrinaCorrente && $vetrinaCorrente->vetrina_id !== $this->vetrina->id) {
+                $dataInserimento = \Carbon\Carbon::parse($vetrinaCorrente->data_inserimento);
+                $giorniEsposizione = $dataInserimento->diffInDays(now());
+                $vetrinaCorrente->update([
+                    'data_rimozione' => now()->toDateString(),
+                    'giorni_esposizione' => $giorniEsposizione,
+                ]);
             }
 
             ArticoloVetrina::updateOrCreate(
@@ -171,7 +181,12 @@ class VetrinaDetail extends Component
                 'ultimo_testo_vetrina' => $this->testo_vetrina
             ]);
 
-            session()->flash('success', "Articolo {$this->selectedArticolo->codice} aggiunto alla vetrina");
+            if ($vetrinaCorrente && $vetrinaCorrente->vetrina_id !== $this->vetrina->id) {
+                $nomeVetrina = $vetrinaCorrente->vetrina->nome ?? $vetrinaCorrente->vetrina_id;
+                session()->flash('warning', "Articolo {$this->selectedArticolo->codice} spostato da vetrina {$nomeVetrina} a {$this->vetrina->nome}");
+            } else {
+                session()->flash('success', "Articolo {$this->selectedArticolo->codice} aggiunto alla vetrina");
+            }
             $this->closeAddModal();
 
         } catch (\Exception $e) {
@@ -442,6 +457,16 @@ class VetrinaDetail extends Component
         if ($this->showAddModal) {
             // Articoli normali disponibili
             $articoliDisponibili = Articolo::with(['categoriaMerceologica', 'sede', 'giacenza', 'contoDepositoCorrente'])
+                ->leftJoin('articoli_vetrine as av', function ($join) {
+                    $join->on('av.articolo_id', '=', 'articoli.id')
+                        ->whereNull('av.data_rimozione');
+                })
+                ->leftJoin('vetrine as v', 'v.id', '=', 'av.vetrina_id')
+                ->addSelect([
+                    'articoli.*',
+                    'av.vetrina_id as vetrina_corrente_id',
+                    'v.nome as vetrina_corrente_nome',
+                ])
                 ->where('stato_articolo', '!=', 'scaricato')
                 ->whereHas('giacenza', function ($query) {
                     $query->where('quantita_residua', '>', 0);
@@ -454,12 +479,6 @@ class VetrinaDetail extends Component
                               $sub->where('sede_destinataria_id', $sedeId);
                           });
                     });
-                })
-                ->whereNotExists(function ($query) {
-                    $query->select(\DB::raw(1))
-                          ->from('articoli_vetrine')
-                          ->whereColumn('articoli_vetrine.articolo_id', 'articoli.id')
-                          ->whereNull('articoli_vetrine.data_rimozione');
                 })
                 ->when($this->search, function ($query) {
                     $query->where(function ($q) {

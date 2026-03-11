@@ -316,6 +316,11 @@
                                                 <td><span class="badge bg-light-success text-success">Articolo</span></td>
                                                 <td>
                                                     <span class="fw-bold text-primary">{{ $item->codice }}</span>
+                                                    @if(!empty($item->vetrina_corrente_id) && (int) $item->vetrina_corrente_id !== (int) $vetrina->id)
+                                                        <div class="small text-warning">
+                                                            In vetrina: {{ $item->vetrina_corrente_nome ?? $item->vetrina_corrente_id }}
+                                                        </div>
+                                                    @endif
                                                 </td>
                                                 <td>{{ Str::limit($item->descrizione, 40) }}</td>
                                                 <td>
@@ -345,6 +350,13 @@
                             <!-- Form Dettagli Vetrina -->
                             <div class="alert alert-info">
                                 <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice ?? '' }} - {{ $selectedArticolo->descrizione ?? '' }}
+                                @if($selectedArticoloVetrina && $selectedArticoloVetrina->vetrina_id !== $vetrina->id)
+                                    <div class="small text-warning mt-2">
+                                        Attenzione: l'articolo è già in vetrina
+                                        <strong>{{ $selectedArticoloVetrina->vetrina->nome ?? $selectedArticoloVetrina->vetrina_id }}</strong>.
+                                        Se confermi, verrà rimosso dalla vetrina attuale e aggiunto qui.
+                                    </div>
+                                @endif
                             </div>
 
                             <form wire:submit.prevent="addArticoloToVetrina">
