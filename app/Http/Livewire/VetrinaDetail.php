@@ -411,6 +411,32 @@ class VetrinaDetail extends Component
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
+        $pfIds = $articoliInVetrina->getCollection()
+            ->map(function ($item) {
+                if ($item->prodotto_finito_id) {
+                    return $item->prodotto_finito_id;
+                }
+                return $item->articolo?->prodotto_finito_id;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $componentiByPfId = collect();
+        if ($pfIds->isNotEmpty()) {
+            $componentiByPfId = \DB::table('componenti_prodotto as cp')
+                ->leftJoin('articoli as a', 'a.id', '=', 'cp.articolo_id')
+                ->whereIn('cp.prodotto_finito_id', $pfIds)
+                ->select([
+                    'cp.prodotto_finito_id',
+                    'cp.articolo_id',
+                    'a.codice as articolo_codice',
+                    'a.descrizione as articolo_descrizione',
+                ])
+                ->get()
+                ->groupBy('prodotto_finito_id');
+        }
+
         // Articoli disponibili per aggiunta (inclusi PF, esclusi scaricati e già in vetrina)
         $articoliDisponibili = [];
         if ($this->showAddModal) {
@@ -465,6 +491,7 @@ class VetrinaDetail extends Component
             'altreVetrine' => $altreVetrine,
             'categorieDisponibili' => $categorieDisponibili,
             'sediDisponibili' => $sediDisponibili,
+            'componentiByPfId' => $componentiByPfId,
         ]);
     }
 }

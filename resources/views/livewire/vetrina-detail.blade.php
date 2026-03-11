@@ -179,22 +179,25 @@
                                     <div class="fw-semibold">{{ Str::limit($articoloVetrina->descrizione_display, 40) }}</div>
                                     <small class="text-muted">{{ $articoloVetrina->sede_display }}</small>
                                     @php
-                                        $pfComponenti = $articoloVetrina->articolo?->prodottoFinito?->componentiArticoli
-                                            ?? $articoloVetrina->prodottoFinito?->componentiArticoli;
+                                        $pfId = $articoloVetrina->prodotto_finito_id
+                                            ?? $articoloVetrina->articolo?->prodotto_finito_id;
+                                        $pfComponenti = $pfId
+                                            ? ($componentiByPfId[$pfId] ?? collect())
+                                            : collect();
+                                        $componenti = $pfComponenti
+                                            ->map(function ($c) {
+                                                return $c->articolo_codice
+                                                    ?: $c->articolo_descrizione
+                                                    ?: ('ID ' . $c->articolo_id);
+                                            })
+                                            ->filter()
+                                            ->take(6)
+                                            ->implode(', ');
                                     @endphp
-                                    @if($pfComponenti && $pfComponenti->isNotEmpty())
-                                        @php
-                                            $componenti = $pfComponenti
-                                                ->map(fn($c) => $c->articolo?->codice
-                                                    ?: $c->articolo?->descrizione
-                                                    ?: ('ID ' . $c->articolo_id))
-                                                ->filter()
-                                                ->take(6)
-                                                ->implode(', ');
-                                        @endphp
-                                        @if($componenti)
-                                            <div class="small text-muted mt-1">Componenti: {{ $componenti }}</div>
-                                        @endif
+                                    @if($pfId)
+                                        <div class="small text-muted mt-1">
+                                            Componenti: {{ $componenti ?: 'N/D' }}
+                                        </div>
                                     @endif
                                 </td>
                                 <td>
