@@ -1,4 +1,13 @@
 <div class="container-xxl">
+    {{-- Overlay blocco UI durante elaborazione OCR --}}
+    <div wire:loading wire:target="processaPdf" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+         style="background: rgba(0,0,0,0.55); z-index: 2000;">
+        <div class="text-center text-white">
+            <div class="spinner-border text-light mb-3" role="status"></div>
+            <div class="fw-semibold">Elaborazione OCR in corso…</div>
+            <small class="opacity-75">Attendere senza chiudere o cliccare</small>
+        </div>
+    </div>
     
     {{-- Header --}}
     <div class="row">
