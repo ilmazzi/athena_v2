@@ -58,6 +58,8 @@ return [
     'patterns' => [
         // Numero DDT - pattern multipli più flessibili
         'numero_ddt' => [
+            '/N\.?\s*DDT[:\s]*([0-9]{6,12})/i', // N. DDT 2900025592
+            '/DDT[:\s#\/\-]*N?[°\s\.]*([0-9]{6,12})/i', // DDT N. 2900025592
             '/NR\.?\s*DOCUM\.?\s*MAGAZZINO\s+([A-Z0-9\/\-]+)/i', // NR. Docum. Magazzino EWFP01/2024/03/19115 (POMELLATO)
             '/^([A-Z0-9]{6,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}\b/m', // Nr + Data sulla stessa riga (es: 24CWS04815 04/12/2024)
             '/DISPATCH\s+NO\.?\s*[:#]?\s*(\d{4,10})/i', // Dispatch No. 1163597 (BERING)
