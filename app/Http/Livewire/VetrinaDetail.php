@@ -361,6 +361,7 @@ class VetrinaDetail extends Component
         $articoliInVetrina = ArticoloVetrina::with([
             'articolo.categoriaMerceologica',
             'articolo.sede',
+            'articolo.prodottoFinito.componentiArticoli.articolo',
             'prodottoFinito.categoriaMerceologica.sede',
             'prodottoFinito.componentiArticoli.articolo',
             'categoriaMerceologica',

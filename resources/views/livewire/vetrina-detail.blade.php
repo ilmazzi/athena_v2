@@ -178,9 +178,13 @@
                                 <td>
                                     <div class="fw-semibold">{{ Str::limit($articoloVetrina->descrizione_display, 40) }}</div>
                                     <small class="text-muted">{{ $articoloVetrina->sede_display }}</small>
-                                    @if($articoloVetrina->articolo?->prodottoFinito)
+                                    @php
+                                        $pfComponenti = $articoloVetrina->articolo?->prodottoFinito?->componentiArticoli
+                                            ?? $articoloVetrina->prodottoFinito?->componentiArticoli;
+                                    @endphp
+                                    @if($pfComponenti && $pfComponenti->isNotEmpty())
                                         @php
-                                            $componenti = $articoloVetrina->articolo->prodottoFinito->componentiArticoli
+                                            $componenti = $pfComponenti
                                                 ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
                                                 ->filter()
                                                 ->take(6)
@@ -698,13 +702,36 @@
 
 @push('scripts')
     <script>
+        function ensureSortableReady(callback) {
+            if (window.Sortable) {
+                callback();
+                return;
+            }
+            const existing = document.querySelector('script[data-sortable]');
+            if (existing) {
+                existing.addEventListener('load', callback, { once: true });
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+            script.async = true;
+            script.setAttribute('data-sortable', '1');
+            script.addEventListener('load', callback, { once: true });
+            document.head.appendChild(script);
+        }
+
         function initVetrinaSortable() {
             const el = document.querySelector('.js-sortable');
-            if (!el || el._sortable || !window.Sortable) return;
+            if (!el || !window.Sortable) return;
+
+            if (el._sortable) {
+                el._sortable.destroy();
+            }
 
             el._sortable = new window.Sortable(el, {
                 handle: '.drag-handle',
                 animation: 150,
+                draggable: 'tr[data-id]',
                 onEnd: function () {
                     const orderedIds = Array.from(el.querySelectorAll('tr[data-id]'))
                         .map(row => row.getAttribute('data-id'));
@@ -715,11 +742,23 @@
             });
         }
 
+        const setupVetrinaSortable = () => ensureSortableReady(initVetrinaSortable);
+
         document.addEventListener('livewire:init', function () {
-            initVetrinaSortable();
-            Livewire.hook('message.processed', function () {
-                initVetrinaSortable();
-            });
+            setupVetrinaSortable();
+            if (window.Livewire && typeof Livewire.hook === 'function') {
+                Livewire.hook('message.processed', function () {
+                    setupVetrinaSortable();
+                });
+            }
+        });
+
+        document.addEventListener('livewire:navigated', function () {
+            setupVetrinaSortable();
+        });
+
+        document.addEventListener('livewire:load', function () {
+            setupVetrinaSortable();
         });
     </script>
 @endpush
