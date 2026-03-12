@@ -1486,7 +1486,7 @@
     @endif
 
     {{-- Modal Reso Manuale --}}
-    @php if($showResoManualeModal): @endphp
+    @if($showResoManualeModal)
         <div class="modal fade show" style="display: block;" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -1583,7 +1583,7 @@
             </div>
         </div>
         <div class="modal-backdrop fade show"></div>
-    @php endif; @endphp
+    @endif
 
     {{-- Modal Genera DDT Reso con Anteprima --}}
     @if($showGeneraDdtResoModal)
