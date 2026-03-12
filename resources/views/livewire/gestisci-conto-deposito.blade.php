@@ -1518,9 +1518,7 @@
                             <div class="mb-3" style="max-height: 300px; overflow-y: auto;">
                                 {{-- Articoli selezionati --}}
                                 @foreach($articoliSelezionatiReso as $articoloId => $articoloData)
-                                    @php
-                                        $articolo = \App\Models\Articolo::find($articoloId);
-                                    @endphp
+                                    @php($articolo = \App\Models\Articolo::find($articoloId))
                                     <div class="card mb-2">
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between align-items-center">
@@ -1545,9 +1543,7 @@
                                 
                                 {{-- Prodotti finiti selezionati --}}
                                 @foreach($prodottiFinitiSelezionatiReso as $pfId => $pfData)
-                                    @php
-                                        $pf = \App\Models\ProdottoFinito::find($pfId);
-                                    @endphp
+                                    @php($pf = \App\Models\ProdottoFinito::find($pfId))
                                     <div class="card mb-2">
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between align-items-center">
