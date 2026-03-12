@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 
 class FixCodiciMagazzinoCarico extends Command
 {
-    protected $signature = 'articoli:fix-codici-magazzino {--ddt_id=} {--fattura_id=} {--dry-run : Mostra cosa verrebbe fatto senza salvare}';
+    protected $signature = 'articoli:fix-codici-magazzino {--ddt_id=} {--fattura_id=} {--start-from= : Forza numerazione da questo carico} {--dry-run : Mostra cosa verrebbe fatto senza salvare}';
     protected $description = 'Corregge codici articolo errati rispetto al magazzino per un carico specifico';
 
     public function handle(): int
@@ -18,6 +18,8 @@ class FixCodiciMagazzinoCarico extends Command
         $ddtId = $this->option('ddt_id');
         $fatturaId = $this->option('fattura_id');
         $dryRun = (bool) $this->option('dry-run');
+        $startFrom = $this->option('start-from');
+        $startFrom = is_null($startFrom) ? null : (int) $startFrom;
 
         if (!$ddtId && !$fatturaId) {
             $this->error('Specifica --ddt_id o --fattura_id');
@@ -36,6 +38,7 @@ class FixCodiciMagazzinoCarico extends Command
 
         $codiceService = app(CodiceService::class);
         $nextByMagazzino = [];
+        $batchIds = $righe->pluck('articolo_id')->filter()->unique()->values()->all();
         $fixed = 0;
 
         foreach ($righe as $riga) {
@@ -58,10 +61,13 @@ class FixCodiciMagazzinoCarico extends Command
             }
 
             if (!isset($nextByMagazzino[$magazzino])) {
-                $nextByMagazzino[$magazzino] = $codiceService->prossimoCodiceDisponibile($magazzino)->getCarico();
+                $nextByMagazzino[$magazzino] = $startFrom
+                    ? $startFrom
+                    : $codiceService->prossimoCodiceDisponibile($magazzino)->getCarico();
             }
-            $nuovoCodice = $magazzino . '-' . $nextByMagazzino[$magazzino];
-            $nextByMagazzino[$magazzino]++;
+
+            $nuovoCodice = $this->getNextAvailableCodice($magazzino, $nextByMagazzino[$magazzino], $batchIds);
+            $nextByMagazzino[$magazzino] = (int) substr($nuovoCodice, strpos($nuovoCodice, '-') + 1) + 1;
 
             $this->line("{$articolo->id}: {$articolo->codice} -> {$nuovoCodice} (magazzino {$magazzino})");
             $fixed++;
@@ -74,5 +80,19 @@ class FixCodiciMagazzinoCarico extends Command
         $this->info("Articoli corretti: {$fixed}");
 
         return 0;
+    }
+
+    private function getNextAvailableCodice(int $magazzino, int $carico, array $batchIds): string
+    {
+        while (true) {
+            $codice = $magazzino . '-' . $carico;
+            $exists = Articolo::where('codice', $codice)
+                ->whereNotIn('id', $batchIds)
+                ->exists();
+            if (!$exists) {
+                return $codice;
+            }
+            $carico++;
+        }
     }
 }
