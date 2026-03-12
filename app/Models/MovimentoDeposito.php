@@ -179,7 +179,13 @@ class MovimentoDeposito extends Model
     public function getCodiceItem(): string
     {
         $item = $this->getItem();
-        return $item ? $item->codice : 'N/A';
+        if (!$item) {
+            return 'N/A';
+        }
+        if ($item instanceof \App\Models\Articolo) {
+            return $item->codice_visuale;
+        }
+        return $item->codice;
     }
     
     /**

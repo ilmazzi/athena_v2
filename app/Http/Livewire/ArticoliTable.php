@@ -977,6 +977,7 @@ class ArticoliTable extends Component
             $query->where(function($q) use ($searchTerm, $search) {
                 // Ricerca veloce su campi principali
                 $q->where('articoli.codice', 'like', $searchTerm)
+                  ->orWhere('articoli.codice_base', 'like', $searchTerm)
                   ->orWhere('articoli.descrizione', 'like', $searchTerm);
 
                 // Ricerca estesa solo se il termine e' abbastanza lungo
@@ -1171,7 +1172,10 @@ class ArticoliTable extends Component
                 $query->where('ean', $value);
                 break;
             case 'codice':
-                $query->where('codice', $value);
+                $query->where(function ($q) use ($value) {
+                    $q->where('codice', $value)
+                      ->orWhere('codice_base', $value);
+                });
                 break;
             case 'descrizione':
                 $query->where('descrizione', 'like', '%' . $value . '%');
@@ -1348,6 +1352,7 @@ class ArticoliTable extends Component
             $searchTerm = '%' . $search . '%';
             $query->where(function($q) use ($searchTerm, $search) {
                 $q->where('codice', 'like', $searchTerm)
+                  ->orWhere('codice_base', 'like', $searchTerm)
                   ->orWhere('descrizione', 'like', $searchTerm);
 
                 if (mb_strlen($search) >= 3) {
@@ -1492,8 +1497,10 @@ class ArticoliTable extends Component
         // Applica sorting
         if ($this->sortField === 'codice') {
             $dir = $this->sortDirection === 'asc' ? 'asc' : 'desc';
-            $query->orderByRaw("SUBSTRING_INDEX(articoli.codice, '-', 1) {$dir}")
-                ->orderByRaw("CAST(SUBSTRING_INDEX(articoli.codice, '-', -1) AS UNSIGNED) {$dir}")
+            $baseExpr = "COALESCE(articoli.codice_base, articoli.codice)";
+            $query->orderByRaw("SUBSTRING_INDEX({$baseExpr}, '-', 1) {$dir}")
+                ->orderByRaw("CAST(SUBSTRING_INDEX({$baseExpr}, '-', -1) AS UNSIGNED) {$dir}")
+                ->orderByRaw("{$baseExpr} {$dir}")
                 ->orderBy('articoli.codice', $dir);
         } else {
             $query->orderBy($this->sortField, $this->sortDirection);

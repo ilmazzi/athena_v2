@@ -48,7 +48,8 @@ class FixCodiciMagazzinoCarico extends Command
             }
 
             try {
-                $codiceVO = CodiceArticolo::fromString($articolo->codice);
+                $codiceBase = $articolo->codice_base ?: $articolo->codice;
+                $codiceVO = CodiceArticolo::fromString($codiceBase);
             } catch (\InvalidArgumentException $e) {
                 continue;
             }

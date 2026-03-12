@@ -55,11 +55,14 @@ class Articolo extends Model
     protected $fillable = [
         'fornitore_id',
         'codice',
+        'codice_base',
         'descrizione',
         'descrizione_estesa',
         'categoria_merceologica_id',
         'sede_id',
         'prodotto_finito_id',
+        'articolo_padre_id',
+        'split_index',
         'assemblato_il',
         'assemblato_da',
         'peso_lordo',
@@ -103,6 +106,7 @@ class Articolo extends Model
         'in_vetrina' => 'boolean',
         'inventariato' => 'boolean',
         'visibile_catalogo' => 'boolean',
+        'split_index' => 'integer',
         'foto_aggiuntive' => 'array',
         'caratteristiche' => 'array',
         'modello' => 'string',
@@ -164,6 +168,16 @@ class Articolo extends Model
     public function componentiUtilizzato(): HasMany
     {
         return $this->hasMany(ComponenteProdotto::class, 'articolo_id');
+    }
+
+    public function articoloPadre(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'articolo_padre_id');
+    }
+
+    public function articoliFigli(): HasMany
+    {
+        return $this->hasMany(self::class, 'articolo_padre_id');
     }
     
     /**
@@ -513,7 +527,7 @@ class Articolo extends Model
     
     public function getCodiceVO(): ValueObjects\CodiceArticolo
     {
-        return CodiceArticolo::fromString($this->codice);
+        return CodiceArticolo::fromString($this->codice_base ?: $this->codice);
     }
     
     public function getPrezzoAcquistoVO(): PrezzoAcquisto
@@ -617,6 +631,9 @@ class Articolo extends Model
      */
     public function getCodicePerEtichetta(): string
     {
+        if ($this->articolo_padre_id && $this->split_index) {
+            return $this->codice_visuale;
+        }
         $vo = $this->getCodiceVO();
         if (method_exists($vo, 'toEtichetta')) {
             return $vo->toEtichetta();
@@ -700,6 +717,23 @@ class Articolo extends Model
     public function getCodiceEtichettaAttribute(): string
     {
         return $this->getCodicePerEtichetta();
+    }
+
+    public function getCodiceBaseAttribute($value): string
+    {
+        if (!empty($value)) {
+            return $value;
+        }
+        return $this->attributes['codice'] ?? '';
+    }
+
+    public function getCodiceVisualeAttribute(): string
+    {
+        if ($this->articolo_padre_id && $this->split_index) {
+            return $this->codice_base . '-' . $this->split_index;
+        }
+
+        return $this->attributes['codice'] ?? '';
     }
     
     public function getPrezzoAcquistoFormattatoAttribute(): string

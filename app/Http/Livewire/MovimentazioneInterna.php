@@ -9,6 +9,7 @@ use App\Models\Articolo;
 use App\Models\ProdottoFinito;
 use App\Models\CategoriaMerceologica;
 use App\Services\MovimentazioneService;
+use App\Services\ArticoloSplitService;
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
 use Illuminate\Support\Facades\DB;
 
@@ -114,11 +115,12 @@ class MovimentazioneInterna extends Component
         if ($this->search) {
             $query->where(function($q) {
                 $q->where('codice', 'like', "%{$this->search}%")
+                  ->orWhere('codice_base', 'like', "%{$this->search}%")
                   ->orWhere('descrizione', 'like', "%{$this->search}%");
             });
         }
         
-        return $query->orderBy('codice')->paginate(20);
+        return $query->orderByRaw("COALESCE(codice_base, codice)")->paginate(20);
     }
     
     public function getProdottiFinitiDisponibiliProperty()
@@ -247,15 +249,21 @@ class MovimentazioneInterna extends Component
                 // Movimenta articoli selezionati
                 foreach ($this->articoliSelezionati as $articoloData) {
                     $articolo = Articolo::findOrFail($articoloData['articolo_id']);
+                    $quantita = (int) $articoloData['quantita'];
                     
                     // Verifica finale prima della movimentazione
                     if ($articolo->isInContoDeposito()) {
                         throw new \Exception("L'articolo {$articolo->codice} è in conto deposito e non può essere movimentato.");
                     }
+
+                    $giacenzaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+                    if ($quantita < $giacenzaDisponibile) {
+                        $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
+                    }
                     
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
-                        quantita: $articoloData['quantita'],
+                        quantita: $quantita,
                         magazzinoOrigineId: $articolo->categoria_merceologica_id,
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,

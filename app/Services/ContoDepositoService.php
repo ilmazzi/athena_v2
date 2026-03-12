@@ -13,6 +13,7 @@ use App\Models\Fattura; // Fatture di acquisto (legacy)
 use App\Models\ProformaDeposito;
 use App\Models\ArticoloVetrina;
 use App\Services\NotificaService;
+use App\Services\ArticoloSplitService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +121,11 @@ class ContoDepositoService
         $costoUnitario = $costoUnitario ?? $articolo->prezzo_acquisto ?? 0;
 
         return DB::transaction(function () use ($contoDeposito, $articolo, $quantita, $costoUnitario) {
+            $qtaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+            if ($quantita < $qtaDisponibile) {
+                $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
+            }
+
             // Se l'articolo è in vetrina, lo rimuoviamo automaticamente
             if ($articolo->in_vetrina) {
                 $articolo->update([

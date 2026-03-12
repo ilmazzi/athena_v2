@@ -60,7 +60,8 @@ class CodiceService
         foreach ($articoli as $articolo) {
             // Parse codice: "2-245" → 245
             try {
-                $codiceVO = CodiceArticolo::fromString($articolo->codice);
+                $codiceBase = $articolo->codice_base ?: $articolo->codice;
+                $codiceVO = CodiceArticolo::fromString($codiceBase);
                 $carico = $codiceVO->getCarico();
                 if ($carico > $maxCarico) {
                     $maxCarico = $carico;
@@ -82,7 +83,10 @@ class CodiceService
      */
     public function codiceEsiste(CodiceArticolo $codice): bool
     {
-        return Articolo::where('codice', $codice->toString())->exists();
+        $value = $codice->toString();
+        return Articolo::where('codice', $value)
+            ->orWhere('codice_base', $value)
+            ->exists();
     }
     
     /**
