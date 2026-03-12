@@ -156,7 +156,7 @@
                     <button class="btn btn-warning" wire:click="apriResoManualeModal">
                         <iconify-icon icon="solar:import-bold" class="me-1"></iconify-icon> Reso Manuale
                     </button>
-                    @php $haMovimentiResoDisponibili = $this->anteprimaMovimentiReso->isNotEmpty(); @endphp
+                    @php($haMovimentiResoDisponibili = $this->anteprimaMovimentiReso->isNotEmpty())
                     @if($haMovimentiResoDisponibili || $deposito->isScaduto())
                         <button class="btn btn-warning" wire:click="apriGeneraDdtResoModal">
                             <iconify-icon icon="solar:document-add-bold" class="me-1"></iconify-icon> Genera DDT Reso
