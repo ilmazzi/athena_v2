@@ -49,9 +49,7 @@
                             @enderror
 
                             @if($proformaSelezionataId)
-                                @php
-                                    $proformaPreview = $deposito->proforme->firstWhere('id', $proformaSelezionataId);
-                                @endphp
+                                @php($proformaPreview = $deposito->proforme->firstWhere('id', $proformaSelezionataId))
                                 @if($proformaPreview && $proformaPreview->fattura_pdf_url)
                                     <div class="mt-2">
                                         <a href="{{ $proformaPreview->fattura_pdf_url }}" target="_blank" class="btn btn-outline-secondary btn-sm">
@@ -98,13 +96,11 @@
         </div>
     @endif
 
-    @php
-        $puoGestireMittente = $this->puoGestireMittente;
-        $puoGestireDestinatario = $this->puoGestireDestinatario;
-        $puoRinnovare = $this->puoRinnovare;
-        $haContenutoDeposito = $articoliInDeposito->isNotEmpty() || $prodottiFinitiInDeposito->isNotEmpty();
-        $ddtInvioGenerato = (bool) ($deposito->ddt_invio_id && $deposito->ddtInvio);
-    @endphp
+    @php($puoGestireMittente = $this->puoGestireMittente)
+    @php($puoGestireDestinatario = $this->puoGestireDestinatario)
+    @php($puoRinnovare = $this->puoRinnovare)
+    @php($haContenutoDeposito = $articoliInDeposito->isNotEmpty() || $prodottiFinitiInDeposito->isNotEmpty())
+    @php($ddtInvioGenerato = (bool) ($deposito->ddt_invio_id && $deposito->ddtInvio))
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 sticky-top bg-white py-2" style="z-index: 11; top: 64px;">
         <div class="d-flex align-items-center gap-3">
             <div>
@@ -384,10 +380,10 @@
         </div>
         <div class="col-12 col-xl-3">
             <div class="position-sticky" style="top: 120px;">
-            @php
-                $sedeMitt = $deposito->sedeMittente; $sedeDest = $deposito->sedeDestinataria;
-                $socMitt = $sedeMitt->societa ?? null; $socDest = $sedeDest->societa ?? null;
-            @endphp
+            @php($sedeMitt = $deposito->sedeMittente)
+            @php($sedeDest = $deposito->sedeDestinataria)
+            @php($socMitt = $sedeMitt->societa ?? null)
+            @php($socDest = $sedeDest->societa ?? null)
             <div class="card mb-3">
                 <div class="card-header"><h6 class="card-title mb-0">DDT Associati</h6></div>
                 <div class="card-body py-2">
@@ -485,11 +481,9 @@
                                         <tr>
                                             <td>
                                                 <div class="d-flex flex-column">
-                                                    @php
-                                                        $isFatturata = $proforma->stato === \App\Models\ProformaDeposito::STATO_FATTURATA;
-                                                        $classeBadge = $isFatturata ? 'bg-light-success text-success' : 'bg-light-danger text-danger';
-                                                        $icona = $isFatturata ? 'solar:document-text-bold' : 'solar:danger-circle-bold';
-                                                    @endphp
+                                                    @php($isFatturata = $proforma->stato === \App\Models\ProformaDeposito::STATO_FATTURATA)
+                                                    @php($classeBadge = $isFatturata ? 'bg-light-success text-success' : 'bg-light-danger text-danger')
+                                                    @php($icona = $isFatturata ? 'solar:document-text-bold' : 'solar:danger-circle-bold')
                                                     <div class="d-flex align-items-center gap-2">
                                                         <a href="{{ route('proforme-deposito.show', ['proformaDeposito' => $proforma->id]) }}" class="badge {{ $classeBadge }} d-inline-flex align-items-center gap-1">
                                                             <iconify-icon icon="{{ $icona }}" class="small"></iconify-icon>
@@ -1647,9 +1641,7 @@
                             </div>
                         </div>
 
-                        @php
-                            $movimentiDisponibili = $this->anteprimaMovimentiReso;
-                        @endphp
+                        @php($movimentiDisponibili = $this->anteprimaMovimentiReso)
 
                         @if($movimentiDisponibili->isEmpty())
                             <div class="alert alert-warning text-center">
@@ -1703,16 +1695,12 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @php
-                                                    $totaleArticoli = 0;
-                                                    $totaleValore = 0;
-                                                @endphp
+                                                @php($totaleArticoli = 0)
+                                                @php($totaleValore = 0)
                                                 @foreach($movimentiDisponibili as $movimento)
-                                                    @php
-                                                        $item = $movimento->getItem();
-                                                        $totaleArticoli += $movimento->quantita;
-                                                        $totaleValore += $movimento->costo_totale;
-                                                    @endphp
+                                                    @php($item = $movimento->getItem())
+                                                    @php($totaleArticoli += $movimento->quantita)
+                                                    @php($totaleValore += $movimento->costo_totale)
                                                     <tr>
                                                         <td>
                                                             @if($movimento->articolo_id)
