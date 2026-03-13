@@ -101,8 +101,12 @@ class ProdottiFinitiTable extends Component
 
     public function apriSmontaModal($prodottoId)
     {
-        $prodotto = ProdottoFinito::with(['componentiArticoli.articolo', 'articoloRisultante.giacenza'])
-            ->findOrFail($prodottoId);
+        $prodotto = ProdottoFinito::with([
+            'categoria.sede',
+            'componentiArticoli.articolo',
+            'articoloRisultante.giacenza',
+            'articoloRisultante.sede',
+        ])->findOrFail($prodottoId);
 
         if (in_array($prodotto->stato, ['venduto', 'scartato', 'annullato'])) {
             session()->flash('error', 'Il prodotto finito non è smontabile nello stato attuale.');
@@ -119,6 +123,20 @@ class ProdottiFinitiTable extends Component
                 session()->flash('error', 'Il prodotto finito risulta già scaricato/venduto.');
                 return;
             }
+        }
+
+        $sedeCreazioneId = $prodotto->categoria?->sede_id;
+        $sedeCorrenteId = $prodotto->articoloRisultante?->sede_id
+            ?? $prodotto->articoloRisultante?->giacenza?->sede_id;
+        if ($sedeCreazioneId && $sedeCorrenteId && $sedeCreazioneId !== $sedeCorrenteId) {
+            $sedeCreazioneNome = $prodotto->categoria?->sede?->nome ?? 'sede di creazione';
+            $sedeCorrenteNome = $prodotto->articoloRisultante?->sede?->nome ?? 'sede attuale';
+            session()->flash(
+                'error',
+                "Puoi smontare il PF solo nella sede di creazione ({$sedeCreazioneNome}). " .
+                "Attualmente è in {$sedeCorrenteNome}: movimentalo prima."
+            );
+            return;
         }
 
         $this->prodottoDaSmontare = $prodotto;
