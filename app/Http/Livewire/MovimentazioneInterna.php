@@ -99,11 +99,17 @@ class MovimentazioneInterna extends Component
         }
 
         $query = Articolo::with(['categoriaMerceologica', 'giacenza'])
-            ->where('sede_id', $this->sedeOrigineId)
             ->where('stato', 'disponibile')
             // SOLO articoli con giacenza disponibile
             ->whereHas('giacenza', function($q) {
                 $q->where('quantita_residua', '>', 0);
+            })
+            // Articoli della sede o con giacenza legata alla sede
+            ->where(function ($q) {
+                $q->where('sede_id', $this->sedeOrigineId)
+                  ->orWhereHas('giacenza', function ($subQ) {
+                      $subQ->where('sede_id', $this->sedeOrigineId);
+                  });
             })
             // ESCLUDI articoli in conto deposito
             ->whereNull('conto_deposito_corrente_id');
