@@ -8,6 +8,7 @@ use App\Http\Livewire\CaricoDocumento;
 use App\Http\Livewire\ArticoliTable;
 use App\Http\Livewire\DocumentiAcquistoTable;
 use App\Http\Livewire\ProdottiFinitiTable;
+use App\Http\Controllers\ProdottiFinitiController;
 use App\Http\Livewire\CreaProdottoFinito;
 use App\Http\Livewire\ModificaProdottoFinito;
 use App\Http\Livewire\ScaricoMagazzino;
@@ -164,6 +165,7 @@ Route::prefix('inventario')->group(function () {
         Route::get('/', ProdottiFinitiTable::class)->name('prodotti-finiti.index');
         Route::get('/nuovo', CreaProdottoFinito::class)->name('prodotti-finiti.nuovo');
             Route::get('/{id}/modifica', ModificaProdottoFinito::class)->name('prodotti-finiti.modifica');
+        Route::post('/{id}/smonta', [ProdottiFinitiController::class, 'smonta'])->name('prodotti-finiti.smonta');
         Route::get('/{id}', [MagazzinoViewController::class, 'dettaglioProdottoFinito'])->name('prodotti-finiti.dettaglio');
     });
     

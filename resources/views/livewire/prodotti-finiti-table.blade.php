@@ -293,22 +293,6 @@
                                             $motivoModifica = 'Non modificabile';
                                         }
 
-                                        $sedeCreazioneId = $prodotto->categoria?->sede_id;
-                                        $sedeCorrenteId = $prodotto->articoloRisultante?->sede_id
-                                            ?? $prodotto->articoloRisultante?->giacenza?->sede_id;
-                                        $smontabile = $modificabile
-                                            && $sedeCreazioneId
-                                            && $sedeCorrenteId
-                                            && $sedeCreazioneId === $sedeCorrenteId;
-                                        if (!$smontabile) {
-                                            if (!$modificabile) {
-                                                $motivoSmonta = $motivoModifica;
-                                            } elseif (!$sedeCreazioneId || !$sedeCorrenteId) {
-                                                $motivoSmonta = 'Sede del PF non determinabile';
-                                            } else {
-                                                $motivoSmonta = 'Smontabile solo nella sede di creazione';
-                                            }
-                                        }
                                     @endphp
                                     <td class="text-end">
                                         <div class="btn-group btn-group-sm">
@@ -336,17 +320,18 @@
                                                     </a>
                                                 @endif
                                             @endif
-                                            @if($smontabile)
-                                                <button class="btn btn-light" 
-                                                        type="button"
-                                                        wire:click="apriSmontaModal({{ $prodotto->id }})"
-                                                        title="Smonta / Disfa">
-                                                    <iconify-icon icon="solar:undo-left-bold" class="text-danger"></iconify-icon>
-                                                </button>
-                                            @else
-                                                <button class="btn btn-light" type="button" disabled title="{{ $motivoSmonta }}">
-                                                    <iconify-icon icon="solar:undo-left-bold" class="text-muted"></iconify-icon>
-                                                </button>
+                                            @if($modificabile)
+                                                <form method="POST"
+                                                      action="{{ route('prodotti-finiti.smonta', $prodotto->id) }}"
+                                                      class="d-inline">
+                                                    @csrf
+                                                    <button class="btn btn-light"
+                                                            type="submit"
+                                                            onclick="return confirm('Confermi lo smontaggio del PF?')"
+                                                            title="Smonta / Disfa">
+                                                        <iconify-icon icon="solar:undo-left-bold" class="text-danger"></iconify-icon>
+                                                    </button>
+                                                </form>
                                             @endif
                                         </div>
                                     </td>

@@ -101,12 +101,15 @@ class ProdottiFinitiTable extends Component
 
     public function apriSmontaModal($prodottoId)
     {
-        $prodotto = ProdottoFinito::with([
-            'categoria.sede',
-            'componentiArticoli.articolo',
-            'articoloRisultante.giacenza',
-            'articoloRisultante.sede',
-        ])->findOrFail($prodottoId);
+        try {
+            Log::info('🧩 Richiesta apertura smonta PF', ['prodotto_id' => $prodottoId]);
+
+            $prodotto = ProdottoFinito::with([
+                'categoria.sede',
+                'componentiArticoli.articolo',
+                'articoloRisultante.giacenza',
+                'articoloRisultante.sede',
+            ])->findOrFail($prodottoId);
 
         if (in_array($prodotto->stato, ['venduto', 'scartato', 'annullato'])) {
             session()->flash('error', 'Il prodotto finito non è smontabile nello stato attuale.');
@@ -128,7 +131,11 @@ class ProdottiFinitiTable extends Component
         $sedeCreazioneId = $prodotto->categoria?->sede_id;
         $sedeCorrenteId = $prodotto->articoloRisultante?->sede_id
             ?? $prodotto->articoloRisultante?->giacenza?->sede_id;
-        if ($sedeCreazioneId && $sedeCorrenteId && $sedeCreazioneId !== $sedeCorrenteId) {
+        if (!$sedeCreazioneId || !$sedeCorrenteId) {
+            session()->flash('error', 'Impossibile determinare la sede del PF per lo smontaggio.');
+            return;
+        }
+        if ($sedeCreazioneId !== $sedeCorrenteId) {
             $sedeCreazioneNome = $prodotto->categoria?->sede?->nome ?? 'sede di creazione';
             $sedeCorrenteNome = $prodotto->articoloRisultante?->sede?->nome ?? 'sede attuale';
             session()->flash(
@@ -139,8 +146,16 @@ class ProdottiFinitiTable extends Component
             return;
         }
 
-        $this->prodottoDaSmontare = $prodotto;
-        $this->showSmontaModal = true;
+            $this->prodottoDaSmontare = $prodotto;
+            $this->showSmontaModal = true;
+            Log::info('✅ Modal smonta PF aperto', ['prodotto_id' => $prodotto->id]);
+        } catch (\Throwable $e) {
+            Log::error('❌ Errore apertura smonta PF', [
+                'prodotto_id' => $prodottoId,
+                'error' => $e->getMessage(),
+            ]);
+            session()->flash('error', 'Errore apertura smontaggio: ' . $e->getMessage());
+        }
     }
 
     public function chiudiSmontaModal()
