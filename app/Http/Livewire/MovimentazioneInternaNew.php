@@ -469,19 +469,19 @@ class MovimentazioneInternaNew extends Component
             })
             ->first();
 
-        if ($giacenzaSede) {
-            $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
-                ->where(function ($q) {
-                    $q->where('quantita_residua', '>', 0)
-                      ->orWhere('quantita', '>', 0);
-                })
-                ->orderByDesc('quantita_residua')
-                ->first();
+        $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
 
-            if ($giacenzaFallback) {
+        if ($giacenzaFallback) {
+            if (!$giacenzaFallback->sede_id || $giacenzaFallback->sede_id !== $sedeId) {
                 $giacenzaFallback->update(['sede_id' => $sedeId]);
-                return (int) $giacenzaFallback->categoria_merceologica_id;
             }
+            return (int) $giacenzaFallback->categoria_merceologica_id;
         }
 
         $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
