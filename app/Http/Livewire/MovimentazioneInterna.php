@@ -366,10 +366,15 @@ class MovimentazioneInterna extends Component
             ->first();
 
         if ($giacenza) {
-            return $giacenza->categoria_merceologica_id;
+            return (int) $giacenza->categoria_merceologica_id;
         }
 
-        return $this->trovaCategoriaDaSede($sedeId, $articolo);
+        $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
+        if (!$categoriaId) {
+            throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
+        }
+
+        return (int) $categoriaId;
     }
     
     public function getTotaleSelezionati(): int
