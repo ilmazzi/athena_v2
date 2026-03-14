@@ -270,7 +270,7 @@ class MovimentazioneInterna extends Component
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $articolo->categoria_merceologica_id,
+                        magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
@@ -302,7 +302,7 @@ class MovimentazioneInterna extends Component
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $componente->quantita,
-                            magazzinoOrigineId: $articolo->categoria_merceologica_id,
+                            magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
                             magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"

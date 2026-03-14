@@ -6,6 +6,7 @@ use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
 use App\Models\Movimentazione;
 use App\Models\MovimentazioneDettaglio;
 use App\Models\Articolo;
+use App\Models\Giacenza;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -44,15 +45,19 @@ class MovimentazioneService
             $articolo = Articolo::findOrFail($dto->articoloId);
             
             // Verifica giacenza origine sufficiente
-            if (!$this->giacenzaService->verificaDisponibilita($dto->articoloId, $dto->quantita)) {
+            $giacenzaOrigine = Giacenza::where('articolo_id', $dto->articoloId)
+                ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
+                ->first();
+            if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
                 throw new \DomainException(
                     "Giacenza insufficiente nel magazzino origine per articolo ID {$dto->articoloId}"
                 );
             }
             
-            // Trasferisci giacenza
-            $this->giacenzaService->trasferisci(
+            // Trasferisci giacenza dalla categoria origine a destinazione
+            $this->giacenzaService->trasferisciDaA(
                 $dto->articoloId,
+                $dto->magazzinoOrigineId,
                 $dto->magazzinoDestinazioneId,
                 $dto->quantita
             );
@@ -102,14 +107,18 @@ class MovimentazioneService
         return DB::transaction(function () use ($movimentazione, $dto) {
             $articolo = Articolo::findOrFail($dto->articoloId);
             
-            if (!$this->giacenzaService->verificaDisponibilita($dto->articoloId, $dto->quantita)) {
+            $giacenzaOrigine = Giacenza::where('articolo_id', $dto->articoloId)
+                ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
+                ->first();
+            if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
                 throw new \DomainException(
                     "Giacenza insufficiente nel magazzino origine per articolo ID {$dto->articoloId}"
                 );
             }
             
-            $this->giacenzaService->trasferisci(
+            $this->giacenzaService->trasferisciDaA(
                 $dto->articoloId,
+                $dto->magazzinoOrigineId,
                 $dto->magazzinoDestinazioneId,
                 $dto->quantita
             );

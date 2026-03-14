@@ -327,7 +327,7 @@ class MovimentazioneInternaNew extends Component
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $articoloData['quantita'] ?? 1,
-                            magazzinoOrigineId: $articolo->categoria_merceologica_id,
+                            magazzinoOrigineId: $this->getPfCategoriaBySede($this->sedeOrigineId),
                             magazzinoDestinazioneId: $destCategoriaResult,
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -350,7 +350,7 @@ class MovimentazioneInternaNew extends Component
                             $dto = new MovimentazioneDTO(
                                 articoloId: $articoloComponente->id,
                                 quantita: $componente->quantita,
-                                magazzinoOrigineId: $articoloComponente->categoria_merceologica_id,
+                                magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articoloComponente),
                                 magazzinoDestinazioneId: $destCategoria,
                                 dataMovimentazione: $this->dataMovimentazione,
                                 note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -378,7 +378,7 @@ class MovimentazioneInternaNew extends Component
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $articolo->categoria_merceologica_id,
+                        magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
