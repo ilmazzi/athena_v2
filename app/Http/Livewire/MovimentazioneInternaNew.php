@@ -461,6 +461,29 @@ class MovimentazioneInternaNew extends Component
             return (int) $giacenza->categoria_merceologica_id;
         }
 
+        $giacenzaSede = GiacenzaSede::where('articolo_id', $articolo->id)
+            ->where('sede_id', $sedeId)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->first();
+
+        if ($giacenzaSede) {
+            $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
+                ->where(function ($q) {
+                    $q->where('quantita_residua', '>', 0)
+                      ->orWhere('quantita', '>', 0);
+                })
+                ->orderByDesc('quantita_residua')
+                ->first();
+
+            if ($giacenzaFallback) {
+                $giacenzaFallback->update(['sede_id' => $sedeId]);
+                return (int) $giacenzaFallback->categoria_merceologica_id;
+            }
+        }
+
         $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
         if (!$categoriaId) {
             throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
