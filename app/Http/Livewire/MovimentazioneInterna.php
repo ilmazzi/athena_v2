@@ -268,6 +268,9 @@ class MovimentazioneInterna extends Component
                     }
                     
                     $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                    if ($magazzinoOrigineId <= 0) {
+                        throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
+                    }
                     $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
@@ -302,6 +305,9 @@ class MovimentazioneInterna extends Component
                         $articolo = $componente->articolo;
                         
                         $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                        if ($magazzinoOrigineId <= 0) {
+                            throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
+                        }
                         $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
@@ -392,6 +398,16 @@ class MovimentazioneInterna extends Component
         if ($giacenzaFallback) {
             if (!$giacenzaFallback->sede_id || $giacenzaFallback->sede_id !== $sedeId) {
                 $giacenzaFallback->update(['sede_id' => $sedeId]);
+            }
+            if (!$giacenzaFallback->categoria_merceologica_id) {
+                \Log::warning('⚠️ Giacenza fallback senza categoria', [
+                    'articolo_id' => $articolo->id,
+                    'sede_id' => $sedeId,
+                    'giacenza_id' => $giacenzaFallback->id,
+                ]);
+                $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
+                $giacenzaFallback->update(['categoria_merceologica_id' => $categoriaId]);
+                return (int) $categoriaId;
             }
             return (int) $giacenzaFallback->categoria_merceologica_id;
         }

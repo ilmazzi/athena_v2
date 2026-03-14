@@ -315,16 +315,28 @@ class MovimentazioneInternaNew extends Component
                     $quantita = (int) ($articoloData['quantita'] ?? 1);
                     
                     if (!empty($articoloData['is_pf'])) {
-                        $pf = $articolo->prodottoFinito()->with('componentiArticoli.articolo')->first();
+                        $pf = $articolo->prodottoFinito()
+                            ->withTrashed()
+                            ->with('componentiArticoli.articolo')
+                            ->first();
                         if (!$pf) {
-                            throw new \Exception("Il PF {$articolo->codice} non è collegato correttamente.");
-                        }
+                            \Log::error('❌ PF non collegato correttamente, fallback a movimentazione articolo', [
+                                'articolo_id' => $articolo->id,
+                                'articolo_codice' => $articolo->codice,
+                                'prodotto_finito_id' => $articolo->prodotto_finito_id,
+                                'sede_origine_id' => $this->sedeOrigineId,
+                                'sede_destinazione_id' => $this->sedeDestinazioneId,
+                            ]);
+                        } else {
                         $destCategoriaResult = $this->getPfCategoriaBySede($this->sedeDestinazioneId);
                         if (!$articolo->giacenza || $articolo->giacenza->quantita_residua <= 0) {
                             throw new \Exception("Il PF {$articolo->codice} non ha giacenza disponibile per movimentazione.");
                         }
 
                         $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                        if ($magazzinoOrigineId <= 0) {
+                            throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
+                        }
                         $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
@@ -350,6 +362,9 @@ class MovimentazioneInternaNew extends Component
                             $destCategoria = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloComponente);
 
                             $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articoloComponente);
+                            if ($magazzinoOrigineId <= 0) {
+                                throw new \Exception("Categoria origine non valida per articolo {$articoloComponente->id} (sede {$this->sedeOrigineId}).");
+                            }
                             $this->syncGiacenzaOrigineDaSede($articoloComponente->id, $this->sedeOrigineId, $magazzinoOrigineId);
                             $dto = new MovimentazioneDTO(
                                 articoloId: $articoloComponente->id,
@@ -367,6 +382,7 @@ class MovimentazioneInternaNew extends Component
                         }
 
                         continue;
+                        }
                     }
 
                     // Verifica finale prima della movimentazione
@@ -380,6 +396,9 @@ class MovimentazioneInternaNew extends Component
                     }
 
                     $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                    if ($magazzinoOrigineId <= 0) {
+                        throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
+                    }
                     $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
@@ -480,6 +499,16 @@ class MovimentazioneInternaNew extends Component
         if ($giacenzaFallback) {
             if (!$giacenzaFallback->sede_id || $giacenzaFallback->sede_id !== $sedeId) {
                 $giacenzaFallback->update(['sede_id' => $sedeId]);
+            }
+            if (!$giacenzaFallback->categoria_merceologica_id) {
+                \Log::warning('⚠️ Giacenza fallback senza categoria', [
+                    'articolo_id' => $articolo->id,
+                    'sede_id' => $sedeId,
+                    'giacenza_id' => $giacenzaFallback->id,
+                ]);
+                $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
+                $giacenzaFallback->update(['categoria_merceologica_id' => $categoriaId]);
+                return (int) $categoriaId;
             }
             return (int) $giacenzaFallback->categoria_merceologica_id;
         }
