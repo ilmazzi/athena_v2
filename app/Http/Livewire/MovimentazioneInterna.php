@@ -413,7 +413,7 @@ class MovimentazioneInterna extends Component
             return;
         }
 
-        $quantita = $giacenzaSede->quantita_residua ?? $giacenzaSede->quantita ?? 0;
+        $quantita = max($giacenzaSede->quantita_residua ?? 0, $giacenzaSede->quantita ?? 0);
         if ($quantita <= 0) {
             return;
         }
