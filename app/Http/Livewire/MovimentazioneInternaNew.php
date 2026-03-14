@@ -327,7 +327,7 @@ class MovimentazioneInternaNew extends Component
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $articoloData['quantita'] ?? 1,
-                            magazzinoOrigineId: $this->getPfCategoriaBySede($this->sedeOrigineId),
+                            magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
                             magazzinoDestinazioneId: $destCategoriaResult,
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -350,7 +350,7 @@ class MovimentazioneInternaNew extends Component
                             $dto = new MovimentazioneDTO(
                                 articoloId: $articoloComponente->id,
                                 quantita: $componente->quantita,
-                                magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articoloComponente),
+                                magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articoloComponente),
                                 magazzinoDestinazioneId: $destCategoria,
                                 dataMovimentazione: $this->dataMovimentazione,
                                 note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -378,7 +378,7 @@ class MovimentazioneInternaNew extends Component
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
+                        magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
@@ -438,6 +438,24 @@ class MovimentazioneInternaNew extends Component
         }
         
         return $categoria->id;
+    }
+
+    private function trovaCategoriaOrigineDaSede(int $sedeId, Articolo $articolo): int
+    {
+        $giacenza = Giacenza::where('articolo_id', $articolo->id)
+            ->where('sede_id', $sedeId)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if ($giacenza) {
+            return $giacenza->categoria_merceologica_id;
+        }
+
+        return $this->trovaCategoriaDaSede($sedeId, $articolo);
     }
 
     private function getPfCategoriaBySede(int $sedeId): int

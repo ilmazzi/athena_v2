@@ -270,7 +270,7 @@ class MovimentazioneInterna extends Component
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
+                        magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
@@ -302,7 +302,7 @@ class MovimentazioneInterna extends Component
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $componente->quantita,
-                            magazzinoOrigineId: $this->trovaCategoriaDaSede($this->sedeOrigineId, $articolo),
+                            magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
                             magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"
@@ -352,6 +352,24 @@ class MovimentazioneInterna extends Component
         }
         
         return $categoria->id;
+    }
+
+    private function trovaCategoriaOrigineDaSede(int $sedeId, Articolo $articolo): int
+    {
+        $giacenza = \App\Models\Giacenza::where('articolo_id', $articolo->id)
+            ->where('sede_id', $sedeId)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if ($giacenza) {
+            return $giacenza->categoria_merceologica_id;
+        }
+
+        return $this->trovaCategoriaDaSede($sedeId, $articolo);
     }
     
     public function getTotaleSelezionati(): int
