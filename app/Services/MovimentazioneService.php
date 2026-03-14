@@ -49,6 +49,16 @@ class MovimentazioneService
                 ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
                 ->first();
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
+                \Log::error('❌ Giacenza insufficiente (movimentazione)', [
+                    'articolo_id' => $dto->articoloId,
+                    'quantita_richiesta' => $dto->quantita,
+                    'magazzino_origine_id' => $dto->magazzinoOrigineId,
+                    'magazzino_destinazione_id' => $dto->magazzinoDestinazioneId,
+                    'giacenza_id' => $giacenzaOrigine?->id,
+                    'giacenza_sede_id' => $giacenzaOrigine?->sede_id,
+                    'giacenza_quantita' => $giacenzaOrigine?->quantita,
+                    'giacenza_quantita_residua' => $giacenzaOrigine?->quantita_residua,
+                ]);
                 throw new \DomainException(
                     "Giacenza insufficiente nel magazzino origine per articolo ID {$dto->articoloId}"
                 );
@@ -111,6 +121,16 @@ class MovimentazioneService
                 ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
                 ->first();
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
+                \Log::error('❌ Giacenza insufficiente (movimentazione dettaglio)', [
+                    'articolo_id' => $dto->articoloId,
+                    'quantita_richiesta' => $dto->quantita,
+                    'magazzino_origine_id' => $dto->magazzinoOrigineId,
+                    'magazzino_destinazione_id' => $dto->magazzinoDestinazioneId,
+                    'giacenza_id' => $giacenzaOrigine?->id,
+                    'giacenza_sede_id' => $giacenzaOrigine?->sede_id,
+                    'giacenza_quantita' => $giacenzaOrigine?->quantita,
+                    'giacenza_quantita_residua' => $giacenzaOrigine?->quantita_residua,
+                ]);
                 throw new \DomainException(
                     "Giacenza insufficiente nel magazzino origine per articolo ID {$dto->articoloId}"
                 );
