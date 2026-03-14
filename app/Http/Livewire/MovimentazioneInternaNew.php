@@ -324,10 +324,12 @@ class MovimentazioneInternaNew extends Component
                             throw new \Exception("Il PF {$articolo->codice} non ha giacenza disponibile per movimentazione.");
                         }
 
+                        $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                        $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $articoloData['quantita'] ?? 1,
-                            magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
+                            magazzinoOrigineId: $magazzinoOrigineId,
                             magazzinoDestinazioneId: $destCategoriaResult,
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -347,10 +349,12 @@ class MovimentazioneInternaNew extends Component
                             $articoloComponente = $componente->articolo;
                             $destCategoria = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloComponente);
 
+                            $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articoloComponente);
+                            $this->syncGiacenzaOrigineDaSede($articoloComponente->id, $this->sedeOrigineId, $magazzinoOrigineId);
                             $dto = new MovimentazioneDTO(
                                 articoloId: $articoloComponente->id,
                                 quantita: $componente->quantita,
-                                magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articoloComponente),
+                                magazzinoOrigineId: $magazzinoOrigineId,
                                 magazzinoDestinazioneId: $destCategoria,
                                 dataMovimentazione: $this->dataMovimentazione,
                                 note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
@@ -375,10 +379,12 @@ class MovimentazioneInternaNew extends Component
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }
 
+                    $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                    $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
+                        magazzinoOrigineId: $magazzinoOrigineId,
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
@@ -461,6 +467,49 @@ class MovimentazioneInternaNew extends Component
         }
 
         return (int) $categoriaId;
+    }
+
+    private function syncGiacenzaOrigineDaSede(int $articoloId, int $sedeId, int $categoriaId): void
+    {
+        $giacenzaSede = GiacenzaSede::where('articolo_id', $articoloId)
+            ->where('sede_id', $sedeId)
+            ->first();
+        if (!$giacenzaSede) {
+            return;
+        }
+
+        $quantita = $giacenzaSede->quantita_residua ?? $giacenzaSede->quantita ?? 0;
+        if ($quantita <= 0) {
+            return;
+        }
+
+        $giacenza = Giacenza::where('articolo_id', $articoloId)
+            ->where('categoria_merceologica_id', $categoriaId)
+            ->first();
+
+        if ($giacenza) {
+            $disponibile = $giacenza->quantita_residua ?? $giacenza->quantita ?? 0;
+            if ($disponibile >= $quantita) {
+                return;
+            }
+            $giacenza->update([
+                'sede_id' => $sedeId,
+                'quantita' => $quantita,
+                'quantita_residua' => $quantita,
+                'ultimo_movimento_at' => now(),
+            ]);
+            return;
+        }
+
+        Giacenza::create([
+            'articolo_id' => $articoloId,
+            'categoria_merceologica_id' => $categoriaId,
+            'sede_id' => $sedeId,
+            'quantita' => $quantita,
+            'quantita_iniziale' => $quantita,
+            'quantita_residua' => $quantita,
+            'ultimo_movimento_at' => now(),
+        ]);
     }
 
     private function getPfCategoriaBySede(int $sedeId): int

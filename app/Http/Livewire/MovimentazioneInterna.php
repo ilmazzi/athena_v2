@@ -267,10 +267,12 @@ class MovimentazioneInterna extends Component
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }
                     
+                    $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                    $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
-                        magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
+                        magazzinoOrigineId: $magazzinoOrigineId,
                         magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                         dataMovimentazione: $this->dataMovimentazione,
                         note: $this->noteMovimentazione
@@ -299,10 +301,12 @@ class MovimentazioneInterna extends Component
                     foreach ($pf->componentiArticoli as $componente) {
                         $articolo = $componente->articolo;
                         
+                        $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                        $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $componente->quantita,
-                            magazzinoOrigineId: $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo),
+                            magazzinoOrigineId: $magazzinoOrigineId,
                             magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"
@@ -375,6 +379,49 @@ class MovimentazioneInterna extends Component
         }
 
         return (int) $categoriaId;
+    }
+
+    private function syncGiacenzaOrigineDaSede(int $articoloId, int $sedeId, int $categoriaId): void
+    {
+        $giacenzaSede = \App\Models\GiacenzaSede::where('articolo_id', $articoloId)
+            ->where('sede_id', $sedeId)
+            ->first();
+        if (!$giacenzaSede) {
+            return;
+        }
+
+        $quantita = $giacenzaSede->quantita_residua ?? $giacenzaSede->quantita ?? 0;
+        if ($quantita <= 0) {
+            return;
+        }
+
+        $giacenza = \App\Models\Giacenza::where('articolo_id', $articoloId)
+            ->where('categoria_merceologica_id', $categoriaId)
+            ->first();
+
+        if ($giacenza) {
+            $disponibile = $giacenza->quantita_residua ?? $giacenza->quantita ?? 0;
+            if ($disponibile >= $quantita) {
+                return;
+            }
+            $giacenza->update([
+                'sede_id' => $sedeId,
+                'quantita' => $quantita,
+                'quantita_residua' => $quantita,
+                'ultimo_movimento_at' => now(),
+            ]);
+            return;
+        }
+
+        \App\Models\Giacenza::create([
+            'articolo_id' => $articoloId,
+            'categoria_merceologica_id' => $categoriaId,
+            'sede_id' => $sedeId,
+            'quantita' => $quantita,
+            'quantita_iniziale' => $quantita,
+            'quantita_residua' => $quantita,
+            'ultimo_movimento_at' => now(),
+        ]);
     }
     
     public function getTotaleSelezionati(): int
