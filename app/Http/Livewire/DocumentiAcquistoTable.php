@@ -213,14 +213,17 @@ class DocumentiAcquistoTable extends Component
             ->get();
 
         $this->printRows = $righe->map(function ($riga) {
+            $prezzoUnitario = $riga->prezzo_unitario
+                ?? ($riga->articolo->prezzo_fornitore ?? $riga->articolo->prezzo_acquisto ?? null);
+
             return [
                 'articolo_id' => $riga->articolo_id,
                 'referenza' => $riga->referenza_fornitore ?? ($riga->articolo?->caratteristiche['referenza'] ?? ''),
                 'codice' => $riga->articolo->codice ?? '',
                 'descrizione' => $riga->descrizione ?? ($riga->articolo->descrizione ?? ''),
                 'quantita' => (int) ($riga->quantita ?? 1),
-                'prezzo_unitario' => $riga->prezzo_unitario ?? ($riga->articolo->prezzo_fornitore ?? $riga->articolo->prezzo_acquisto ?? null),
-                'prezzo_etichetta' => '',
+                'prezzo_unitario' => $prezzoUnitario,
+                'prezzo_etichetta' => $this->formatEuroPrezzoEtichetta($prezzoUnitario),
             ];
         })->toArray();
 
@@ -661,6 +664,16 @@ class DocumentiAcquistoTable extends Component
             $totale += max(1, (int) ($row['quantita'] ?? 1));
         }
         return $totale;
+    }
+
+    protected function formatEuroPrezzoEtichetta($value): string
+    {
+        $prezzo = $this->normalizePrice($value);
+        if ($prezzo === null) {
+            return '';
+        }
+
+        return number_format($prezzo, 2, ',', '');
     }
 }
 
