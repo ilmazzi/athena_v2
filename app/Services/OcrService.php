@@ -289,6 +289,29 @@ class OcrService
             }
         }
 
+        // Correzione specifica POMELLATO: se ha preso il numero documento EWFP..., preferisci invoice 2026/VE/XXXX
+        if (
+            isset($data['numero'])
+            && $tipo === 'fattura'
+            && preg_match('/POMELLATO/i', $text)
+            && preg_match('/^EWFP/i', $data['numero'])
+            && preg_match('/(\d{4}\/[A-Z]{2}\/\d+)/', $text, $invoiceMatch)
+        ) {
+            $data['numero'] = $invoiceMatch[1];
+            $data['numero_confidence'] = 85;
+        }
+
+        // Fallback POMELLATO fattura: numero tipo 2026/VE/3172 o 2026 VE 3172
+        if (!isset($data['numero']) && $tipo === 'fattura' && preg_match('/POMELLATO/i', $text)) {
+            if (preg_match('/(\d{4}\/[A-Z]{2}\/\d+)/', $text, $m)) {
+                $data['numero'] = trim($m[1]);
+                $data['numero_confidence'] = 75;
+            } elseif (preg_match('/(\d{4})\s+([A-Z]{2})\s+(\d+)/', $text, $m)) {
+                $data['numero'] = $m[1] . '/' . $m[2] . '/' . $m[3];
+                $data['numero_confidence'] = 70;
+            }
+        }
+
         // Fallback: se fattura non trova numero, prova pattern DDT
         if (!isset($data['numero']) && $tipo === 'fattura' && isset($patterns['numero_ddt'])) {
             $ddtPatterns = is_array($patterns['numero_ddt']) ? $patterns['numero_ddt'] : [$patterns['numero_ddt']];
@@ -534,9 +557,14 @@ class OcrService
             return $rolexArticoli;
         }
 
-        // Parsing specifico POMELLATO FATTURA: formato INVOICE con blocchi FO / NR / Price / Desc / Serial
-        $isPomellatoFattura = preg_match('/\bPOMELLATO\b/i', $text)
-            && (preg_match('/\bINVOICE\b/i', $text) || preg_match('/Invoice\s+Number/i', $text) || preg_match('/Document\s+EWFP/i', $text));
+        // Parsing specifico POMELLATO FATTURA: riconoscimento molto permissivo (OCR può spezzare parole)
+        $isPomellatoFattura = preg_match('/POMELLATO/i', $text)
+            && (
+                preg_match('/IN\s*VOICE|Invoice|INVOICE/i', $text)
+                || preg_match('/Invoice\s*Number|Number\s*\n/i', $text)
+                || preg_match('/Document\s+EWFP|EWFP\d/i', $text)
+                || preg_match('/\d{4}\/VE\/\d+/', $text)
+            );
         if ($isPomellatoFattura) {
             $pomellatoFatturaArticoli = $this->parsePomellatoFattura($text);
             if (empty($pomellatoFatturaArticoli) && $this->currentPdfPath) {
@@ -1646,8 +1674,9 @@ class OcrService
     }
 
     /**
-     * Parsing specifico POMELLATO FATTURA: partenza dalla riga prezzo (univoca), poi risalita per codice e discesa per descrizione/serial.
-     * Ordine nel PDF: FO → riga dati (PAA1100 O6000 000PA 55 + pesi + 1.00) → NR → prezzo (1,350.00 1,350.00 22%) → descrizione → Made In... Serial: XXX
+     * Parsing specifico POMELLATO FATTURA.
+     * Sul raw OCR reale la riga articolo arriva spesso su una singola linea:
+     * PAA1100 06000 000PA 55 0.000 4.780 0.000 0.000 0.0000 1.00 1,350.00 1,350.00 22%
      */
     protected function parsePomellatoFattura(string $text): array
     {
@@ -1655,101 +1684,77 @@ class OcrService
         $lines = array_map('trim', preg_split('/\R/', $text));
         $n = count($lines);
 
-        // Riga prezzo: due importi uguali + 22% (es. "1,350.00 1,350.00 22%" o "1.350,00 1.350,00 22%")
-        $priceLinePattern = '/^\s*([\d.,]+)\s+\1\s+22\s*%\s*$/m';
-        $dataLinePattern = '/^([A-Z0-9]+\s+[A-Z0-9]+\s+[A-Z0-9]+\s+\d+)\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s*$/i';
-        $dataLinePatternShort = '/^([A-Z0-9]+\s+[A-Z0-9]+\s+[A-Z0-9\s]+\d+)\s+[\d.,\s]+([\d.,]+)\s*$/i';
+        $rowPattern = '/^([A-Z0-9]{5,}\s+[A-Z0-9]{4,}\s+[A-Z0-9]{4,}\s+\d{1,3})\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+22\s*%?$/i';
+        $rowPatternLoose = '/^([A-Z0-9]{5,}\s+[A-Z0-9]{4,}\s+[A-Z0-9]{4,}\s+\d{1,3})\s+[\d.,\s]+?\s+([\d.,]+)\s+([\d.,]+)\s+22\s*%?$/i';
 
-        $priceIndices = [];
         for ($i = 0; $i < $n; $i++) {
-            if (preg_match($priceLinePattern, $lines[$i])) {
-                $priceIndices[] = $i;
-            }
-        }
-
-        foreach ($priceIndices as $pi) {
-            $priceLine = $lines[$pi];
-            $prezzoUnitario = null;
-            if (preg_match('/^\s*([\d.,]+)\s+/', $priceLine, $pm)) {
-                $prezzoUnitario = $this->parsePriceToFloat(trim($pm[1]));
-            }
-            if ($prezzoUnitario === null || $prezzoUnitario <= 0) {
+            $line = $lines[$i];
+            if ($line === '' || str_contains($line, 'Document ') || str_contains($line, 'Ord. No')) {
                 continue;
             }
 
-            // Risali per trovare la riga dati (codice + qty): max 8 righe sopra
-            $codice = null;
-            $quantita = 1.0;
-            for ($k = 1; $k <= 8 && $pi - $k >= 0; $k++) {
-                $candidate = $lines[$pi - $k];
-                if ($candidate === '') {
-                    continue;
-                }
-                if (preg_match($dataLinePattern, $candidate, $dm)) {
-                    $codice = strtoupper(str_replace(' ', '-', trim($dm[1])));
-                    $quantita = (float) str_replace(',', '.', $dm[2]);
-                    break;
-                }
-                if (preg_match($dataLinePatternShort, $candidate, $dm)) {
-                    $codice = strtoupper(preg_replace('/\s+/', '-', trim($dm[1])));
-                    $quantita = (float) str_replace(',', '.', $dm[2]);
-                    break;
-                }
-                if (preg_match('/^([A-Z0-9][A-Z0-9\s]{5,}?\d+)\s+[\d.,\s]+([\d.,]+)\s*$/i', $candidate, $dm)) {
-                    $codice = strtoupper(preg_replace('/\s+/', '-', trim($dm[1])));
-                    $quantita = (float) str_replace(',', '.', $dm[2]);
-                    break;
-                }
+            $m = null;
+            if (preg_match($rowPattern, $line, $tmp)) {
+                $m = $tmp;
+            } elseif (preg_match($rowPatternLoose, $line, $tmp)) {
+                // Uniformiamo i gruppi: [1]=codice+size [2]=carat [3]=qty [4]=prezzo_unit [5]=totale
+                $m = [null, $tmp[1], null, '1.00', $tmp[2], $tmp[3]];
             }
-            if (!$codice) {
+            if (!$m) {
                 continue;
             }
+
+            $codiceRaw = strtoupper(trim($m[1]));
+            $codice = preg_replace('/\s+/', '-', $codiceRaw);
+            $caratura = isset($m[2]) && $m[2] !== null ? str_replace(',', '.', trim((string) $m[2])) : null;
+            $quantita = (float) str_replace(',', '.', $m[3]);
             if ($quantita <= 0) {
                 $quantita = 1;
             }
 
-            // Descrizione = riga subito sotto il prezzo, SOLO se non è "Made In" / "Serial" / numero
+            $prezzoUnitario = $this->parsePriceToFloat($m[4]);
+            $prezzoTotale = $this->parsePriceToFloat($m[5]);
+            if ($prezzoUnitario === null || $prezzoUnitario <= 0) {
+                continue;
+            }
+            if ($prezzoTotale === null || $prezzoTotale <= 0) {
+                $prezzoTotale = $prezzoUnitario * max(1, (int) round($quantita));
+            }
+
+            // Dopo la riga dati: NR (opzionale), descrizione, riga Made In...Serial
+            $j = $i + 1;
+            while ($j < $n && $lines[$j] === '') {
+                $j++;
+            }
+            if ($j < $n && preg_match('/^N[R0]$/i', $lines[$j])) {
+                $j++;
+            }
+            while ($j < $n && $lines[$j] === '') {
+                $j++;
+            }
+
             $descrizione = '';
-            $serialLine = '';
-            if ($pi + 1 < $n) {
-                $next = $lines[$pi + 1];
-                if ($next !== '' && !preg_match('/^\s*Made\s+In\s*:/i', $next) && !preg_match('/^\s*Serial\s*:/i', $next)
-                    && !preg_match('/^\s*[\d.,]+\s+[\d.,]+\s+\d+%?\s*$/u', $next) && !preg_match('/^\s*N[R0]\s*$/i', $next)) {
-                    $descrizione = $next;
-                }
-            }
-            if ($pi + 2 < $n) {
-                $serialLine = $lines[$pi + 2];
-            }
-            if ($descrizione === '' && $pi + 2 < $n && preg_match('/^\s*Made\s+In\s*:/i', $serialLine)) {
-                $serialLine = $lines[$pi + 2];
+            if ($j < $n && !preg_match('/^Made\s+In/i', $lines[$j]) && !preg_match('/^\d+[.,]\d+/', $lines[$j])) {
+                $descrizione = trim($lines[$j]);
             }
 
             $numeroSeriale = null;
-            if (preg_match('/Serial:\s*([A-Z0-9]+)/i', $serialLine, $sm)) {
-                $numeroSeriale = trim($sm[1]);
+            $serialProbe = '';
+            for ($k = $j; $k <= min($j + 3, $n - 1); $k++) {
+                $serialProbe .= ' ' . ($lines[$k] ?? '');
             }
-            if (!$numeroSeriale && preg_match('/Serial:\s*([A-Z0-9]+)/i', $descrizione, $sm)) {
-                $numeroSeriale = trim($sm[1]);
-            }
-            if (!$numeroSeriale && $pi + 1 < $n && preg_match('/Serial:\s*([A-Z0-9]+)/i', $lines[$pi + 1], $sm)) {
+            if (preg_match('/Serial:\s*([A-Z0-9]+)/i', $serialProbe, $sm)) {
                 $numeroSeriale = trim($sm[1]);
             }
 
-            // Non mettere in descrizione la riga "Made In... Serial:"
-            if (preg_match('/Made\s+In\s*:|Serial\s*:/i', $descrizione)) {
-                $descrizione = preg_replace('/\s*Made\s+In\s*:.*$/i', '', $descrizione);
-                $descrizione = preg_replace('/\s*Serial\s*:\s*[A-Z0-9]+.*$/i', '', $descrizione);
-                $descrizione = trim($descrizione);
-            }
-
-            $key = $codice . ($numeroSeriale ? '-' . $numeroSeriale : ('-' . $pi));
+            $key = $codice . ($numeroSeriale ? '-' . $numeroSeriale : ('-' . $i));
             $articoli[$key] = [
                 'codice' => $codice,
                 'descrizione' => $descrizione,
                 'quantita' => max(1, (int) round($quantita)),
+                'caratura' => $caratura,
                 'prezzo_unitario' => $prezzoUnitario,
-                'prezzo_totale' => $prezzoUnitario * max(1, (int) round($quantita)),
+                'prezzo_totale' => $prezzoTotale,
                 'numero_seriale' => $numeroSeriale,
             ];
         }

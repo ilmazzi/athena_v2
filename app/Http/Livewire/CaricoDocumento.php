@@ -154,11 +154,23 @@ class CaricoDocumento extends Component
         // Verifica esistenza articoli
         foreach ($this->articoli as $index => $articolo) {
             $articoloEsistente = Articolo::where('codice', $articolo['codice'] ?? '')->first();
+            $prezzoBaseEtichetta = $articolo['prezzo_unitario']
+                ?? $articoloEsistente?->prezzo_fornitore
+                ?? null;
+            $prezzoBaseEtichettaNormalizzato = $this->normalizePrice($prezzoBaseEtichetta);
+            $prezzoEtichettaEstratto = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
+
             $this->articoli[$index]['articolo_id'] = $articoloEsistente?->id;
             $this->articoli[$index]['esiste'] = !is_null($articoloEsistente);
             $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
             $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
-            $this->articoli[$index]['prezzo_etichetta'] = $articolo['prezzo_etichetta'] ?? '';
+            $this->articoli[$index]['prezzo_etichetta'] = $prezzoEtichettaEstratto !== ''
+                ? $prezzoEtichettaEstratto
+                : (
+                    ($prezzoBaseEtichettaNormalizzato !== null)
+                        ? number_format((float) $prezzoBaseEtichettaNormalizzato, 2, ',', '')
+                        : ''
+                );
             $this->articoli[$index]['categoria_id'] = $articoloEsistente?->categoria_merceologica_id
                 ?? $articolo['categoria_id']
                 ?? $this->categoriaId;

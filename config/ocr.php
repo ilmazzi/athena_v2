@@ -80,12 +80,18 @@ return [
         
         // Numero Fattura - pattern multipli
         'numero_fattura' => [
-            '/Invoice\s+Number\s*\n\s*([A-Z0-9\/\-]+)/i', // POMELLATO: Invoice Number \n 2026/VE/3172
-            '/Document\s+([A-Z0-9\/\-]+)\s+Doc\.?\s*date/i', // POMELLATO: Document EWFP01/2026/03/3146 Doc. date
-            '/FATTURA[:\s#\/\-]*N?[°\s\.]*(\d{1,6}[\/-]\d{2,4})/i', // FATTURA N. 123/2025
-            '/FATTURA[:\s#\/\-]*([A-Z]{1,4}\d{4,12})/i', // FATTURA VO2400492
-            '/FATTURA[:\s#\/\-]*(\d{4,10})/i', // FATTURA 0001234567
-            '/FATT?[:\s]*(\d{1,6}[\/-]\d{2,4})/i', // FATT 123/2025
+            // POMELLATO: Invoice e Number su righe diverse o insieme, poi numero
+            '/Date\s+Invoice\s+Number\s*\n\s*\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}\s+([0-9]{4}\/[A-Z]{2}\/[0-9]+)/i',
+            '/Invoice\s*\n\s*Number\s*\n\s*([0-9]{4}\/[A-Z]{2}\/[0-9]+)/i',
+            '/Invoice\s+Number\s*\n\s*([0-9]{4}\/[A-Z]{2}\/[0-9]+)/i',
+            '/Number\s*\n\s*([0-9]{4}\/[A-Z]+\/[0-9]+)/i', // Number \n 2026/VE/3172
+            '/Document\s+([A-Z0-9\/\-]+)\s+Doc\.?\s*date/i', // POMELLATO: Document EWFP01/2026/03/3146
+            '/Document\s+([A-Z0-9]+\/[0-9]+\/[0-9]+\/[0-9]+)/i', // Document EWFP01/2026/03/3146
+            '/(\d{4}\/[A-Z]{2}\/\d+)/', // 2026/VE/3172 (POMELLATO)
+            '/FATTURA[:\s#\/\-]*N?[°\s\.]*(\d{1,6}[\/-]\d{2,4})/i',
+            '/FATTURA[:\s#\/\-]*([A-Z]{1,4}\d{4,12})/i',
+            '/FATTURA[:\s#\/\-]*(\d{4,10})/i',
+            '/FATT?[:\s]*(\d{1,6}[\/-]\d{2,4})/i',
         ],
         
         // Data - formati multipli (italiano, europeo, americano)
