@@ -639,11 +639,30 @@ class DocumentiAcquistoTable extends Component
         if ($value === null || $value === '') {
             return null;
         }
-        $normalized = str_replace(['.', ','], ['', '.'], (string) $value);
-        if (!is_numeric($normalized)) {
+
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '') {
             return null;
         }
-        return (float) $normalized;
+
+        // Formato US: 1,350.00 / 1350.00
+        if (preg_match('/^\d{1,3}(?:,\d{3})*(?:\.\d+)?$/', $raw) || preg_match('/^\d+(?:\.\d+)?$/', $raw)) {
+            $normalized = str_replace(',', '', $raw);
+            return is_numeric($normalized) ? (float) $normalized : null;
+        }
+
+        // Formato EU: 1.350,00 / 1350,00
+        if (preg_match('/^\d{1,3}(?:\.\d{3})*(?:,\d+)?$/', $raw) || preg_match('/^\d+(?:,\d+)?$/', $raw)) {
+            $normalized = str_replace('.', '', $raw);
+            $normalized = str_replace(',', '.', $normalized);
+            return is_numeric($normalized) ? (float) $normalized : null;
+        }
+
+        return null;
     }
 
     protected function guessFormatoPrezzo(string $prezzo): string
