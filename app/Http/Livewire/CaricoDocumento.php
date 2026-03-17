@@ -372,7 +372,7 @@ class CaricoDocumento extends Component
                         'sede_id' => $this->sedeId,
                         'fornitore_id' => $this->fornitoreId,
                         'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
-                        'prezzo_fornitore' => $this->tipoDocumento === 'ddt' ? $prezzoUnitario : null,
+                        'prezzo_fornitore' => $prezzoUnitario, // DDT e fattura (Pomellato prezzo imposto su fattura)
                         'ean' => $articolo['ean'] ?? null,
                         'numero_seriale' => $articolo['numero_seriale'] ?? null,
                         'caratura' => $articolo['caratura'] ?? null,
@@ -393,7 +393,7 @@ class CaricoDocumento extends Component
                             })
                             ->update(['caratura' => $articolo['caratura']]);
                     }
-                    if ($this->tipoDocumento === 'ddt' && $prezzoUnitario !== null) {
+                    if ($prezzoUnitario !== null) {
                         Articolo::where('id', $articoloId)->update([
                             'prezzo_fornitore' => $prezzoUnitario,
                         ]);
@@ -438,7 +438,10 @@ class CaricoDocumento extends Component
                 }
 
                 if ($this->tipoDocumento === 'fattura' && $prezzoUnitario !== null) {
-                    Articolo::where('id', $articoloId)->update(['prezzo_acquisto' => $prezzoUnitario]);
+                    Articolo::where('id', $articoloId)->update([
+                        'prezzo_acquisto' => $prezzoUnitario,
+                        'prezzo_fornitore' => $prezzoUnitario, // Prezzo imposto (es. Pomellato) per cartellino
+                    ]);
                 }
 
                 // Aggiorna/Crea giacenza
