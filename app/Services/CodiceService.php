@@ -18,6 +18,19 @@ use Illuminate\Support\Facades\DB;
 class CodiceService
 {
     /**
+     * Query base per generazione codici:
+     * - senza global scope sede utente
+     * - include soft deleted
+     * Perché l'unicità del codice è globale a livello DB.
+     */
+    private function codiciQuery()
+    {
+        return Articolo::query()
+            ->withoutGlobalScopes()
+            ->withTrashed();
+    }
+
+    /**
      * Genera prossimo codice carico per magazzino
      * 
      * Thread-safe: usa DB lock per evitare race conditions
@@ -47,7 +60,8 @@ class CodiceService
     private function getUltimoCarico(int $magazzinoId): int
     {
         // Ottieni TUTTI gli articoli per questo magazzino e trova il numero più alto
-        $articoli = Articolo::where('categoria_merceologica_id', $magazzinoId)
+        $articoli = $this->codiciQuery()
+            ->where('categoria_merceologica_id', $magazzinoId)
             ->lockForUpdate()  // Pessimistic lock
             ->get();
         
@@ -84,7 +98,8 @@ class CodiceService
     public function codiceEsiste(CodiceArticolo $codice): bool
     {
         $value = $codice->toString();
-        return Articolo::where('codice', $value)
+        return $this->codiciQuery()
+            ->where('codice', $value)
             ->orWhere('codice_base', $value)
             ->exists();
     }
