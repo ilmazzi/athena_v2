@@ -20,6 +20,9 @@ use App\Http\Livewire\SessioniInventario;
 use App\Http\Livewire\ScannerInventarioAvanzato;
 use App\Http\Livewire\StoricoArticoli;
 use App\Http\Livewire\InventarioMonitor;
+use App\Http\Livewire\GiacenzePerSede;
+use App\Http\Livewire\GiacenzePerUbicazione;
+use App\Http\Livewire\GiacenzeInventario;
 use App\Http\Controllers\StampaController;
 
 require __DIR__.'/auth.php';
@@ -138,6 +141,13 @@ Route::prefix('inventario')->group(function () {
     Route::get('/report/{sessione}', function($sessione) {
         return redirect()->route('inventario.monitor', ['sessione' => $sessione]);
     })->name('inventario.report');
+});
+
+// Routes Giacenze (nuova gestione dedicata)
+Route::prefix('giacenze')->name('giacenze.')->group(function () {
+    Route::get('/per-sede', GiacenzePerSede::class)->name('sedi');
+    Route::get('/per-ubicazione', GiacenzePerUbicazione::class)->name('ubicazioni');
+    Route::get('/inventario', GiacenzeInventario::class)->name('inventario');
 });
     
     // Stampa routes

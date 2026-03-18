@@ -142,13 +142,13 @@
                 <div class="collapse" id="sidebarGiacenze">
                     <ul class="nav sub-navbar-nav">
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Per Sede</a>
+                            <a class="sub-nav-link" href="{{ route('giacenze.sedi') }}">Per Sede</a>
                         </li>
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Per Ubicazione</a>
+                            <a class="sub-nav-link" href="{{ route('giacenze.ubicazioni') }}">Per Ubicazione</a>
                         </li>
                         <li class="sub-nav-item">
-                            <a class="sub-nav-link" href="#">Inventario</a>
+                            <a class="sub-nav-link" href="{{ route('giacenze.inventario') }}">Inventario</a>
                         </li>
                     </ul>
                 </div>
