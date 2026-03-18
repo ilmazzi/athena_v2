@@ -660,7 +660,12 @@ class ArticoliTable extends Component
         $stampanti = \App\Models\Stampante::where('attiva', true)->get();
         
         $this->stampantiDisponibili = $stampanti->filter(function ($stampante) use ($articolo, $user) {
-            // Verifica se la stampante può stampare questo articolo
+            // Admin/superuser: può stampare su qualsiasi stampante attiva.
+            if ($user && method_exists($user, 'isAdmin') && $user->isAdmin()) {
+                return true;
+            }
+
+            // Utenti standard: rispetta i vincoli stampante per articolo.
             return $stampante->canPrintArticolo($articolo);
         })->map(function ($stampante) {
             return [
