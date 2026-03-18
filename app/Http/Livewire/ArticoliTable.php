@@ -118,6 +118,7 @@ class ArticoliTable extends Component
     public $fotoUpload = null;
     public $mobileUploadUrl = '';
     public $mobileUploadQrBase64 = '';
+    public $fotoTargetSnapshot = '';
     
     // Paginazione e ordinamento
     public $perPage = 25;
@@ -774,6 +775,7 @@ class ArticoliTable extends Component
             $articolo = Articolo::findOrFail($articoloId);
             $this->articoloFotoTarget = $articolo;
             $this->fotoUpload = null;
+            $this->fotoTargetSnapshot = (string) ($articolo->foto_principale ?? '');
 
             $this->mobileUploadUrl = URL::temporarySignedRoute(
                 'articoli.foto.mobile.form',
@@ -799,7 +801,35 @@ class ArticoliTable extends Component
         $this->fotoUpload = null;
         $this->mobileUploadUrl = '';
         $this->mobileUploadQrBase64 = '';
+        $this->fotoTargetSnapshot = '';
         $this->resetErrorBag('fotoUpload');
+    }
+
+    public function verificaUploadFotoMobile()
+    {
+        if (!$this->showModalFoto || !$this->articoloFotoTarget) {
+            return;
+        }
+
+        try {
+            $articolo = Articolo::find($this->articoloFotoTarget->id);
+            if (!$articolo) {
+                return;
+            }
+
+            $currentPath = (string) ($articolo->foto_principale ?? '');
+            if ($currentPath !== $this->fotoTargetSnapshot) {
+                $this->articoloFotoTarget = $articolo;
+                $this->fotoUpload = null;
+                $this->fotoTargetSnapshot = $currentPath;
+
+                session()->flash('success', "Foto aggiornata da cellulare per articolo {$articolo->codice}");
+                $this->dispatch('foto-mobile-upload-rilevato', codice: $articolo->codice);
+                $this->chiudiModalFoto();
+            }
+        } catch (\Throwable $e) {
+            // Polling silenzioso: non bloccare l'utente in caso di errore intermittente.
+        }
     }
 
     public function salvaFotoArticolo()
@@ -837,6 +867,7 @@ class ArticoliTable extends Component
 
             $this->articoloFotoTarget = $articolo->fresh();
             $this->fotoUpload = null;
+            $this->fotoTargetSnapshot = (string) ($this->articoloFotoTarget->foto_principale ?? '');
             session()->flash('success', "Foto aggiornata per articolo {$articolo->codice}");
         } catch (\Exception $e) {
             session()->flash('error', 'Errore upload foto: ' . $e->getMessage());
@@ -942,6 +973,7 @@ class ArticoliTable extends Component
             $articolo->update(['foto_principale' => null]);
             $this->articoloFotoTarget = $articolo->fresh();
             $this->fotoUpload = null;
+            $this->fotoTargetSnapshot = '';
 
             session()->flash('success', "Foto rimossa per articolo {$articolo->codice}");
         } catch (\Exception $e) {

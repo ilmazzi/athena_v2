@@ -1632,7 +1632,7 @@
     
     <!-- Modal Gestione Immagine -->
     @if($showModalFoto && $articoloFotoTarget)
-        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog" wire:poll.4s="verificaUploadFotoMobile">
             <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -1926,6 +1926,11 @@
                         });
                     });
                 }
+
+                Livewire.on('foto-mobile-upload-rilevato', (payload) => {
+                    const codice = payload?.codice ? ` (${payload.codice})` : '';
+                    showPhotoFeedback(`Foto aggiornata da cellulare${codice}.`, 'success');
+                });
             });
 
             document.addEventListener('hidden.bs.offcanvas', (event) => {
