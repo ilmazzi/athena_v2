@@ -91,13 +91,69 @@
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th>Codice</th>
-                            <th>Nome</th>
-                            <th>Tipologia</th>
-                            <th>Sede</th>
-                            <th>Ubicazione</th>
-                            <th>Articoli</th>
-                            <th>Stato</th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('codice')">
+                                    Codice
+                                    @if($sortField === 'codice')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('nome')">
+                                    Nome
+                                    @if($sortField === 'nome')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('tipologia')">
+                                    Tipologia
+                                    @if($sortField === 'tipologia')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('sede')">
+                                    Sede
+                                    @if($sortField === 'sede')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('ubicazione')">
+                                    Ubicazione
+                                    @if($sortField === 'ubicazione')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('articoli_count')">
+                                    Articoli
+                                    @if($sortField === 'articoli_count')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
+                                        wire:click="sortBy('attiva')">
+                                    Stato
+                                    @if($sortField === 'attiva')
+                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
+                                    @endif
+                                </button>
+                            </th>
                             <th class="text-center">Azioni</th>
                         </tr>
                     </thead>

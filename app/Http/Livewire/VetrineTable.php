@@ -17,6 +17,8 @@ class VetrineTable extends Component
     public $attivaFilter = '';
     public $sedeFilter = '';
     public $ubicazioneFilter = '';
+    public $sortField = 'codice';
+    public $sortDirection = 'asc';
     
     // Proprietà per modal creazione/modifica
     public $showModal = false;
@@ -35,6 +37,8 @@ class VetrineTable extends Component
         'attivaFilter' => ['except' => ''],
         'sedeFilter' => ['except' => ''],
         'ubicazioneFilter' => ['except' => ''],
+        'sortField' => ['except' => 'codice'],
+        'sortDirection' => ['except' => 'asc'],
     ];
 
     protected $rules = [
@@ -69,6 +73,23 @@ class VetrineTable extends Component
 
     public function updatedUbicazioneFilter()
     {
+        $this->resetPage();
+    }
+
+    public function sortBy(string $field): void
+    {
+        $allowedFields = ['codice', 'nome', 'tipologia', 'sede', 'ubicazione', 'articoli_count', 'attiva'];
+        if (!in_array($field, $allowedFields, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+
         $this->resetPage();
     }
 
@@ -218,7 +239,19 @@ class VetrineTable extends Component
             ->when($this->ubicazioneFilter !== '', function ($query) {
                 $query->where('ubicazione', $this->ubicazioneFilter);
             })
-            ->orderBy('codice')
+            ->when($this->sortField === 'sede', function ($query) {
+                $query->orderBy(
+                    Sede::query()
+                        ->select('nome')
+                        ->whereColumn('sedi.id', 'vetrine.sede_id')
+                        ->limit(1),
+                    $this->sortDirection
+                );
+            })
+            ->when($this->sortField !== 'sede', function ($query) {
+                $query->orderBy($this->sortField, $this->sortDirection);
+            })
+            ->orderBy('id')
             ->paginate(20);
 
         $sedi = Sede::query()
@@ -237,6 +270,8 @@ class VetrineTable extends Component
             'vetrine' => $vetrine,
             'sedi' => $sedi,
             'ubicazioni' => $ubicazioni,
+            'sortField' => $this->sortField,
+            'sortDirection' => $this->sortDirection,
         ]);
     }
 }
