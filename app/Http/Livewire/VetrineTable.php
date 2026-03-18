@@ -69,7 +69,7 @@ class VetrineTable extends Component
 
     public function sortBy(string $field): void
     {
-        $allowedFields = ['codice', 'nome', 'tipologia', 'sede', 'articoli_count', 'attiva'];
+        $allowedFields = $this->getAllowedSortFields();
         if (!in_array($field, $allowedFields, true)) {
             return;
         }
@@ -184,6 +184,12 @@ class VetrineTable extends Component
 
     public function render()
     {
+        // Gestisce querystring legacy (es. sortField=ubicazione) senza errori SQL.
+        if (!in_array($this->sortField, $this->getAllowedSortFields(), true)) {
+            $this->sortField = 'codice';
+            $this->sortDirection = 'asc';
+        }
+
         $search = trim((string) $this->search);
 
         $vetrine = Vetrina::query()
@@ -250,5 +256,10 @@ class VetrineTable extends Component
             'sortField' => $this->sortField,
             'sortDirection' => $this->sortDirection,
         ]);
+    }
+
+    private function getAllowedSortFields(): array
+    {
+        return ['codice', 'nome', 'tipologia', 'sede', 'articoli_count', 'attiva'];
     }
 }
