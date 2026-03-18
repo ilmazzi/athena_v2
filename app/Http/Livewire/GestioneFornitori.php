@@ -82,7 +82,7 @@ class GestioneFornitori extends Component
 
     public function sortBy(string $field): void
     {
-        $allowed = ['codice', 'ragione_sociale', 'partita_iva', 'citta', 'attivo', 'updated_at', 'ddt_count', 'fatture_count'];
+        $allowed = ['codice', 'ragione_sociale', 'partita_iva', 'citta', 'attivo', 'updated_at', 'ddt_count', 'fatture_count', 'articoli_count', 'prezzi_count'];
         if (!in_array($field, $allowed, true)) {
             return;
         }
@@ -98,7 +98,7 @@ class GestioneFornitori extends Component
 
     public function getFornitoriProperty()
     {
-        $query = Fornitore::query()->withCount(['ddt', 'fatture']);
+        $query = Fornitore::query()->withCount(['ddt', 'fatture', 'articoli', 'prezzi']);
 
         $search = trim((string) $this->search);
         if ($search !== '') {
@@ -149,7 +149,7 @@ class GestioneFornitori extends Component
         }
 
         $fornitori = $query
-            ->withCount(['ddt', 'fatture'])
+            ->withCount(['ddt', 'fatture', 'articoli', 'prezzi'])
             ->orderBy($this->sortField, $this->sortDirection)
             ->orderBy('id', 'desc')
             ->get([
@@ -191,6 +191,8 @@ class GestioneFornitori extends Component
                 'PEC',
                 'DDT collegati',
                 'Fatture collegate',
+                'Articoli collegati',
+                'Prezzi collegati',
                 'Attivo',
             ], ';');
 
@@ -210,6 +212,8 @@ class GestioneFornitori extends Component
                     $f->pec,
                     $f->ddt_count,
                     $f->fatture_count,
+                    $f->articoli_count,
+                    $f->prezzi_count,
                     $f->attivo ? 'SI' : 'NO',
                 ], ';');
             }
@@ -294,15 +298,24 @@ class GestioneFornitori extends Component
 
     public function elimina(): void
     {
-        $fornitore = Fornitore::findOrFail($this->fornitoreSelezionatoId);
+        $fornitore = Fornitore::query()
+            ->withCount(['articoli', 'prezzi', 'ddt', 'fatture'])
+            ->findOrFail($this->fornitoreSelezionatoId);
 
-        $hasRelazioni = $fornitore->articoli()->exists()
-            || $fornitore->prezzi()->exists()
-            || $fornitore->ddt()->exists()
-            || $fornitore->fatture()->exists();
+        $hasRelazioni = ((int) $fornitore->articoli_count) > 0
+            || ((int) $fornitore->prezzi_count) > 0
+            || ((int) $fornitore->ddt_count) > 0
+            || ((int) $fornitore->fatture_count) > 0;
 
         if ($hasRelazioni) {
-            session()->flash('error', '❌ Impossibile eliminare: il fornitore ha documenti, articoli o prezzi associati');
+            $msg = sprintf(
+                '❌ Impossibile eliminare: DDT=%d, Fatture=%d, Articoli=%d, Prezzi=%d.',
+                (int) $fornitore->ddt_count,
+                (int) $fornitore->fatture_count,
+                (int) $fornitore->articoli_count,
+                (int) $fornitore->prezzi_count
+            );
+            session()->flash('error', $msg);
             $this->chiudiModalEliminazione();
             return;
         }

@@ -97,6 +97,18 @@
                                     <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
                                 @endif
                             </th>
+                            <th width="140" style="cursor: pointer;" class="user-select-none text-center" wire:click="sortBy('articoli_count')">
+                                Articoli
+                                @if($sortField === 'articoli_count')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
+                            <th width="140" style="cursor: pointer;" class="user-select-none text-center" wire:click="sortBy('prezzi_count')">
+                                Prezzi
+                                @if($sortField === 'prezzi_count')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
                             <th width="100" style="cursor: pointer;" class="user-select-none" wire:click="sortBy('attivo')">
                                 Stato
                                 @if($sortField === 'attivo')
@@ -134,6 +146,12 @@
                                 <td class="text-center">
                                     <span class="badge bg-light-info text-info">{{ (int) $fornitore->fatture_count }}</span>
                                 </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light-warning text-warning">{{ (int) $fornitore->articoli_count }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light-secondary text-secondary">{{ (int) $fornitore->prezzi_count }}</span>
+                                </td>
                                 <td>
                                     @if($fornitore->attivo)
                                         <span class="badge bg-success">Attivo</span>
@@ -158,7 +176,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="10" class="text-center py-4">
                                     <iconify-icon icon="solar:document-text-bold" class="fs-1 text-muted"></iconify-icon>
                                     <p class="text-muted mt-2 mb-0">Nessun fornitore trovato</p>
                                 </td>
