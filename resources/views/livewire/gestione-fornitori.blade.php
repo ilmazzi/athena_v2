@@ -147,7 +147,9 @@
                                     <span class="badge bg-light-info text-info">{{ (int) $fornitore->fatture_count }}</span>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-light-warning text-warning">{{ (int) $fornitore->articoli_count }}</span>
+                                    <a href="{{ route('articoli.index', ['fornitoreFilter' => $fornitore->id]) }}" class="badge bg-light-warning text-warning text-decoration-none">
+                                        {{ (int) $fornitore->articoli_count }}
+                                    </a>
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-light-secondary text-secondary">{{ (int) $fornitore->prezzi_count }}</span>
@@ -161,6 +163,11 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-light text-warning"
+                                                wire:click="apriModalRiassegnaArticoli({{ $fornitore->id }})"
+                                                title="Riassegna articoli fornitore">
+                                            <iconify-icon icon="solar:transfer-horizontal-bold"></iconify-icon>
+                                        </button>
                                         <button class="btn btn-light"
                                                 wire:click="apriModalModifica({{ $fornitore->id }})"
                                                 title="Modifica">
@@ -293,6 +300,58 @@
                         <button type="button" class="btn btn-primary" wire:click="salva">
                             <iconify-icon icon="solar:check-circle-bold" class="me-1"></iconify-icon>
                             {{ $modalMode === 'create' ? 'Crea' : 'Salva' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    @endif
+
+    @if($showRiassegnaModal)
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <iconify-icon icon="solar:transfer-horizontal-bold" class="me-2 text-warning"></iconify-icon>
+                            Riassegna articoli fornitore
+                        </h5>
+                        <button type="button" class="btn-close" wire:click="chiudiModalRiassegnaArticoli"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning py-2">
+                            Stai spostando tutti gli articoli dal fornitore <strong>{{ $fornitoreOrigineNome }}</strong> ad un altro fornitore.
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Fornitore destinazione *</label>
+                            <select class="form-select @error('fornitoreDestinazioneId') is-invalid @enderror" wire:model.defer="fornitoreDestinazioneId">
+                                <option value="">Seleziona fornitore...</option>
+                                @foreach($this->fornitoriDestinazione as $dest)
+                                    <option value="{{ $dest->id }}">{{ $dest->codice }} - {{ $dest->ragione_sociale }}</option>
+                                @endforeach
+                            </select>
+                            @error('fornitoreDestinazioneId') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                        </div>
+
+                        <div>
+                            <div class="small text-muted mb-1">Anteprima articoli da spostare (max 30):</div>
+                            <div class="border rounded p-2" style="max-height: 220px; overflow:auto;">
+                                @forelse($articoliPreview as $a)
+                                    <div class="small py-1 border-bottom">
+                                        <strong>{{ $a['codice'] }}</strong> - {{ $a['descrizione'] }}
+                                    </div>
+                                @empty
+                                    <div class="small text-muted">Nessun articolo collegato.</div>
+                                @endforelse
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="chiudiModalRiassegnaArticoli">Annulla</button>
+                        <button type="button" class="btn btn-warning" wire:click="confermaRiassegnaArticoli">
+                            Conferma spostamento articoli
                         </button>
                     </div>
                 </div>

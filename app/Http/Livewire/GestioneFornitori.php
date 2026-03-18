@@ -2,7 +2,9 @@
 
 namespace App\Http\Livewire;
 
+use App\Models\Articolo;
 use App\Models\Fornitore;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -22,8 +24,13 @@ class GestioneFornitori extends Component
     // Modali
     public $showModal = false;
     public $showDeleteModal = false;
+    public $showRiassegnaModal = false;
     public $modalMode = 'create';
     public $fornitoreSelezionatoId = null;
+    public $fornitoreOrigineId = null;
+    public $fornitoreOrigineNome = '';
+    public $fornitoreDestinazioneId = '';
+    public $articoliPreview = [];
 
     // Form fields
     public $codice = '';
@@ -294,6 +301,83 @@ class GestioneFornitori extends Component
     {
         $this->fornitoreSelezionatoId = $fornitoreId;
         $this->showDeleteModal = true;
+    }
+
+    public function getFornitoriDestinazioneProperty()
+    {
+        $query = Fornitore::query()->orderBy('ragione_sociale');
+        if ($this->fornitoreOrigineId) {
+            $query->where('id', '!=', $this->fornitoreOrigineId);
+        }
+        return $query->get(['id', 'codice', 'ragione_sociale', 'attivo']);
+    }
+
+    public function apriModalRiassegnaArticoli(int $fornitoreId): void
+    {
+        $fornitore = Fornitore::findOrFail($fornitoreId);
+        $this->fornitoreOrigineId = $fornitore->id;
+        $this->fornitoreOrigineNome = $fornitore->ragione_sociale;
+        $this->fornitoreDestinazioneId = '';
+
+        $this->articoliPreview = Articolo::query()
+            ->where('fornitore_id', $fornitore->id)
+            ->orderBy('codice')
+            ->limit(30)
+            ->get(['id', 'codice', 'descrizione'])
+            ->map(fn ($a) => [
+                'id' => $a->id,
+                'codice' => $a->codice,
+                'descrizione' => $a->descrizione,
+            ])
+            ->toArray();
+
+        $this->showRiassegnaModal = true;
+    }
+
+    public function chiudiModalRiassegnaArticoli(): void
+    {
+        $this->showRiassegnaModal = false;
+        $this->fornitoreOrigineId = null;
+        $this->fornitoreOrigineNome = '';
+        $this->fornitoreDestinazioneId = '';
+        $this->articoliPreview = [];
+        $this->resetValidation();
+    }
+
+    public function confermaRiassegnaArticoli(): void
+    {
+        $this->validate([
+            'fornitoreDestinazioneId' => 'required|exists:fornitori,id',
+        ], [
+            'fornitoreDestinazioneId.required' => 'Seleziona il fornitore di destinazione.',
+        ]);
+
+        if (!$this->fornitoreOrigineId) {
+            session()->flash('error', 'Fornitore di origine non valido.');
+            return;
+        }
+
+        if ((int) $this->fornitoreDestinazioneId === (int) $this->fornitoreOrigineId) {
+            session()->flash('error', 'Il fornitore di destinazione deve essere diverso da quello di origine.');
+            return;
+        }
+
+        $spostati = 0;
+        DB::transaction(function () use (&$spostati) {
+            $spostati = Articolo::query()
+                ->where('fornitore_id', $this->fornitoreOrigineId)
+                ->update(['fornitore_id' => (int) $this->fornitoreDestinazioneId]);
+        });
+
+        if ($spostati === 0) {
+            session()->flash('error', 'Nessun articolo da spostare per questo fornitore.');
+            return;
+        }
+
+        $dest = Fornitore::find($this->fornitoreDestinazioneId);
+        $nomeDest = $dest?->ragione_sociale ?? ('#' . $this->fornitoreDestinazioneId);
+        session()->flash('message', "✅ Spostati {$spostati} articoli su fornitore {$nomeDest}");
+        $this->chiudiModalRiassegnaArticoli();
     }
 
     public function elimina(): void
