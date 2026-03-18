@@ -47,7 +47,7 @@
                     <label class="form-label small fw-semibold">Cerca</label>
                     <input type="text" 
                            class="form-control" 
-                           placeholder="Vetrina o articolo (codice, descrizione, referenza)..." 
+                           placeholder="Vetrina/sede o articolo (codice, descrizione, referenza)..." 
                            wire:model.live.debounce.300ms="search">
                 </div>
                 <div class="col-lg-2 col-md-6 mb-2">
@@ -72,15 +72,6 @@
                         <option value="">Tutte le sedi</option>
                         @foreach($sedi as $sede)
                             <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-lg-2 col-md-6 mb-2">
-                    <label class="form-label small fw-semibold">Ubicazione</label>
-                    <select class="form-select" wire:model.live="ubicazioneFilter">
-                        <option value="">Tutte le ubicazioni</option>
-                        @foreach($ubicazioni as $ubicazione)
-                            <option value="{{ $ubicazione }}">{{ $ubicazione }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -129,15 +120,6 @@
                             </th>
                             <th>
                                 <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
-                                        wire:click="sortBy('ubicazione')">
-                                    Ubicazione
-                                    @if($sortField === 'ubicazione')
-                                        <i class="bx {{ $sortDirection === 'asc' ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt' }}"></i>
-                                    @endif
-                                </button>
-                            </th>
-                            <th>
-                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-dark fw-semibold"
                                         wire:click="sortBy('articoli_count')">
                                     Articoli
                                     @if($sortField === 'articoli_count')
@@ -170,7 +152,6 @@
                                     </span>
                                 </td>
                                 <td>{{ $vetrina->sede?->nome ?? '-' }}</td>
-                                <td>{{ $vetrina->ubicazione ?? '-' }}</td>
                                 <td>
                                     <span class="badge bg-light-primary text-primary">
                                         {{ $vetrina->articoli_count }} articoli
@@ -208,7 +189,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="7" class="text-center py-4">
                                     <iconify-icon icon="solar:shop-bold" class="fs-48 text-muted mb-3"></iconify-icon>
                                     <p class="text-muted mb-0">Nessuna vetrina trovata</p>
                                 </td>
@@ -295,21 +276,6 @@
                                             @endforeach
                                         </select>
                                         @error('sede_id')
-                                            <div class="invalid-feedback">{{ $message }}</div>
-                                        @enderror
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold">Ubicazione</label>
-                                        <input type="text" 
-                                               class="form-control @error('ubicazione') is-invalid @enderror" 
-                                               wire:model="ubicazione"
-                                               placeholder="Es: Piano terra, Ingresso">
-                                        @error('ubicazione')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>

@@ -16,7 +16,6 @@ class VetrineTable extends Component
     public $tipologiaFilter = '';
     public $attivaFilter = '';
     public $sedeFilter = '';
-    public $ubicazioneFilter = '';
     public $sortField = 'codice';
     public $sortDirection = 'asc';
     
@@ -26,7 +25,6 @@ class VetrineTable extends Component
     public $codice = '';
     public $nome = '';
     public $tipologia = 'gioielleria';
-    public $ubicazione = '';
     public $sede_id = '';
     public $attiva = true;
     public $note = '';
@@ -36,7 +34,6 @@ class VetrineTable extends Component
         'tipologiaFilter' => ['except' => ''],
         'attivaFilter' => ['except' => ''],
         'sedeFilter' => ['except' => ''],
-        'ubicazioneFilter' => ['except' => ''],
         'sortField' => ['except' => 'codice'],
         'sortDirection' => ['except' => 'asc'],
     ];
@@ -45,7 +42,6 @@ class VetrineTable extends Component
         'codice' => 'required|string|max:50',
         'nome' => 'required|string|max:255',
         'tipologia' => 'required|in:gioielleria,orologeria',
-        'ubicazione' => 'nullable|string|max:255',
         'sede_id' => 'nullable|exists:sedi,id',
         'attiva' => 'boolean',
         'note' => 'nullable|string',
@@ -71,14 +67,9 @@ class VetrineTable extends Component
         $this->resetPage();
     }
 
-    public function updatedUbicazioneFilter()
-    {
-        $this->resetPage();
-    }
-
     public function sortBy(string $field): void
     {
-        $allowedFields = ['codice', 'nome', 'tipologia', 'sede', 'ubicazione', 'articoli_count', 'attiva'];
+        $allowedFields = ['codice', 'nome', 'tipologia', 'sede', 'articoli_count', 'attiva'];
         if (!in_array($field, $allowedFields, true)) {
             return;
         }
@@ -107,7 +98,6 @@ class VetrineTable extends Component
         $this->codice = $vetrina->codice;
         $this->nome = $vetrina->nome;
         $this->tipologia = $vetrina->tipologia;
-        $this->ubicazione = $vetrina->ubicazione;
         $this->sede_id = $vetrina->sede_id;
         $this->attiva = $vetrina->attiva;
         $this->note = $vetrina->note;
@@ -126,7 +116,6 @@ class VetrineTable extends Component
                     'codice' => $this->codice,
                     'nome' => $this->nome,
                     'tipologia' => $this->tipologia,
-                    'ubicazione' => $this->ubicazione,
                     'sede_id' => $this->sede_id ?: null,
                     'attiva' => $this->attiva,
                     'note' => $this->note,
@@ -139,7 +128,6 @@ class VetrineTable extends Component
                     'codice' => $this->codice,
                     'nome' => $this->nome,
                     'tipologia' => $this->tipologia,
-                    'ubicazione' => $this->ubicazione,
                     'sede_id' => $this->sede_id ?: null,
                     'attiva' => $this->attiva,
                     'note' => $this->note,
@@ -188,7 +176,6 @@ class VetrineTable extends Component
         $this->codice = '';
         $this->nome = '';
         $this->tipologia = 'gioielleria';
-        $this->ubicazione = '';
         $this->sede_id = '';
         $this->attiva = true;
         $this->note = '';
@@ -211,7 +198,9 @@ class VetrineTable extends Component
                 $query->where(function ($q) use ($searchTerm) {
                     $q->where('codice', 'like', $searchTerm)
                       ->orWhere('nome', 'like', $searchTerm)
-                      ->orWhere('ubicazione', 'like', $searchTerm)
+                      ->orWhereHas('sede', function ($sedeQuery) use ($searchTerm) {
+                          $sedeQuery->where('nome', 'like', $searchTerm);
+                      })
                       ->orWhereHas('articoli', function ($articoliQuery) use ($searchTerm) {
                           $articoliQuery->whereNull('data_rimozione')
                               ->whereHas('articolo', function ($articoloQuery) use ($searchTerm) {
@@ -236,9 +225,6 @@ class VetrineTable extends Component
             ->when($this->sedeFilter !== '', function ($query) {
                 $query->where('sede_id', $this->sedeFilter);
             })
-            ->when($this->ubicazioneFilter !== '', function ($query) {
-                $query->where('ubicazione', $this->ubicazioneFilter);
-            })
             ->when($this->sortField === 'sede', function ($query) {
                 $query->orderBy(
                     Sede::query()
@@ -258,18 +244,9 @@ class VetrineTable extends Component
             ->orderBy('nome')
             ->get(['id', 'nome']);
 
-        $ubicazioni = Vetrina::query()
-            ->whereNotNull('ubicazione')
-            ->whereRaw("TRIM(ubicazione) <> ''")
-            ->select('ubicazione')
-            ->distinct()
-            ->orderBy('ubicazione')
-            ->pluck('ubicazione');
-
         return view('livewire.vetrine-table', [
             'vetrine' => $vetrine,
             'sedi' => $sedi,
-            'ubicazioni' => $ubicazioni,
             'sortField' => $this->sortField,
             'sortDirection' => $this->sortDirection,
         ]);
