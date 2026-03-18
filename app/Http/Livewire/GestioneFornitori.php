@@ -82,7 +82,7 @@ class GestioneFornitori extends Component
 
     public function sortBy(string $field): void
     {
-        $allowed = ['codice', 'ragione_sociale', 'partita_iva', 'citta', 'attivo', 'updated_at'];
+        $allowed = ['codice', 'ragione_sociale', 'partita_iva', 'citta', 'attivo', 'updated_at', 'ddt_count', 'fatture_count'];
         if (!in_array($field, $allowed, true)) {
             return;
         }
@@ -98,7 +98,7 @@ class GestioneFornitori extends Component
 
     public function getFornitoriProperty()
     {
-        $query = Fornitore::query();
+        $query = Fornitore::query()->withCount(['ddt', 'fatture']);
 
         $search = trim((string) $this->search);
         if ($search !== '') {
@@ -149,6 +149,7 @@ class GestioneFornitori extends Component
         }
 
         $fornitori = $query
+            ->withCount(['ddt', 'fatture'])
             ->orderBy($this->sortField, $this->sortDirection)
             ->orderBy('id', 'desc')
             ->get([
@@ -188,6 +189,8 @@ class GestioneFornitori extends Component
                 'Telefono',
                 'Email',
                 'PEC',
+                'DDT collegati',
+                'Fatture collegate',
                 'Attivo',
             ], ';');
 
@@ -205,6 +208,8 @@ class GestioneFornitori extends Component
                     $f->telefono,
                     $f->email,
                     $f->pec,
+                    $f->ddt_count,
+                    $f->fatture_count,
                     $f->attivo ? 'SI' : 'NO',
                 ], ';');
             }

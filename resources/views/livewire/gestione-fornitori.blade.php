@@ -85,6 +85,18 @@
                                 @endif
                             </th>
                             <th width="220">Contatti</th>
+                            <th width="140" style="cursor: pointer;" class="user-select-none text-center" wire:click="sortBy('ddt_count')">
+                                DDT
+                                @if($sortField === 'ddt_count')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
+                            <th width="140" style="cursor: pointer;" class="user-select-none text-center" wire:click="sortBy('fatture_count')">
+                                Fatture
+                                @if($sortField === 'fatture_count')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
                             <th width="100" style="cursor: pointer;" class="user-select-none" wire:click="sortBy('attivo')">
                                 Stato
                                 @if($sortField === 'attivo')
@@ -116,6 +128,12 @@
                                     <small class="d-block">Email: {{ $fornitore->email ?: '-' }}</small>
                                     <small class="d-block">PEC: {{ $fornitore->pec ?: '-' }}</small>
                                 </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light-primary text-primary">{{ (int) $fornitore->ddt_count }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-light-info text-info">{{ (int) $fornitore->fatture_count }}</span>
+                                </td>
                                 <td>
                                     @if($fornitore->attivo)
                                         <span class="badge bg-success">Attivo</span>
@@ -140,7 +158,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <iconify-icon icon="solar:document-text-bold" class="fs-1 text-muted"></iconify-icon>
                                     <p class="text-muted mt-2 mb-0">Nessun fornitore trovato</p>
                                 </td>
