@@ -1672,10 +1672,19 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Carica / sostituisci immagine</label>
-                                <input type="file" class="form-control" wire:model="fotoUpload" accept="image/*">
+                                <input
+                                    id="articoloFotoUploadInput"
+                                    type="file"
+                                    class="form-control"
+                                    wire:model="fotoUpload"
+                                    accept="image/*"
+                                    data-auto-resize-photo="1"
+                                >
+                                <div class="form-text">Ridimensionamento automatico attivo (max 1920px).</div>
                                 @error('fotoUpload')
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
+                                <div id="articoloFotoUploadFeedback" class="alert d-none mt-2 py-2 px-3" role="alert"></div>
                                 @if($fotoUpload)
                                     <div class="mt-3 text-center border rounded p-2">
                                         <img src="{{ $fotoUpload->temporaryUrl() }}" alt="Anteprima nuova foto" class="img-fluid rounded" style="max-height: 180px;">
@@ -1764,6 +1773,115 @@
                 });
             });
 
+            const photoFeedbackEl = () => document.getElementById('articoloFotoUploadFeedback');
+            const showPhotoFeedback = (message, type = 'danger') => {
+                const el = photoFeedbackEl();
+                if (!el) {
+                    return;
+                }
+                el.className = `alert alert-${type} mt-2 py-2 px-3`;
+                el.textContent = message;
+            };
+            const clearPhotoFeedback = () => {
+                const el = photoFeedbackEl();
+                if (!el) {
+                    return;
+                }
+                el.className = 'alert d-none mt-2 py-2 px-3';
+                el.textContent = '';
+            };
+
+            const readImageFromFile = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = reader.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const autoResizeImageFile = async (file, maxSide = 1920, targetBytes = 2 * 1024 * 1024) => {
+                if (!file || !file.type || !file.type.startsWith('image/')) {
+                    return file;
+                }
+
+                const image = await readImageFromFile(file);
+                const ratio = Math.min(1, maxSide / Math.max(image.width, image.height));
+                const width = Math.max(1, Math.round(image.width * ratio));
+                const height = Math.max(1, Math.round(image.height * ratio));
+
+                if (ratio === 1 && file.size <= targetBytes) {
+                    return file;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    return file;
+                }
+
+                ctx.drawImage(image, 0, 0, width, height);
+
+                const preferJpeg = file.type === 'image/jpeg' || file.type === 'image/jpg';
+                const mime = preferJpeg ? 'image/jpeg' : 'image/webp';
+                let quality = 0.86;
+                let blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+
+                while (blob && blob.size > targetBytes && quality > 0.55) {
+                    quality -= 0.08;
+                    blob = await new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+                }
+
+                if (!blob || blob.size >= file.size) {
+                    return file;
+                }
+
+                const name = file.name.replace(/\.[^.]+$/, '') + (mime === 'image/jpeg' ? '.jpg' : '.webp');
+                return new File([blob], name, { type: mime, lastModified: Date.now() });
+            };
+
+            const replaceInputWithFile = (input, file) => {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+            };
+
+            document.addEventListener('change', async (event) => {
+                const input = event.target;
+                if (!(input instanceof HTMLInputElement)) {
+                    return;
+                }
+                if (!input.matches('input[data-auto-resize-photo="1"]')) {
+                    return;
+                }
+                if (input.dataset.skipAutoResizeOnce === '1') {
+                    input.dataset.skipAutoResizeOnce = '0';
+                    return;
+                }
+
+                const file = input.files?.[0];
+                if (!file) {
+                    clearPhotoFeedback();
+                    return;
+                }
+
+                try {
+                    event.stopImmediatePropagation();
+                    clearPhotoFeedback();
+                    const resized = await autoResizeImageFile(file);
+                    replaceInputWithFile(input, resized);
+                    input.dataset.skipAutoResizeOnce = '1';
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    showPhotoFeedback('Errore durante l\'ottimizzazione immagine. Riprova.');
+                }
+            }, true);
+
             const cleanupOffcanvasScrollLock = () => {
                 const anyOpen = document.querySelector('.offcanvas.show');
                 if (anyOpen) {
@@ -1796,6 +1914,16 @@
                 if (Livewire.hook) {
                     Livewire.hook('commit', ({ succeed }) => {
                         succeed(() => cleanupOffcanvasScrollLock());
+                    });
+                }
+
+                if (Livewire.hook) {
+                    Livewire.hook('request', ({ fail }) => {
+                        fail(({ status }) => {
+                            if (Number(status) === 413) {
+                                showPhotoFeedback('Immagine troppo grande. Riduci dimensione/qualita e riprova.');
+                            }
+                        });
                     });
                 }
             });

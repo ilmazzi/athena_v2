@@ -818,6 +818,7 @@ class ArticoliTable extends Component
             $vecchioPath = $articolo->foto_principale;
 
             $nuovoPath = $this->fotoUpload->store("articoli/{$articolo->id}", 'public');
+            $this->ottimizzaImmagineSalvata($nuovoPath);
 
             $articolo->update([
                 'foto_principale' => $nuovoPath,
@@ -840,6 +841,81 @@ class ArticoliTable extends Component
         } catch (\Exception $e) {
             session()->flash('error', 'Errore upload foto: ' . $e->getMessage());
         }
+    }
+
+    private function ottimizzaImmagineSalvata(string $relativePath): void
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+        if (!$disk->exists($relativePath)) {
+            return;
+        }
+
+        $absolutePath = $disk->path($relativePath);
+        $imageInfo = @getimagesize($absolutePath);
+        if ($imageInfo === false) {
+            return;
+        }
+
+        [$width, $height, $imageType] = $imageInfo;
+        $maxSide = 1920;
+        $fileSize = @filesize($absolutePath) ?: 0;
+
+        $shouldResize = $width > $maxSide || $height > $maxSide;
+        $shouldCompress = $fileSize > (2 * 1024 * 1024);
+
+        if (!$shouldResize && !$shouldCompress) {
+            return;
+        }
+
+        $createFn = match ($imageType) {
+            IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+            IMAGETYPE_PNG => 'imagecreatefrompng',
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? 'imagecreatefromwebp' : null,
+            IMAGETYPE_GIF => 'imagecreatefromgif',
+            default => null,
+        };
+
+        if (!$createFn || !function_exists($createFn)) {
+            return;
+        }
+
+        $source = @$createFn($absolutePath);
+        if (!$source) {
+            return;
+        }
+
+        $targetWidth = $width;
+        $targetHeight = $height;
+        if ($shouldResize) {
+            $ratio = min($maxSide / $width, $maxSide / $height);
+            $targetWidth = max(1, (int) round($width * $ratio));
+            $targetHeight = max(1, (int) round($height * $ratio));
+        }
+
+        $target = imagecreatetruecolor($targetWidth, $targetHeight);
+        if (in_array($imageType, [IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF], true)) {
+            imagealphablending($target, false);
+            imagesavealpha($target, true);
+            $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+            imagefilledrectangle($target, 0, 0, $targetWidth, $targetHeight, $transparent);
+        }
+
+        imagecopyresampled($target, $source, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+        match ($imageType) {
+            IMAGETYPE_JPEG => imagejpeg($target, $absolutePath, 82),
+            IMAGETYPE_PNG => imagepng($target, $absolutePath, 7),
+            IMAGETYPE_WEBP => function_exists('imagewebp') ? imagewebp($target, $absolutePath, 82) : null,
+            IMAGETYPE_GIF => imagegif($target, $absolutePath),
+            default => null,
+        };
+
+        imagedestroy($source);
+        imagedestroy($target);
     }
 
     public function eliminaFotoArticolo()
