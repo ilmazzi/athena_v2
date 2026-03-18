@@ -1245,11 +1245,15 @@ class ArticoliTable extends Component
         if ($this->fornitoreFilter) {
             $query->where(function ($q) {
                 $q->where('articoli.fornitore_id', $this->fornitoreFilter)
-                    ->orWhereHas('ddtDettaglio.ddt', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    })
-                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    ->orWhere(function ($fallbackQ) {
+                        $fallbackQ->whereNull('articoli.fornitore_id')
+                            ->where(function ($docQ) {
+                                $docQ->whereHas('ddtDettaglio.ddt', function($subQ) {
+                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
+                                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
+                                });
+                            });
                     });
             });
         }
@@ -1627,11 +1631,15 @@ class ArticoliTable extends Component
         if ($this->fornitoreFilter) {
             $query->where(function ($q) {
                 $q->where('fornitore_id', $this->fornitoreFilter)
-                    ->orWhereHas('ddtDettaglio.ddt', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    })
-                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    ->orWhere(function ($fallbackQ) {
+                        $fallbackQ->whereNull('fornitore_id')
+                            ->where(function ($docQ) {
+                                $docQ->whereHas('ddtDettaglio.ddt', function($subQ) {
+                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
+                                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
+                                });
+                            });
                     });
             });
         }
