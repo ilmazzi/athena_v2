@@ -1243,8 +1243,14 @@ class ArticoliTable extends Component
         }
 
         if ($this->fornitoreFilter) {
-            $query->whereHas('ddtDettaglio.ddt', function($q) {
-                $q->where('fornitore_id', $this->fornitoreFilter);
+            $query->where(function ($q) {
+                $q->where('articoli.fornitore_id', $this->fornitoreFilter)
+                    ->orWhereHas('ddtDettaglio.ddt', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    })
+                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    });
             });
         }
 
@@ -1617,10 +1623,16 @@ class ArticoliTable extends Component
             $query->where('stato', $this->statoFilter);
         }
 
-        // Filtro fornitore tramite relazione DDT
+        // Filtro fornitore: campo diretto articolo + fallback documenti carico
         if ($this->fornitoreFilter) {
-            $query->whereHas('ddtDettaglio.ddt', function($q) {
-                $q->where('fornitore_id', $this->fornitoreFilter);
+            $query->where(function ($q) {
+                $q->where('fornitore_id', $this->fornitoreFilter)
+                    ->orWhereHas('ddtDettaglio.ddt', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    })
+                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    });
             });
         }
 
