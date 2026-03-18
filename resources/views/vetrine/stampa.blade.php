@@ -162,8 +162,8 @@
         <h1>{{ strtoupper($vetrina->nome) }}</h1>
         <div class="info">
             <strong>{{ $vetrina->getTipologiaLabel() }}</strong>
-            @if($vetrina->ubicazione)
-                | {{ $vetrina->ubicazione }}
+            @if($vetrina->sede)
+                | {{ $vetrina->sede->nome }}
             @endif
             | Codice: {{ $vetrina->codice }}
             <br>

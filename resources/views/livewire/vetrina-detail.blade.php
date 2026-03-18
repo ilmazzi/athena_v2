@@ -14,9 +14,6 @@
                         @if($vetrina->sede)
                             <span class="badge bg-light-primary text-primary me-2">{{ $vetrina->sede->nome }}</span>
                         @endif
-                        @if($vetrina->ubicazione)
-                            <span class="badge bg-light-primary text-primary">{{ $vetrina->ubicazione }}</span>
-                        @endif
                     </div>
                 </div>
                 <div>

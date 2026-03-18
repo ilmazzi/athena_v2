@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,7 +23,6 @@ class Vetrina extends Model
         'codice',
         'nome',
         'tipologia',
-        'ubicazione',
         'sede_id',
         'attiva',
         'note',

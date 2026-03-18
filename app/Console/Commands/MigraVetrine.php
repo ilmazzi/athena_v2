@@ -80,7 +80,7 @@ class MigraVetrine extends Command
                     'codice' => 'VET' . str_pad($vetrinaMssql->id, 3, '0', STR_PAD_LEFT),
                     'nome' => $vetrinaMssql->nome ?? 'Vetrina ' . $vetrinaMssql->id,
                     'tipologia' => strtolower($vetrinaMssql->tipologia ?? 'gioielleria'), // Usa tipologia dal DB
-                    'ubicazione' => $this->mapUbicazione($vetrinaMssql->ubicazione),
+                    'sede_id' => null,
                     'attiva' => true, // Assumiamo tutte attive
                     'note' => null,
                     'created_at' => now(),
@@ -170,20 +170,6 @@ class MigraVetrine extends Command
                 $this->error("   ❌ Errore articolo vetrina ID {$articoloVetrinaMssql->id}: " . $e->getMessage());
             }
         }
-    }
-
-    private function mapUbicazione($ubicazioneId)
-    {
-        // Mappa le ubicazioni dal vecchio sistema
-        $mapping = [
-            1 => 'Piano Terra',
-            2 => 'Primo Piano',
-            3 => 'Ingresso',
-            4 => 'Laterale',
-            5 => 'Centrale',
-        ];
-
-        return $mapping[$ubicazioneId] ?? null;
     }
 
     private function parsePrezzo($prezzoString)

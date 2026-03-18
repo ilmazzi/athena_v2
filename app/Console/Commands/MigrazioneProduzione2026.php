@@ -1002,7 +1002,7 @@ class MigrazioneProduzione2026 extends Command
                     'id' => $vet->id,
                     'codice' => $vet->codice ?? 'VET-' . $vet->id,
                     'nome' => $vet->nome ?? 'Vetrina ' . $vet->id,
-                    'ubicazione' => 'mazzini',
+                    'sede_id' => null,
                     'tipologia' => $vet->tipologia ?? 'standard',
                     'attiva' => true,
                     'created_at' => now(),
