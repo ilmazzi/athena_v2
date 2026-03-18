@@ -6,10 +6,16 @@
                     <h4 class="fw-bold mb-1">Gestione Fornitori</h4>
                     <p class="text-muted mb-0">CRUD completo fornitori</p>
                 </div>
-                <button class="btn btn-primary" wire:click="apriModalCreazione">
-                    <iconify-icon icon="solar:add-circle-bold" class="me-1"></iconify-icon>
-                    Nuovo Fornitore
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" wire:click="exportCsv">
+                        <iconify-icon icon="solar:download-bold" class="me-1"></iconify-icon>
+                        Export CSV
+                    </button>
+                    <button class="btn btn-primary" wire:click="apriModalCreazione">
+                        <iconify-icon icon="solar:add-circle-bold" class="me-1"></iconify-icon>
+                        Nuovo Fornitore
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -39,7 +45,7 @@
                 <input type="text"
                        class="form-control"
                        placeholder="Cerca per codice, ragione sociale, P.IVA, CF, email..."
-                       wire:model.debounce.300ms="search">
+                       wire:model.live.debounce.300ms="search">
             </div>
         </div>
         <div class="col-md-3">
@@ -60,11 +66,31 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th width="120">Codice</th>
-                            <th>Fornitore</th>
-                            <th width="150">P.IVA / CF</th>
+                            <th width="120" style="cursor: pointer;" class="user-select-none" wire:click="sortBy('codice')">
+                                Codice
+                                @if($sortField === 'codice')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
+                            <th style="cursor: pointer;" class="user-select-none" wire:click="sortBy('ragione_sociale')">
+                                Fornitore
+                                @if($sortField === 'ragione_sociale')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
+                            <th width="150" style="cursor: pointer;" class="user-select-none" wire:click="sortBy('partita_iva')">
+                                P.IVA / CF
+                                @if($sortField === 'partita_iva')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
                             <th width="220">Contatti</th>
-                            <th width="100">Stato</th>
+                            <th width="100" style="cursor: pointer;" class="user-select-none" wire:click="sortBy('attivo')">
+                                Stato
+                                @if($sortField === 'attivo')
+                                    <iconify-icon icon="solar:{{ $sortDirection === 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                @endif
+                            </th>
                             <th width="150" class="text-center">Azioni</th>
                         </tr>
                     </thead>

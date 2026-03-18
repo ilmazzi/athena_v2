@@ -16,6 +16,8 @@ class GestioneFornitori extends Component
     // Filtri e ricerca
     public $search = '';
     public $filtroAttivo = '';
+    public $sortField = 'ragione_sociale';
+    public $sortDirection = 'asc';
 
     // Modali
     public $showModal = false;
@@ -42,6 +44,8 @@ class GestioneFornitori extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'filtroAttivo' => ['except' => ''],
+        'sortField' => ['except' => 'ragione_sociale'],
+        'sortDirection' => ['except' => 'asc'],
     ];
 
     protected $rules = [
@@ -76,17 +80,38 @@ class GestioneFornitori extends Component
         $this->resetPage();
     }
 
+    public function sortBy(string $field): void
+    {
+        $allowed = ['codice', 'ragione_sociale', 'partita_iva', 'citta', 'attivo', 'updated_at'];
+        if (!in_array($field, $allowed, true)) {
+            return;
+        }
+
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+        $this->resetPage();
+    }
+
     public function getFornitoriProperty()
     {
         $query = Fornitore::query();
 
-        if ($this->search) {
+        $search = trim((string) $this->search);
+        if ($search !== '') {
             $query->where(function ($q) {
-                $q->where('codice', 'like', '%' . $this->search . '%')
-                    ->orWhere('ragione_sociale', 'like', '%' . $this->search . '%')
-                    ->orWhere('partita_iva', 'like', '%' . $this->search . '%')
-                    ->orWhere('codice_fiscale', 'like', '%' . $this->search . '%')
-                    ->orWhere('email', 'like', '%' . $this->search . '%');
+                $term = '%' . trim((string) $this->search) . '%';
+                $q->where('codice', 'like', $term)
+                    ->orWhere('ragione_sociale', 'like', $term)
+                    ->orWhere('partita_iva', 'like', $term)
+                    ->orWhere('codice_fiscale', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('pec', 'like', $term)
+                    ->orWhere('telefono', 'like', $term)
+                    ->orWhere('citta', 'like', $term);
             });
         }
 
@@ -94,7 +119,98 @@ class GestioneFornitori extends Component
             $query->where('attivo', $this->filtroAttivo === 'si');
         }
 
-        return $query->orderBy('ragione_sociale')->paginate(15);
+        return $query
+            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy('id', 'desc')
+            ->paginate(15);
+    }
+
+    public function exportCsv()
+    {
+        $query = Fornitore::query();
+
+        $search = trim((string) $this->search);
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $term = '%' . $search . '%';
+                $q->where('codice', 'like', $term)
+                    ->orWhere('ragione_sociale', 'like', $term)
+                    ->orWhere('partita_iva', 'like', $term)
+                    ->orWhere('codice_fiscale', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('pec', 'like', $term)
+                    ->orWhere('telefono', 'like', $term)
+                    ->orWhere('citta', 'like', $term);
+            });
+        }
+
+        if ($this->filtroAttivo !== '') {
+            $query->where('attivo', $this->filtroAttivo === 'si');
+        }
+
+        $fornitori = $query
+            ->orderBy($this->sortField, $this->sortDirection)
+            ->orderBy('id', 'desc')
+            ->get([
+                'codice',
+                'ragione_sociale',
+                'partita_iva',
+                'codice_fiscale',
+                'indirizzo',
+                'citta',
+                'provincia',
+                'cap',
+                'nazione',
+                'telefono',
+                'email',
+                'pec',
+                'attivo',
+            ]);
+
+        $filename = 'fornitori_' . now()->format('Y-m-d_H-i-s') . '.csv';
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ];
+
+        return response()->streamDownload(function () use ($fornitori) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'Codice',
+                'Ragione sociale',
+                'Partita IVA',
+                'Codice fiscale',
+                'Indirizzo',
+                'Citta',
+                'Provincia',
+                'CAP',
+                'Nazione',
+                'Telefono',
+                'Email',
+                'PEC',
+                'Attivo',
+            ], ';');
+
+            foreach ($fornitori as $f) {
+                fputcsv($out, [
+                    $f->codice,
+                    $f->ragione_sociale,
+                    $f->partita_iva,
+                    $f->codice_fiscale,
+                    $f->indirizzo,
+                    $f->citta,
+                    $f->provincia,
+                    $f->cap,
+                    $f->nazione,
+                    $f->telefono,
+                    $f->email,
+                    $f->pec,
+                    $f->attivo ? 'SI' : 'NO',
+                ], ';');
+            }
+
+            fclose($out);
+        }, $filename, $headers);
     }
 
     public function apriModalCreazione(): void
