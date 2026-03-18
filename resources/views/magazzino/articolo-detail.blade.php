@@ -212,7 +212,7 @@
                     <div class="row">
                         <div class="col-12">
                             <div class="d-flex gap-2">
-                                <a href="{{ route('magazzino.articoli') }}" class="btn btn-secondary">
+                                <a href="{{ route('articoli.index') }}" class="btn btn-secondary">
                                     <iconify-icon icon="solar:arrow-left-bold" class="me-1"></iconify-icon>
                                     Torna all'Elenco
                                 </a>

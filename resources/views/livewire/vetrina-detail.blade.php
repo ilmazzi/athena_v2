@@ -158,7 +158,11 @@
                                             <img src="{{ $fotoUrl }}"
                                                  alt="Foto {{ $articoloVetrina->codice_display }}"
                                                  class="rounded border"
-                                                 style="width: 36px; height: 36px; object-fit: cover;">
+                                                 style="width: 36px; height: 36px; object-fit: cover; cursor: pointer;"
+                                                 data-bs-toggle="modal"
+                                                 data-bs-target="#vetrinaFotoModal"
+                                                 data-foto-url="{{ $fotoUrl }}"
+                                                 data-foto-alt="Foto {{ $articoloVetrina->codice_display }}">
                                         @endif
                                         <div>
                                             <span class="fw-bold text-primary">{{ $articoloVetrina->codice_display }}</span>
@@ -715,8 +719,58 @@
     @endif
 </div>
 
+@once
+    <div class="modal fade" id="vetrinaFotoModal" tabindex="-1" aria-labelledby="vetrinaFotoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="vetrinaFotoModalLabel">Foto articolo in vetrina</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="vetrinaFotoModalImg" src="" alt="" class="img-fluid rounded">
+                </div>
+            </div>
+        </div>
+    </div>
+@endonce
+
 @push('scripts')
     <script>
+        function initVetrinaPhotoModal() {
+            const modalEl = document.getElementById('vetrinaFotoModal');
+            if (!modalEl || modalEl.dataset.inited === '1') {
+                return;
+            }
+
+            modalEl.addEventListener('show.bs.modal', function (event) {
+                const trigger = event.relatedTarget;
+                if (!trigger) {
+                    return;
+                }
+
+                const img = modalEl.querySelector('#vetrinaFotoModalImg');
+                if (!img) {
+                    return;
+                }
+
+                const fotoUrl = trigger.getAttribute('data-foto-url') || '';
+                const fotoAlt = trigger.getAttribute('data-foto-alt') || 'Foto articolo';
+                img.src = fotoUrl;
+                img.alt = fotoAlt;
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function () {
+                const img = modalEl.querySelector('#vetrinaFotoModalImg');
+                if (img) {
+                    img.src = '';
+                    img.alt = '';
+                }
+            });
+
+            modalEl.dataset.inited = '1';
+        }
+
         function ensureSortableReady(callback) {
             if (window.Sortable) {
                 callback();
@@ -760,20 +814,28 @@
         const setupVetrinaSortable = () => ensureSortableReady(initVetrinaSortable);
 
         document.addEventListener('livewire:init', function () {
+            initVetrinaPhotoModal();
             setupVetrinaSortable();
             if (window.Livewire && typeof Livewire.hook === 'function') {
                 Livewire.hook('message.processed', function () {
+                    initVetrinaPhotoModal();
                     setupVetrinaSortable();
                 });
             }
         });
 
         document.addEventListener('livewire:navigated', function () {
+            initVetrinaPhotoModal();
             setupVetrinaSortable();
         });
 
         document.addEventListener('livewire:load', function () {
+            initVetrinaPhotoModal();
             setupVetrinaSortable();
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initVetrinaPhotoModal();
         });
     </script>
 @endpush

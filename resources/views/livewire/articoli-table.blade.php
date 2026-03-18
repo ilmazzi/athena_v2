@@ -1107,10 +1107,16 @@
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
                                             <li>
-                                                <a class="dropdown-item" href="{{ route('magazzino.articoli.show', $articolo->id) }}">
+                                                <a class="dropdown-item" href="{{ route('articoli.show', $articolo->id) }}">
                                                     <iconify-icon icon="solar:eye-bold" class="text-primary me-2"></iconify-icon>
                                                     Visualizza
                                                 </a>
+                                            </li>
+                                            <li>
+                                                <button type="button" class="dropdown-item" wire:click="apriModalFoto({{ $articolo->id }})">
+                                                    <iconify-icon icon="solar:camera-bold" class="text-info me-2"></iconify-icon>
+                                                    Gestisci Immagine
+                                                </button>
                                             </li>
                                             <li>
                                                 <button type="button" class="dropdown-item" wire:click="apriModalModifica({{ $articolo->id }})">
@@ -1624,6 +1630,93 @@
         <div class="modal-backdrop fade show"></div>
     @endif
     
+    <!-- Modal Gestione Immagine -->
+    @if($showModalFoto && $articoloFotoTarget)
+        <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <iconify-icon icon="solar:camera-bold" class="text-info me-2"></iconify-icon>
+                            Gestione Immagine - {{ $articoloFotoTarget->codice }}
+                        </h5>
+                        <button type="button" class="btn-close" wire:click="chiudiModalFoto"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Anteprima attuale</label>
+                                @php
+                                    $fotoPrincipale = $articoloFotoTarget->foto_principale;
+                                    $fotoUrl = null;
+                                    if (!empty($fotoPrincipale)) {
+                                        if (Str::startsWith($fotoPrincipale, ['http://', 'https://'])) {
+                                            $fotoUrl = $fotoPrincipale;
+                                        } elseif (Str::startsWith($fotoPrincipale, ['/storage/', 'storage/'])) {
+                                            $fotoUrl = asset(ltrim($fotoPrincipale, '/'));
+                                        } else {
+                                            $fotoUrl = asset('storage/' . ltrim($fotoPrincipale, '/'));
+                                        }
+                                    }
+                                @endphp
+                                <div class="border rounded p-3 text-center bg-light-subtle">
+                                    @if($fotoUrl)
+                                        <img src="{{ $fotoUrl }}" alt="Foto {{ $articoloFotoTarget->codice }}" class="img-fluid rounded" style="max-height: 280px;">
+                                    @else
+                                        <div class="text-muted py-5">
+                                            <iconify-icon icon="solar:camera-off-bold" class="fs-40 mb-2"></iconify-icon>
+                                            <div>Nessuna immagine presente</div>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Carica / sostituisci immagine</label>
+                                <input type="file" class="form-control" wire:model="fotoUpload" accept="image/*">
+                                @error('fotoUpload')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                                @if($fotoUpload)
+                                    <div class="mt-3 text-center border rounded p-2">
+                                        <img src="{{ $fotoUpload->temporaryUrl() }}" alt="Anteprima nuova foto" class="img-fluid rounded" style="max-height: 180px;">
+                                    </div>
+                                @endif
+
+                                <hr>
+                                <label class="form-label fw-semibold">Upload da cellulare (QR)</label>
+                                @if(!empty($mobileUploadQrBase64))
+                                    <div class="text-center mb-2">
+                                        <img src="data:image/png;base64,{{ $mobileUploadQrBase64 }}" alt="QR upload foto" class="img-fluid border rounded p-2 bg-white" style="max-width: 220px;">
+                                    </div>
+                                @endif
+                                @if(!empty($mobileUploadUrl))
+                                    <div class="small text-muted mb-2">Scansiona il QR o apri il link:</div>
+                                    <a href="{{ $mobileUploadUrl }}" target="_blank" class="small d-block text-break">{{ $mobileUploadUrl }}</a>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="chiudiModalFoto">
+                            <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                            Chiudi
+                        </button>
+                        <button type="button" class="btn btn-danger" wire:click="eliminaFotoArticolo"
+                                onclick="return confirm('Eliminare la foto di questo articolo?')">
+                            <iconify-icon icon="solar:trash-bin-trash-bold" class="me-1"></iconify-icon>
+                            Elimina Immagine
+                        </button>
+                        <button type="button" class="btn btn-primary" wire:click="salvaFotoArticolo">
+                            <iconify-icon icon="solar:upload-bold" class="me-1"></iconify-icon>
+                            Salva Immagine
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    @endif
+
 @once
     <div class="modal fade" id="articoloFotoModal" tabindex="-1" aria-labelledby="articoloFotoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">

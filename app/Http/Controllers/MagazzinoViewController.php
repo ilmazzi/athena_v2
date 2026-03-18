@@ -7,6 +7,7 @@ use App\Models\Articolo;
 use App\Models\Fornitore;
 use App\Models\ProdottoFinito;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MagazzinoViewController extends Controller
 {
@@ -51,9 +52,9 @@ class MagazzinoViewController extends Controller
             'esauriti' => Articolo::join('giacenze', 'articoli.id', '=', 'giacenze.articolo_id')
                 ->where('giacenze.quantita', 0)
                 ->count(),
-            'valore_totale' => \DB::table('articoli')
+            'valore_totale' => DB::table('articoli')
                 ->join('giacenze', 'articoli.id', '=', 'giacenze.articolo_id')
-                ->sum(\DB::raw('articoli.prezzo_acquisto * giacenze.quantita')),
+                ->sum(DB::raw('articoli.prezzo_acquisto * giacenze.quantita')),
         ];
         
         return view('magazzino.articoli', [
@@ -61,7 +62,7 @@ class MagazzinoViewController extends Controller
             'pageTitle' => 'Elenco Articoli Magazzino',
             'breadcrumbs' => [
                 ['title' => 'Magazzino', 'url' => '#'],
-                ['title' => 'Articoli', 'url' => route('magazzino.articoli')],
+                ['title' => 'Articoli', 'url' => route('articoli.index')],
             ],
             'articoli' => $articoli,
             'magazzini' => $magazzini,
@@ -83,7 +84,7 @@ class MagazzinoViewController extends Controller
             'pageTitle' => 'Dettaglio Articolo: ' . $articolo->codice,
             'breadcrumbs' => [
                 ['title' => 'Magazzino', 'url' => '#'],
-                ['title' => 'Articoli', 'url' => route('magazzino.articoli')],
+                ['title' => 'Articoli', 'url' => route('articoli.index')],
                 ['title' => $articolo->codice, 'url' => ''],
             ],
             'articolo' => $articolo,

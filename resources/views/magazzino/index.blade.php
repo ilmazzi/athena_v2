@@ -126,7 +126,7 @@
                     <div class="d-flex align-items-center">
                         <h5 class="card-title mb-0 flex-grow-1">Elenco Categorie Merceologiche</h5>
                         <div class="flex-shrink-0">
-                            <a href="{{ route('magazzino.articoli') }}" class="btn btn-primary">
+                            <a href="{{ route('articoli.index') }}" class="btn btn-primary">
                                 <i class="bx bx-package me-1"></i> Vedi Tutti gli Articoli
                             </a>
                         </div>
@@ -187,7 +187,7 @@
                                     </td>
                                     <td>
                                         <div class="hstack gap-3 flex-wrap">
-                                            <a href="{{ route('magazzino.articoli', ['magazzino' => $magazzino->id]) }}" 
+                                            <a href="{{ route('articoli.index', ['magazzinoFilter' => $magazzino->id]) }}" 
                                                class="link-primary fs-15">
                                                 <i class="bx bx-package"></i> Articoli
                                             </a>

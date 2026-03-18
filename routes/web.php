@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ArticoloFotoMobileController;
 use App\Http\Controllers\MagazzinoViewController;
 use App\Http\Controllers\RoutingController;
 use App\Http\Controllers\OcrController;
@@ -27,6 +28,11 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// Upload foto articolo da QR (link firmato, accessibile da mobile senza login)
+Route::match(['get', 'post'], '/articoli/{articolo}/foto/mobile-upload', ArticoloFotoMobileController::class)
+    ->middleware('signed')
+    ->name('articoli.foto.mobile.form');
+
 Route::middleware([
     'auth',
     'verified',
@@ -42,8 +48,6 @@ Route::middleware('auth')->group(function () {
     // Magazzino routes
     Route::prefix('magazzino')->group(function () {
         Route::get('/', [MagazzinoViewController::class, 'index'])->name('magazzino.index');
-        Route::get('/articoli', [MagazzinoViewController::class, 'articoli'])->name('magazzino.articoli');
-        Route::get('/articoli/{id}', [MagazzinoViewController::class, 'show'])->name('magazzino.articoli.show');
         Route::get('/scarico', ScaricoMagazzino::class)->name('magazzino.scarico');
         Route::get('/scanner', ScannerInventario::class)->name('magazzino.scanner');
     });

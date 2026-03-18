@@ -9,16 +9,21 @@ use App\Models\FornitorePrezzo;
 use App\Models\Ddt;
 use App\Models\Fattura;
 use App\Models\Sede;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Layout('layouts.vertical', ['title' => 'Elenco Articoli'])]
 class ArticoliTable extends Component
 {
-    use WithPagination;
+    use WithPagination, WithFileUploads;
 
     // ID componente (Livewire)
     public $id;
@@ -106,6 +111,13 @@ class ArticoliTable extends Component
         'inventariato' => false,
         'visibile_catalogo' => false,
     ];
+
+    // Modalità gestione immagine articolo
+    public $showModalFoto = false;
+    public $articoloFotoTarget = null;
+    public $fotoUpload = null;
+    public $mobileUploadUrl = '';
+    public $mobileUploadQrBase64 = '';
     
     // Paginazione e ordinamento
     public $perPage = 25;
@@ -754,6 +766,111 @@ class ArticoliTable extends Component
         $this->showModalModifica = false;
         $this->articoloDaModificare = null;
         $this->reset('modifica');
+    }
+
+    public function apriModalFoto($articoloId)
+    {
+        try {
+            $articolo = Articolo::findOrFail($articoloId);
+            $this->articoloFotoTarget = $articolo;
+            $this->fotoUpload = null;
+
+            $this->mobileUploadUrl = URL::temporarySignedRoute(
+                'articoli.foto.mobile.form',
+                now()->addHours(12),
+                ['articolo' => $articolo->id]
+            );
+
+            $qrCode = new QrCode($this->mobileUploadUrl);
+            $writer = new PngWriter();
+            $result = $writer->write($qrCode);
+            $this->mobileUploadQrBase64 = base64_encode($result->getString());
+
+            $this->showModalFoto = true;
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore apertura gestione foto: ' . $e->getMessage());
+        }
+    }
+
+    public function chiudiModalFoto()
+    {
+        $this->showModalFoto = false;
+        $this->articoloFotoTarget = null;
+        $this->fotoUpload = null;
+        $this->mobileUploadUrl = '';
+        $this->mobileUploadQrBase64 = '';
+        $this->resetErrorBag('fotoUpload');
+    }
+
+    public function salvaFotoArticolo()
+    {
+        if (!$this->articoloFotoTarget) {
+            session()->flash('error', 'Nessun articolo selezionato');
+            return;
+        }
+
+        $this->validate([
+            'fotoUpload' => 'required|image|max:10240', // 10MB
+        ]);
+
+        try {
+            $articolo = Articolo::findOrFail($this->articoloFotoTarget->id);
+            $vecchioPath = $articolo->foto_principale;
+
+            $nuovoPath = $this->fotoUpload->store("articoli/{$articolo->id}", 'public');
+
+            $articolo->update([
+                'foto_principale' => $nuovoPath,
+            ]);
+
+            // Se il vecchio path era locale, rimuovilo.
+            if (!empty($vecchioPath) && !str_starts_with($vecchioPath, 'http://') && !str_starts_with($vecchioPath, 'https://')) {
+                $normalized = ltrim(str_replace('\\', '/', $vecchioPath), '/');
+                if (str_starts_with($normalized, 'storage/')) {
+                    $normalized = substr($normalized, 8);
+                }
+                if (Storage::disk('public')->exists($normalized)) {
+                    Storage::disk('public')->delete($normalized);
+                }
+            }
+
+            $this->articoloFotoTarget = $articolo->fresh();
+            $this->fotoUpload = null;
+            session()->flash('success', "Foto aggiornata per articolo {$articolo->codice}");
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore upload foto: ' . $e->getMessage());
+        }
+    }
+
+    public function eliminaFotoArticolo()
+    {
+        if (!$this->articoloFotoTarget) {
+            session()->flash('error', 'Nessun articolo selezionato');
+            return;
+        }
+
+        try {
+            $articolo = Articolo::findOrFail($this->articoloFotoTarget->id);
+            $path = $articolo->foto_principale;
+
+            if (!empty($path) && !str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+                $normalized = ltrim(str_replace('\\', '/', $path), '/');
+                if (str_starts_with($normalized, 'storage/')) {
+                    $normalized = substr($normalized, 8);
+                }
+                if (Storage::disk('public')->exists($normalized)) {
+                    Storage::disk('public')->delete($normalized);
+                }
+            }
+
+            $articolo->update(['foto_principale' => null]);
+            $this->articoloFotoTarget = $articolo->fresh();
+            $this->fotoUpload = null;
+
+            session()->flash('success', "Foto rimossa per articolo {$articolo->codice}");
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore eliminazione foto: ' . $e->getMessage());
+        }
     }
 
     public function salvaModificaArticolo()
