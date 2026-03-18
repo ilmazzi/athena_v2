@@ -43,14 +43,14 @@
         <div class="card-body">
             <!-- Filtri -->
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-lg-4 col-md-6 mb-2">
                     <label class="form-label small fw-semibold">Cerca</label>
                     <input type="text" 
                            class="form-control" 
-                           placeholder="Codice, nome, ubicazione..." 
+                           placeholder="Vetrina o articolo (codice, descrizione, referenza)..." 
                            wire:model.live.debounce.300ms="search">
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-2 col-md-6 mb-2">
                     <label class="form-label small fw-semibold">Tipologia</label>
                     <select class="form-select" wire:model.live="tipologiaFilter">
                         <option value="">Tutte le Tipologie</option>
@@ -58,12 +58,30 @@
                         <option value="orologeria">Orologeria</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-2 col-md-6 mb-2">
                     <label class="form-label small fw-semibold">Stato</label>
                     <select class="form-select" wire:model.live="attivaFilter">
                         <option value="">Tutte</option>
                         <option value="1">Attive</option>
                         <option value="0">Non Attive</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-2">
+                    <label class="form-label small fw-semibold">Sede</label>
+                    <select class="form-select" wire:model.live="sedeFilter">
+                        <option value="">Tutte le sedi</option>
+                        @foreach($sedi as $sede)
+                            <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-2">
+                    <label class="form-label small fw-semibold">Ubicazione</label>
+                    <select class="form-select" wire:model.live="ubicazioneFilter">
+                        <option value="">Tutte le ubicazioni</option>
+                        @foreach($ubicazioni as $ubicazione)
+                            <option value="{{ $ubicazione }}">{{ $ubicazione }}</option>
+                        @endforeach
                     </select>
                 </div>
             </div>

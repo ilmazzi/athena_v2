@@ -3,7 +3,6 @@
 namespace App\Http\Livewire;
 
 use App\Models\Vetrina;
-use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,6 +15,8 @@ class VetrineTable extends Component
     public $search = '';
     public $tipologiaFilter = '';
     public $attivaFilter = '';
+    public $sedeFilter = '';
+    public $ubicazioneFilter = '';
     
     // Proprietà per modal creazione/modifica
     public $showModal = false;
@@ -32,6 +33,8 @@ class VetrineTable extends Component
         'search' => ['except' => ''],
         'tipologiaFilter' => ['except' => ''],
         'attivaFilter' => ['except' => ''],
+        'sedeFilter' => ['except' => ''],
+        'ubicazioneFilter' => ['except' => ''],
     ];
 
     protected $rules = [
@@ -55,6 +58,16 @@ class VetrineTable extends Component
     }
 
     public function updatedAttivaFilter()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSedeFilter()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedUbicazioneFilter()
     {
         $this->resetPage();
     }
@@ -163,6 +176,8 @@ class VetrineTable extends Component
 
     public function render()
     {
+        $search = trim((string) $this->search);
+
         $vetrine = Vetrina::query()
             ->with('sede')
             ->withCount([
@@ -170,11 +185,25 @@ class VetrineTable extends Component
                     $query->whereNull('data_rimozione');
                 },
             ])
-            ->when($this->search, function ($query) {
-                $query->where(function ($q) {
-                    $q->where('codice', 'like', '%' . $this->search . '%')
-                      ->orWhere('nome', 'like', '%' . $this->search . '%')
-                      ->orWhere('ubicazione', 'like', '%' . $this->search . '%');
+            ->when($search !== '', function ($query) use ($search) {
+                $searchTerm = '%' . $search . '%';
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('codice', 'like', $searchTerm)
+                      ->orWhere('nome', 'like', $searchTerm)
+                      ->orWhere('ubicazione', 'like', $searchTerm)
+                      ->orWhereHas('articoli', function ($articoliQuery) use ($searchTerm) {
+                          $articoliQuery->whereNull('data_rimozione')
+                              ->whereHas('articolo', function ($articoloQuery) use ($searchTerm) {
+                                  $articoloQuery->where('codice', 'like', $searchTerm)
+                                      ->orWhere('descrizione', 'like', $searchTerm)
+                                      ->orWhereRaw(
+                                          "(CASE WHEN JSON_VALID(articoli.caratteristiche) " .
+                                          "THEN JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.referenza')) " .
+                                          "ELSE articoli.caratteristiche END) LIKE ?",
+                                          [$searchTerm]
+                                      );
+                              });
+                      });
                 });
             })
             ->when($this->tipologiaFilter, function ($query) {
@@ -183,11 +212,31 @@ class VetrineTable extends Component
             ->when($this->attivaFilter !== '', function ($query) {
                 $query->where('attiva', $this->attivaFilter);
             })
+            ->when($this->sedeFilter !== '', function ($query) {
+                $query->where('sede_id', $this->sedeFilter);
+            })
+            ->when($this->ubicazioneFilter !== '', function ($query) {
+                $query->where('ubicazione', $this->ubicazioneFilter);
+            })
             ->orderBy('codice')
             ->paginate(20);
 
+        $sedi = Sede::query()
+            ->orderBy('nome')
+            ->get(['id', 'nome']);
+
+        $ubicazioni = Vetrina::query()
+            ->whereNotNull('ubicazione')
+            ->whereRaw("TRIM(ubicazione) <> ''")
+            ->select('ubicazione')
+            ->distinct()
+            ->orderBy('ubicazione')
+            ->pluck('ubicazione');
+
         return view('livewire.vetrine-table', [
             'vetrine' => $vetrine,
+            'sedi' => $sedi,
+            'ubicazioni' => $ubicazioni,
         ]);
     }
 }
