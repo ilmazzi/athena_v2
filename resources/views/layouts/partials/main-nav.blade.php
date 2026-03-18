@@ -189,7 +189,7 @@
             </li>
 
             <li class="nav-item">
-                <a class="nav-link" href="#">
+                <a class="nav-link" href="{{ route('gestione.fornitori') }}">
                          <span class="nav-icon">
                               <iconify-icon icon="solar:shop-bold-duotone"></iconify-icon>
                          </span>
@@ -228,6 +228,12 @@
                             <a class="sub-nav-link" href="{{ route('gestione.magazzini') }}">
                                 <iconify-icon icon="solar:box-bold" class="me-1"></iconify-icon>
                                 Magazzini
+                            </a>
+                        </li>
+                        <li class="sub-nav-item">
+                            <a class="sub-nav-link" href="{{ route('gestione.fornitori') }}">
+                                <iconify-icon icon="solar:shop-bold" class="me-1"></iconify-icon>
+                                Fornitori
                             </a>
                         </li>
                     </ul>

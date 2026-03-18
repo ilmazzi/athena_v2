@@ -211,6 +211,7 @@ Route::prefix('giacenze')->name('giacenze.')->group(function () {
         Route::get('/societa', \App\Http\Livewire\GestioneSocieta::class)->name('gestione.societa');
         Route::get('/sedi', \App\Http\Livewire\GestioneSedi::class)->name('gestione.sedi');
         Route::get('/magazzini', \App\Http\Livewire\GestioneMagazzini::class)->name('gestione.magazzini');
+        Route::get('/fornitori', \App\Http\Livewire\GestioneFornitori::class)->name('gestione.fornitori');
         // Utenti (Admin)
         Route::get('/utenti', \App\Http\Livewire\GestioneUtenti::class)->name('gestione.utenti');
         Route::get('/ruoli', \App\Http\Livewire\GestioneRuoli::class)->name('gestione.ruoli');
