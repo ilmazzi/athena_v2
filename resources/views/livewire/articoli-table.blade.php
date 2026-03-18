@@ -980,7 +980,6 @@
                                             $documento = $fattura ?? $ddt;
                                             $tipoDocumento = $fattura ? 'FATTURA' : 'DDT';
                                             $badgeColor = $fattura ? 'success' : 'primary';
-                                            $fornitoreArticolo = $articolo->fornitore;
                                             $fornitoreDocumento = $documento?->fornitore;
                                             $documentoListUrl = $documento
                                                 ? route('documenti-acquisto.index', ['search' => $documento->numero, 'tipoDocumento' => $fattura ? 'fattura' : 'ddt'])
@@ -1002,7 +1001,7 @@
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:shop-bold" class="text-warning"></iconify-icon>
                                                 <small class="fw-semibold">
-                                                    {{ Str::limit($fornitoreArticolo?->ragione_sociale ?? $fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
+                                                    {{ Str::limit($fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
                                                 </small>
                                             </div>
                                         </div>
@@ -1523,15 +1522,6 @@
                                 @error('modifica.categoria_merceologica_id')
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Fornitore</label>
-                                <select class="form-select" wire:model.defer="modifica.fornitore_id">
-                                    <option value="">Nessuno</option>
-                                    @foreach($fornitori as $fornitore)
-                                        <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
-                                    @endforeach
-                                </select>
                             </div>
 
                             <div class="col-md-4">

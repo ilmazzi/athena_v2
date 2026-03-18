@@ -30,7 +30,14 @@ class MagazzinoViewController extends Controller
         }
         
         if ($request->has('fornitore')) {
-            $articoliQuery->where('fornitore_id', $request->fornitore);
+            $fornitoreId = $request->fornitore;
+            $articoliQuery->where(function ($q) use ($fornitoreId) {
+                $q->whereHas('ddtDettaglio.ddt', function ($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                })->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                });
+            });
         }
         
         // Ordinamento

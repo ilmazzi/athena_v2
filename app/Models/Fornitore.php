@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Articolo;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -46,11 +45,6 @@ class Fornitore extends Model
     // RELATIONSHIPS
     // ==========================================
     
-    public function articoli(): HasMany
-    {
-        return $this->hasMany(Articolo::class, 'fornitore_id');
-    }
-
     public function prezzi(): HasMany
     {
         return $this->hasMany(FornitorePrezzo::class, 'fornitore_id');

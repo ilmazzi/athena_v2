@@ -53,7 +53,6 @@ class Articolo extends Model
     protected $table = 'articoli';
     
     protected $fillable = [
-        'fornitore_id',
         'codice',
         'codice_base',
         'descrizione',
@@ -219,11 +218,6 @@ class Articolo extends Model
         return $this->hasMany(GiacenzaSede::class, 'articolo_id');
     }
 
-    public function fornitore(): BelongsTo
-    {
-        return $this->belongsTo(Fornitore::class, 'fornitore_id');
-    }
-    
     /**
      * Relazione con articoli in vetrina (pivot table)
      */

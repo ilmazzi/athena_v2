@@ -6,8 +6,6 @@ use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
 use App\Models\FornitorePrezzo;
-use App\Models\Ddt;
-use App\Models\Fattura;
 use App\Models\Sede;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
@@ -92,7 +90,6 @@ class ArticoliTable extends Component
         'descrizione' => '',
         'descrizione_estesa' => '',
         'categoria_merceologica_id' => '',
-        'fornitore_id' => '',
         'materiale' => '',
         'colore' => '',
         'peso_lordo' => '',
@@ -720,7 +717,7 @@ class ArticoliTable extends Component
     public function apriModalModifica($articoloId)
     {
         try {
-            $articolo = Articolo::with(['categoriaMerceologica', 'fornitore'])->findOrFail($articoloId);
+            $articolo = Articolo::with(['categoriaMerceologica'])->findOrFail($articoloId);
             $caratteristiche = $articolo->caratteristiche ?? [];
             if (is_string($caratteristiche)) {
                 $decoded = json_decode($caratteristiche, true);
@@ -736,7 +733,6 @@ class ArticoliTable extends Component
                 'descrizione' => $articolo->descrizione,
                 'descrizione_estesa' => $articolo->descrizione_estesa,
                 'categoria_merceologica_id' => $articolo->categoria_merceologica_id,
-                'fornitore_id' => $articolo->fornitore_id,
                 'materiale' => $articolo->materiale,
                 'colore' => $articolo->colore,
                 'peso_lordo' => $articolo->peso_lordo,
@@ -992,7 +988,6 @@ class ArticoliTable extends Component
             'modifica.descrizione' => 'required|string|max:255',
             'modifica.descrizione_estesa' => 'nullable|string',
             'modifica.categoria_merceologica_id' => 'required|exists:categorie_merceologiche,id',
-            'modifica.fornitore_id' => 'nullable|exists:fornitori,id',
             'modifica.materiale' => 'nullable|string|max:100',
             'modifica.colore' => 'nullable|string|max:100',
             'modifica.peso_lordo' => 'nullable',
@@ -1055,7 +1050,6 @@ class ArticoliTable extends Component
                 'descrizione' => $this->modifica['descrizione'],
                 'descrizione_estesa' => $this->modifica['descrizione_estesa'] ?: null,
                 'categoria_merceologica_id' => $this->modifica['categoria_merceologica_id'],
-                'fornitore_id' => $this->modifica['fornitore_id'] ?: null,
                 'materiale' => $this->modifica['materiale'] ?: null,
                 'colore' => $this->modifica['colore'] ?: null,
                 'peso_lordo' => $pesoLordo,
@@ -1072,35 +1066,6 @@ class ArticoliTable extends Component
                 'inventariato' => (bool) ($this->modifica['inventariato'] ?? false),
                 'visibile_catalogo' => (bool) ($this->modifica['visibile_catalogo'] ?? false),
             ]);
-
-            $fornitoreId = $this->modifica['fornitore_id'] ?: null;
-            if ($fornitoreId) {
-                $ddtIds = $articolo->ddtDettaglio()
-                    ->whereNotNull('ddt_id')
-                    ->pluck('ddt_id')
-                    ->unique()
-                    ->filter()
-                    ->values();
-
-                if ($ddtIds->isNotEmpty()) {
-                    Ddt::whereIn('id', $ddtIds)->update([
-                        'fornitore_id' => $fornitoreId,
-                    ]);
-                }
-
-                $fatturaIds = $articolo->fatturaDettaglio()
-                    ->whereNotNull('fattura_id')
-                    ->pluck('fattura_id')
-                    ->unique()
-                    ->filter()
-                    ->values();
-
-                if ($fatturaIds->isNotEmpty()) {
-                    Fattura::whereIn('id', $fatturaIds)->update([
-                        'fornitore_id' => $fornitoreId,
-                    ]);
-                }
-            }
 
             $this->statsCache = null;
             session()->flash('success', "Articolo {$articolo->codice} aggiornato con successo");
@@ -1244,16 +1209,11 @@ class ArticoliTable extends Component
 
         if ($this->fornitoreFilter) {
             $query->where(function ($q) {
-                $q->where('articoli.fornitore_id', $this->fornitoreFilter)
-                    ->orWhere(function ($fallbackQ) {
-                        $fallbackQ->whereNull('articoli.fornitore_id')
-                            ->where(function ($docQ) {
-                                $docQ->whereHas('ddtDettaglio.ddt', function($subQ) {
-                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
-                                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
-                                });
-                            });
+                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    })
+                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
                     });
             });
         }
@@ -1390,7 +1350,13 @@ class ArticoliTable extends Component
         $query = Articolo::query();
 
         if ($this->prezziFornitoreId) {
-            $query->where('fornitore_id', $this->prezziFornitoreId);
+            $query->where(function ($q) {
+                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
+                    $subQ->where('fornitore_id', $this->prezziFornitoreId);
+                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                    $subQ->where('fornitore_id', $this->prezziFornitoreId);
+                });
+            });
         }
 
         $value = trim((string) $this->prezziMatchValue);
@@ -1581,7 +1547,6 @@ class ArticoliTable extends Component
         if (($this->visibleColumns['dati_carico'] ?? true)) {
             $relations[] = 'ddtDettaglio.ddt.fornitore';
             $relations[] = 'fatturaDettaglio.fattura.fornitore';
-            $relations[] = 'fornitore';
         }
 
         $query = Articolo::with($relations);
@@ -1630,16 +1595,11 @@ class ArticoliTable extends Component
         // Filtro fornitore: campo diretto articolo + fallback documenti carico
         if ($this->fornitoreFilter) {
             $query->where(function ($q) {
-                $q->where('fornitore_id', $this->fornitoreFilter)
-                    ->orWhere(function ($fallbackQ) {
-                        $fallbackQ->whereNull('fornitore_id')
-                            ->where(function ($docQ) {
-                                $docQ->whereHas('ddtDettaglio.ddt', function($subQ) {
-                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
-                                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                                    $subQ->where('fornitore_id', $this->fornitoreFilter);
-                                });
-                            });
+                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
+                    })
+                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreFilter);
                     });
             });
         }

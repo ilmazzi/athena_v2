@@ -382,7 +382,6 @@ class CaricoDocumento extends Component
                         'descrizione' => $articolo['descrizione'] ?? '',
                         'categoria_merceologica_id' => $articoloCategoriaId,
                         'sede_id' => $this->sedeId,
-                        'fornitore_id' => $this->fornitoreId,
                         'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
                         'prezzo_fornitore' => $prezzoUnitario, // DDT e fattura (Pomellato prezzo imposto su fattura)
                         'ean' => $articolo['ean'] ?? null,

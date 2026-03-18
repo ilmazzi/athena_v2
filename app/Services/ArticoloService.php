@@ -59,7 +59,7 @@ class ArticoloService
             );
             
             // Ricarica con relazioni
-            return $articolo->fresh(['giacenza', 'magazzino', 'fornitore']);
+            return $articolo->fresh(['giacenza', 'magazzino']);
         });
     }
     
@@ -172,7 +172,14 @@ class ArticoloService
         }
         
         if (isset($filtri['fornitore_id'])) {
-            $query->delFornitore($filtri['fornitore_id']);
+            $fornitoreId = (int) $filtri['fornitore_id'];
+            $query->where(function ($q) use ($fornitoreId) {
+                $q->whereHas('ddtDettaglio.ddt', function ($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                })->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                });
+            });
         }
         
         if (isset($filtri['materiale'])) {

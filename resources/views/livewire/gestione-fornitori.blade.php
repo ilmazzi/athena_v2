@@ -321,7 +321,7 @@
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-warning py-2">
-                            Stai spostando tutti gli articoli dal fornitore <strong>{{ $fornitoreOrigineNome }}</strong> ad un altro fornitore.
+                            Stai spostando tutti i documenti (DDT/Fatture) dal fornitore <strong>{{ $fornitoreOrigineNome }}</strong> ad un altro fornitore.
                         </div>
 
                         <div class="mb-3">
@@ -336,7 +336,7 @@
                         </div>
 
                         <div>
-                            <div class="small text-muted mb-1">Anteprima articoli da spostare (max 30):</div>
+                            <div class="small text-muted mb-1">Anteprima articoli collegati ai documenti da riallineare (max 30):</div>
                             <div class="border rounded p-2" style="max-height: 220px; overflow:auto;">
                                 @forelse($articoliPreview as $a)
                                     <div class="small py-1 border-bottom">
@@ -351,7 +351,7 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" wire:click="chiudiModalRiassegnaArticoli">Annulla</button>
                         <button type="button" class="btn btn-warning" wire:click="confermaRiassegnaArticoli">
-                            Conferma spostamento articoli
+                            Conferma spostamento documenti
                         </button>
                     </div>
                 </div>

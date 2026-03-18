@@ -105,7 +105,12 @@ class GestioneFornitori extends Component
 
     public function getFornitoriProperty()
     {
-        $query = Fornitore::query()->withCount(['ddt', 'fatture', 'articoli', 'prezzi']);
+        $articoliCountSql = $this->articoliCountSelectSql();
+
+        $query = Fornitore::query()
+            ->withCount(['ddt', 'fatture', 'prezzi'])
+            ->select('fornitori.*')
+            ->selectRaw($articoliCountSql);
 
         $search = trim((string) $this->search);
         if ($search !== '') {
@@ -134,6 +139,8 @@ class GestioneFornitori extends Component
 
     public function exportCsv()
     {
+        $articoliCountSql = $this->articoliCountSelectSql();
+
         $query = Fornitore::query();
 
         $search = trim((string) $this->search);
@@ -156,24 +163,12 @@ class GestioneFornitori extends Component
         }
 
         $fornitori = $query
-            ->withCount(['ddt', 'fatture', 'articoli', 'prezzi'])
-            ->orderBy($this->sortField, $this->sortDirection)
+            ->withCount(['ddt', 'fatture', 'prezzi'])
+            ->select('fornitori.*')
+            ->selectRaw($articoliCountSql)
+            ->orderBy($this->sortField === 'articoli_count' ? DB::raw('articoli_count') : $this->sortField, $this->sortDirection)
             ->orderBy('id', 'desc')
-            ->get([
-                'codice',
-                'ragione_sociale',
-                'partita_iva',
-                'codice_fiscale',
-                'indirizzo',
-                'citta',
-                'provincia',
-                'cap',
-                'nazione',
-                'telefono',
-                'email',
-                'pec',
-                'attivo',
-            ]);
+            ->get();
 
         $filename = 'fornitori_' . now()->format('Y-m-d_H-i-s') . '.csv';
         $headers = [
@@ -219,7 +214,7 @@ class GestioneFornitori extends Component
                     $f->pec,
                     $f->ddt_count,
                     $f->fatture_count,
-                    $f->articoli_count,
+                    $f->articoli_count ?? 0,
                     $f->prezzi_count,
                     $f->attivo ? 'SI' : 'NO',
                 ], ';');
@@ -319,11 +314,10 @@ class GestioneFornitori extends Component
         $this->fornitoreOrigineNome = $fornitore->ragione_sociale;
         $this->fornitoreDestinazioneId = '';
 
-        $this->articoliPreview = Articolo::query()
-            ->where('fornitore_id', $fornitore->id)
-            ->orderBy('codice')
+        $this->articoliPreview = $this->articoliDocumentaliQuery($fornitore->id)
+            ->orderBy('a.codice')
             ->limit(30)
-            ->get(['id', 'codice', 'descrizione'])
+            ->get()
             ->map(fn ($a) => [
                 'id' => $a->id,
                 'codice' => $a->codice,
@@ -362,28 +356,38 @@ class GestioneFornitori extends Component
             return;
         }
 
-        $spostati = 0;
-        DB::transaction(function () use (&$spostati) {
-            $spostati = Articolo::query()
+        $ddtSpostati = 0;
+        $fattureSpostate = 0;
+        DB::transaction(function () use (&$ddtSpostati, &$fattureSpostate) {
+            $ddtSpostati = DB::table('ddt')
                 ->where('fornitore_id', $this->fornitoreOrigineId)
+                ->whereNull('deleted_at')
+                ->update(['fornitore_id' => (int) $this->fornitoreDestinazioneId]);
+
+            $fattureSpostate = DB::table('fatture')
+                ->where('fornitore_id', $this->fornitoreOrigineId)
+                ->whereNull('deleted_at')
                 ->update(['fornitore_id' => (int) $this->fornitoreDestinazioneId]);
         });
 
+        $spostati = $ddtSpostati + $fattureSpostate;
         if ($spostati === 0) {
-            session()->flash('error', 'Nessun articolo da spostare per questo fornitore.');
+            session()->flash('error', 'Nessun documento da spostare per questo fornitore.');
             return;
         }
 
         $dest = Fornitore::find($this->fornitoreDestinazioneId);
         $nomeDest = $dest?->ragione_sociale ?? ('#' . $this->fornitoreDestinazioneId);
-        session()->flash('message', "✅ Spostati {$spostati} articoli su fornitore {$nomeDest}");
+        session()->flash('message', "✅ Spostati {$ddtSpostati} DDT e {$fattureSpostate} fatture su fornitore {$nomeDest}");
         $this->chiudiModalRiassegnaArticoli();
     }
 
     public function elimina(): void
     {
         $fornitore = Fornitore::query()
-            ->withCount(['articoli', 'prezzi', 'ddt', 'fatture'])
+            ->withCount(['prezzi', 'ddt', 'fatture'])
+            ->select('fornitori.*')
+            ->selectRaw($this->articoliCountSelectSql())
             ->findOrFail($this->fornitoreSelezionatoId);
 
         $hasRelazioni = ((int) $fornitore->articoli_count) > 0
@@ -447,6 +451,56 @@ class GestioneFornitori extends Component
         return view('livewire.gestione-fornitori', [
             'fornitori' => $this->fornitori,
         ]);
+    }
+
+    private function articoliCountSelectSql(): string
+    {
+        $user = request()->user();
+        $userSedeId = $user?->sede_id ? (int) $user->sede_id : null;
+        $scopeSql = '';
+        if ($userSedeId) {
+            $scopeSql = " AND (
+                a.sede_id = {$userSedeId}
+                OR EXISTS (
+                    SELECT 1
+                    FROM giacenze_sedi gs
+                    WHERE gs.articolo_id = a.id
+                      AND gs.sede_id = {$userSedeId}
+                      AND gs.quantita_residua > 0
+                )
+            )";
+        }
+
+        return "(
+            SELECT COUNT(DISTINCT a.id)
+            FROM articoli a
+            LEFT JOIN ddt_dettagli dd ON dd.articolo_id = a.id
+            LEFT JOIN ddt d ON d.id = dd.ddt_id
+            LEFT JOIN fatture_dettagli fd ON fd.articolo_id = a.id
+            LEFT JOIN fatture fdoc ON fdoc.id = fd.fattura_id
+            WHERE a.deleted_at IS NULL
+              {$scopeSql}
+              AND (
+                d.fornitore_id = fornitori.id
+                OR fdoc.fornitore_id = fornitori.id
+              )
+        ) as articoli_count";
+    }
+
+    private function articoliDocumentaliQuery(int $fornitoreId)
+    {
+        return Articolo::query()
+            ->from('articoli as a')
+            ->selectRaw('DISTINCT a.id, a.codice, a.descrizione')
+            ->leftJoin('ddt_dettagli as dd', 'dd.articolo_id', '=', 'a.id')
+            ->leftJoin('ddt as d', 'd.id', '=', 'dd.ddt_id')
+            ->leftJoin('fatture_dettagli as fd', 'fd.articolo_id', '=', 'a.id')
+            ->leftJoin('fatture as fdoc', 'fdoc.id', '=', 'fd.fattura_id')
+            ->whereNull('a.deleted_at')
+            ->where(function ($q) use ($fornitoreId) {
+                $q->where('d.fornitore_id', $fornitoreId)
+                    ->orWhere('fdoc.fornitore_id', $fornitoreId);
+            });
     }
 }
 
