@@ -176,14 +176,20 @@
                                                 title="Modifica">
                                             <i class="bx bx-edit text-warning"></i>
                                         </button>
-                                        @if($vetrina->articoli_count == 0)
+                                        @if($vetrina->articoli_count > 0)
                                             <button class="btn btn-light btn-sm" 
-                                                    wire:click="deleteVetrina({{ $vetrina->id }})"
-                                                    title="Elimina"
-                                                    onclick="return confirm('Sei sicuro di voler eliminare questa vetrina?')">
-                                                <i class="bx bx-trash text-danger"></i>
+                                                    wire:click="svuotaVetrina({{ $vetrina->id }})"
+                                                    title="Svuota"
+                                                    onclick="return confirm('Svuotare la vetrina {{ $vetrina->codice }}? Gli articoli non risulteranno piu in vetrina.')">
+                                                <i class="bx bx-archive-out text-secondary"></i>
                                             </button>
                                         @endif
+                                        <button class="btn btn-light btn-sm" 
+                                                wire:click="deleteVetrina({{ $vetrina->id }})"
+                                                title="Elimina"
+                                                onclick="return confirm('Eliminare la vetrina {{ $vetrina->codice }}? Se contiene articoli verra prima svuotata automaticamente.')">
+                                                <i class="bx bx-trash text-danger"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>

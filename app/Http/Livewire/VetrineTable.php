@@ -2,8 +2,11 @@
 
 namespace App\Http\Livewire;
 
+use App\Models\Articolo;
+use App\Models\ArticoloVetrina;
 use App\Models\Vetrina;
 use App\Models\Sede;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -146,21 +149,35 @@ class VetrineTable extends Component
     public function deleteVetrina($id)
     {
         try {
-            $vetrina = Vetrina::findOrFail($id);
-            
-            // Verifica se ha articoli
-            if ($vetrina->articoli()->count() > 0) {
-                session()->flash('error', "Impossibile eliminare la vetrina {$vetrina->codice}: contiene ancora articoli");
-                return;
-            }
-            
-            $codice = $vetrina->codice;
-            $vetrina->delete();
-            
+            $codice = DB::transaction(function () use ($id) {
+                $vetrina = Vetrina::findOrFail($id);
+                $this->svuotaVetrinaById($vetrina->id);
+                $codice = $vetrina->codice;
+                $vetrina->delete();
+                return $codice;
+            });
+
             session()->flash('success', "Vetrina {$codice} eliminata con successo");
-            
         } catch (\Exception $e) {
             session()->flash('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
+        }
+    }
+
+    public function svuotaVetrina($id)
+    {
+        try {
+            $vetrina = Vetrina::findOrFail($id);
+            $svuotati = DB::transaction(function () use ($vetrina) {
+                return $this->svuotaVetrinaById($vetrina->id);
+            });
+
+            if ($svuotati > 0) {
+                session()->flash('success', "Vetrina {$vetrina->codice} svuotata: {$svuotati} articoli rimossi");
+            } else {
+                session()->flash('success', "Vetrina {$vetrina->codice} già vuota");
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante lo svuotamento: ' . $e->getMessage());
         }
     }
 
@@ -180,6 +197,37 @@ class VetrineTable extends Component
         $this->attiva = true;
         $this->note = '';
         $this->resetErrorBag();
+    }
+
+    private function svuotaVetrinaById(int $vetrinaId): int
+    {
+        $activeRows = ArticoloVetrina::query()
+            ->where('vetrina_id', $vetrinaId)
+            ->whereNull('data_rimozione')
+            ->get(['id', 'articolo_id']);
+
+        if ($activeRows->isEmpty()) {
+            return 0;
+        }
+
+        $activeIds = $activeRows->pluck('id');
+        $articoloIds = $activeRows->pluck('articolo_id')->filter()->unique();
+
+        ArticoloVetrina::query()
+            ->whereIn('id', $activeIds)
+            ->update([
+                'data_rimozione' => now()->toDateString(),
+                'giorni_esposizione' => DB::raw('DATEDIFF(CURDATE(), data_inserimento)'),
+                'updated_at' => now(),
+            ]);
+
+        if ($articoloIds->isNotEmpty()) {
+            Articolo::query()
+                ->whereIn('id', $articoloIds)
+                ->update(['in_vetrina' => false]);
+        }
+
+        return $activeIds->count();
     }
 
     public function render()
