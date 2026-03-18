@@ -27,7 +27,7 @@ class GiacenzeInventario extends Component
                 sedi.nome as sede_nome,
                 COUNT(*) as righe,
                 SUM(COALESCE(giacenze.quantita_residua, 0)) as residua,
-                SUM(CASE WHEN COALESCE(giacenze.quantita_residua, 0) <= COALESCE(giacenze.quantita_minima, 0) THEN 1 ELSE 0 END) as critiche
+                SUM(CASE WHEN COALESCE(giacenze.quantita_residua, 0) = 0 THEN 1 ELSE 0 END) as esaurite
             ')
             ->groupBy('giacenze.sede_id', 'sedi.nome')
             ->orderBy('sedi.nome');

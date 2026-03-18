@@ -34,8 +34,8 @@
                         </div>
                         <div class="col-md-2 d-flex align-items-center">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="soloCritiche" wire:model.live="soloCritiche">
-                                <label class="form-check-label" for="soloCritiche">Solo critiche</label>
+                                <input class="form-check-input" type="checkbox" id="soloEsaurite" wire:model.live="soloEsaurite">
+                                <label class="form-check-label" for="soloEsaurite">Solo esaurite</label>
                             </div>
                         </div>
                     </div>
@@ -53,8 +53,8 @@
                         <div class="fw-semibold">Righe: {{ number_format($riga->righe_giacenza, 0, ',', '.') }}</div>
                         <div class="small">Qta totale: {{ number_format($riga->quantita_totale, 0, ',', '.') }}</div>
                         <div class="small">Qta residua: {{ number_format($riga->quantita_residua_totale, 0, ',', '.') }}</div>
-                        <div class="small {{ $riga->righe_critiche > 0 ? 'text-danger' : 'text-success' }}">
-                            Critiche: {{ number_format($riga->righe_critiche, 0, ',', '.') }}
+                        <div class="small text-muted">
+                            Esaurite/Vendute: {{ number_format($riga->righe_esaurite, 0, ',', '.') }}
                         </div>
                     </div>
                 </div>
@@ -97,7 +97,7 @@
                                 </td>
                                 <td class="text-end">{{ number_format((int) $giacenza->quantita, 0, ',', '.') }}</td>
                                 <td class="text-end">
-                                    <span class="{{ (int)$giacenza->quantita_residua <= (int)$giacenza->quantita_minima ? 'text-danger fw-semibold' : '' }}">
+                                    <span>
                                         {{ number_format((int) $giacenza->quantita_residua, 0, ',', '.') }}
                                     </span>
                                 </td>

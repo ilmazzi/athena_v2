@@ -16,7 +16,7 @@ class GiacenzePerSede extends Component
 
     public $search = '';
     public $sedeId = '';
-    public $soloCritiche = false;
+    public $soloEsaurite = false;
     public $perPage = 25;
 
     public $showRettificaModal = false;
@@ -28,7 +28,7 @@ class GiacenzePerSede extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'sedeId' => ['except' => ''],
-        'soloCritiche' => ['except' => false],
+        'soloEsaurite' => ['except' => false],
     ];
 
     public function updatingSearch(): void
@@ -41,7 +41,7 @@ class GiacenzePerSede extends Component
         $this->resetPage();
     }
 
-    public function updatingSoloCritiche(): void
+    public function updatingSoloEsaurite(): void
     {
         $this->resetPage();
     }
@@ -61,7 +61,7 @@ class GiacenzePerSede extends Component
                 COUNT(*) as righe_giacenza,
                 SUM(COALESCE(giacenze.quantita, 0)) as quantita_totale,
                 SUM(COALESCE(giacenze.quantita_residua, 0)) as quantita_residua_totale,
-                SUM(CASE WHEN COALESCE(giacenze.quantita_residua, 0) <= COALESCE(giacenze.quantita_minima, 0) THEN 1 ELSE 0 END) as righe_critiche
+                SUM(CASE WHEN COALESCE(giacenze.quantita_residua, 0) = 0 THEN 1 ELSE 0 END) as righe_esaurite
             ')
             ->groupBy('giacenze.sede_id', 'sedi.nome')
             ->orderBy('sedi.nome')
@@ -141,10 +141,9 @@ class GiacenzePerSede extends Component
             $query->where('sede_id', $this->sedeId);
         }
 
-        if ($this->soloCritiche) {
+        if ($this->soloEsaurite) {
             $query->where(function ($q) {
-                $q->whereRaw('COALESCE(quantita_residua, 0) <= COALESCE(quantita_minima, 0)')
-                    ->orWhere('quantita_residua', '<', 0);
+                $q->whereRaw('COALESCE(quantita_residua, 0) = 0');
             });
         }
 

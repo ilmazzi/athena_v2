@@ -45,7 +45,7 @@
                                     <th>Sede</th>
                                     <th class="text-end">Righe</th>
                                     <th class="text-end">Residua</th>
-                                    <th class="text-end">Critiche</th>
+                                    <th class="text-end">Esaurite/Vendute</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -54,11 +54,7 @@
                                         <td>{{ $riga->sede_nome }}</td>
                                         <td class="text-end">{{ number_format($riga->righe, 0, ',', '.') }}</td>
                                         <td class="text-end">{{ number_format($riga->residua, 0, ',', '.') }}</td>
-                                        <td class="text-end">
-                                            <span class="{{ $riga->critiche > 0 ? 'text-danger fw-semibold' : 'text-success' }}">
-                                                {{ number_format($riga->critiche, 0, ',', '.') }}
-                                            </span>
-                                        </td>
+                                        <td class="text-end">{{ number_format($riga->esaurite, 0, ',', '.') }}</td>
                                     </tr>
                                 @empty
                                     <tr>
