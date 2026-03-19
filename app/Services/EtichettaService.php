@@ -87,8 +87,7 @@ class EtichettaService
 
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
-            // Bellagio/Monastero allineate alla resa Cavour/Lecco.
-            'ZT420' => $this->getTemplateZT230(),
+            'ZT420' => $this->getTemplateZT420(),
             'ZT620' => $this->getTemplateZT620(),
         ];
         
@@ -119,12 +118,12 @@ class EtichettaService
         return '^XA
 ^MD30
 ^CI28
-^LH300,10                    ; Offset orizzontale fisso a 260
-^PW552^LL80                ; Dimensioni dell\'etichetta
-^FO05,10^BQ,2,3^FDQA,{CARICO}^FS   ; QR Code con dimensione leggibile
-^FO80,10^A0G,19,19^FD{CARICO}^FS      ; Prezzo accanto al QR Code con font G
-^FO80,35^A0A,19,19^FD{PREZZO}^FS      ; Carico accanto al prezzo con font G
-^FO80,60^A0N,19,19^FB100,2,3,L^FD{CARATI}^FS ; Testo multilinea con font G
+^LH260,10                    ; Compensa etichetta centrata su Bellagio
+^PW552^LL80
+^FO10,10^BQ,2,2^FDQA,{CARICO}^FS
+^FO60,10^A0N,14,14^FD{CARICO}^FS
+^FO60,25^A0N,13,13^FD{PREZZO}^FS
+^FO60,40^A0N,13,13^FB100,2,3,L^FD{CARATI}^FS
 ^XZ';
     }
 
