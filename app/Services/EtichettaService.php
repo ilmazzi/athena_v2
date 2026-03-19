@@ -118,7 +118,7 @@ class EtichettaService
         return '^XA
 ^MD30
 ^CI28
-^LH220,8                     ; Taratura Bellagio: sposta il contenuto più a sinistra
+^LH200,8                     ; Taratura Bellagio: ulteriore spostamento a sinistra
 ^PW552^LL80
 ^FO05,10^BQ,2,3^FDQA,{CARICO}^FS
 ^FO80,10^A0N,19,19^FD{CARICO}^FS
