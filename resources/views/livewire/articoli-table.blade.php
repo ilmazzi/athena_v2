@@ -583,7 +583,7 @@
                         @endphp
                         <tr>
                             @if($visibleColumns['codice'] ?? true)
-                            <th style="cursor: pointer;" wire:click="sortBy('codice')">
+                            <th class="text-nowrap" style="cursor: pointer;" wire:click="sortBy('codice')">
                                 <div class="d-flex align-items-center gap-1">
                                     @php
                                         // Header icona: se filtro attivo usa categoria, altrimenti icona generica
@@ -681,8 +681,8 @@
                         @forelse($articoli as $index => $articolo)
                             <tr wire:key="articolo-{{ $articolo->id }}">
                                 @if($visibleColumns['codice'] ?? true)
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
+                                <td class="text-nowrap">
+                                    <div class="d-flex align-items-center gap-2 text-nowrap">
                                         @php
                                             // Se c'è un filtro attivo, usa l'icona della categoria filtrata
                                             // Altrimenti usa l'icona specifica dell'articolo
@@ -715,7 +715,7 @@
                                                  data-foto-url="{{ $fotoUrl }}"
                                                  data-foto-alt="Foto {{ $articolo->codice }}">
                                         @endif
-                                        <div>
+                                        <div class="text-nowrap">
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="fw-semibold">{{ $articolo->codice }}</span>
                                                 @if($fotoUrl)
