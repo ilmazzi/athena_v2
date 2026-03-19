@@ -103,6 +103,8 @@ class EtichettaService
         return '^XA
 ^MD30               ; Massima densità
 ^PR3                ; Velocità di stampa bassa = più scuro
+^LH0,0              ; Azzera label home per evitare shift orizzontali
+^LS0                ; Azzera print shift
 ^PW552^LL80
 ^FO10,10^BQ,2,2^FDQA,{CARICO}^FS
 ^FO60,10^A@N,14,14,E:TT0003M_.FNT^FD{CARICO}^FS
