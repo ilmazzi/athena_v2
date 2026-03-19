@@ -381,6 +381,7 @@ class CaricoDocumento extends Component
             foreach ($this->articoli as $articolo) {
                 $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
                 $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
+                $referenzaFornitore = trim((string) ($articolo['codice'] ?? ''));
                 if ($prezzoUnitario !== null && (!$prezzoTotale || $prezzoTotale <= 0)) {
                     $prezzoTotale = $prezzoUnitario * ($articolo['quantita'] ?? 1);
                 }
@@ -394,7 +395,7 @@ class CaricoDocumento extends Component
                     
                     // Prepara caratteristiche JSON con referenza fornitore
                     $caratteristiche = [
-                        'referenza' => $articolo['codice'] ?? '', // Il codice OCR è la referenza
+                        'referenza' => $referenzaFornitore, // Il codice OCR è la referenza
                         'marca' => null,
                         'oro' => null,
                         'pietre' => null,
@@ -428,10 +429,26 @@ class CaricoDocumento extends Component
                             })
                             ->update(['caratura' => $articolo['caratura']]);
                     }
+                    $updatesArticolo = [];
                     if ($prezzoUnitario !== null) {
-                        Articolo::where('id', $articoloId)->update([
-                            'prezzo_fornitore' => $prezzoUnitario,
-                        ]);
+                        $updatesArticolo['prezzo_fornitore'] = $prezzoUnitario;
+                    }
+
+                    if ($referenzaFornitore !== '') {
+                        $articoloEsistente = Articolo::find($articoloId);
+                        $caratteristiche = $articoloEsistente?->caratteristiche;
+                        if (is_string($caratteristiche)) {
+                            $decoded = json_decode($caratteristiche, true);
+                            $caratteristiche = is_array($decoded) ? $decoded : [];
+                        } elseif (!is_array($caratteristiche)) {
+                            $caratteristiche = [];
+                        }
+                        $caratteristiche['referenza'] = $referenzaFornitore;
+                        $updatesArticolo['caratteristiche'] = $caratteristiche;
+                    }
+
+                    if (!empty($updatesArticolo)) {
+                        Articolo::where('id', $articoloId)->update($updatesArticolo);
                     }
                 }
 
@@ -440,7 +457,7 @@ class CaricoDocumento extends Component
                     'ddt_id' => $this->tipoDocumento === 'ddt' ? $documento->id : null,
                     'fattura_id' => $this->tipoDocumento === 'fattura' ? $documento->id : null,
                     'articolo_id' => $articoloId,
-                    'referenza_fornitore' => $articolo['codice'], // Codice OCR = referenza fornitore
+                    'referenza_fornitore' => $referenzaFornitore, // Codice OCR = referenza fornitore
                     'descrizione' => $articolo['descrizione'] ?? '',
                     'quantita' => $articolo['quantita'],
                     'numero_seriale' => $articolo['numero_seriale'] ?? null,

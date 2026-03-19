@@ -1034,17 +1034,16 @@ class ArticoliTable extends Component
                 $caratteristiche = [];
             }
             $marca = trim((string) ($this->modifica['marca'] ?? ''));
-            $referenza = trim((string) ($this->modifica['referenza'] ?? ''));
+            $referenzaInput = trim((string) ($this->modifica['referenza'] ?? ''));
+            $referenza = $referenzaInput !== ''
+                ? $referenzaInput
+                : trim((string) ($caratteristiche['referenza'] ?? $articolo->codice ?? ''));
             if ($marca !== '') {
                 $caratteristiche['marca'] = $marca;
             } else {
                 unset($caratteristiche['marca']);
             }
-            if ($referenza !== '') {
-                $caratteristiche['referenza'] = $referenza;
-            } else {
-                unset($caratteristiche['referenza']);
-            }
+            $caratteristiche['referenza'] = $referenza;
 
             $articolo->update([
                 'descrizione' => $this->modifica['descrizione'],
@@ -1066,6 +1065,13 @@ class ArticoliTable extends Component
                 'inventariato' => (bool) ($this->modifica['inventariato'] ?? false),
                 'visibile_catalogo' => (bool) ($this->modifica['visibile_catalogo'] ?? false),
             ]);
+
+            // Allinea sempre la referenza anche sulle righe di carico documento.
+            if ($referenza !== '') {
+                DB::table('carico_dettagli')
+                    ->where('articolo_id', $articolo->id)
+                    ->update(['referenza_fornitore' => $referenza]);
+            }
 
             $this->statsCache = null;
             session()->flash('success', "Articolo {$articolo->codice} aggiornato con successo");
