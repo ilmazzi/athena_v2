@@ -2,7 +2,6 @@
 
 namespace App\Http\Livewire;
 
-use App\Models\Articolo;
 use App\Models\Fornitore;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
@@ -489,8 +488,7 @@ class GestioneFornitori extends Component
 
     private function articoliDocumentaliQuery(int $fornitoreId)
     {
-        return Articolo::query()
-            ->from('articoli as a')
+        return DB::table('articoli as a')
             ->selectRaw('DISTINCT a.id, a.codice, a.descrizione')
             ->leftJoin('ddt_dettagli as dd', 'dd.articolo_id', '=', 'a.id')
             ->leftJoin('ddt as d', 'd.id', '=', 'dd.ddt_id')

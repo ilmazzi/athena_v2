@@ -87,7 +87,8 @@ class EtichettaService
 
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
-            'ZT420' => $this->getTemplateZT420(),
+            // Bellagio/Monastero allineate alla resa Cavour/Lecco.
+            'ZT420' => $this->getTemplateZT230(),
             'ZT620' => $this->getTemplateZT620(),
         ];
         
