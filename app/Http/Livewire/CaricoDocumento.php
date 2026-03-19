@@ -89,15 +89,30 @@ class CaricoDocumento extends Component
     {
         $this->fornitori = Fornitore::orderBy('ragione_sociale')->get();
         $this->sedi = Sede::orderBy('nome')->get();
-        $categorieQuery = CategoriaMerceologica::orderBy('nome');
-        $userSedeId = auth()->user()?->sede_id;
-        if ($userSedeId) {
-            $categorieQuery->where('sede_id', $userSedeId);
-        }
-        $this->categorie = $categorieQuery->get();
+        $this->refreshCategorieDisponibili();
         $this->stampantiDisponibili = Stampante::where('attiva', true)
             ->orderBy('nome')
             ->get(['id', 'nome', 'modello']);
+    }
+
+    public function updatedSedeId(): void
+    {
+        $this->refreshCategorieDisponibili();
+
+        if ($this->categoriaId && !$this->categorie->contains('id', (int) $this->categoriaId)) {
+            $this->categoriaId = '';
+        }
+
+        if (empty($this->articoli)) {
+            return;
+        }
+
+        foreach ($this->articoli as $index => $articolo) {
+            $categoriaRiga = (int) ($articolo['categoria_id'] ?? 0);
+            if ($categoriaRiga > 0 && !$this->categorie->contains('id', $categoriaRiga)) {
+                $this->articoli[$index]['categoria_id'] = $this->categoriaId ?: null;
+            }
+        }
     }
 
     /**
@@ -200,6 +215,11 @@ class CaricoDocumento extends Component
 
     public function updatedCategoriaId()
     {
+        if (!empty($this->categoriaId) && !$this->categorie->contains('id', (int) $this->categoriaId)) {
+            $this->categoriaId = '';
+            return;
+        }
+
         if (empty($this->categoriaId) || empty($this->articoli)) {
             return;
         }
@@ -656,6 +676,24 @@ class CaricoDocumento extends Component
         $suffix = trim((string) $suffix);
 
         return 'X' . $valore . ($tipo === 'P' ? 'P' : 'G') . $suffix;
+    }
+
+    private function refreshCategorieDisponibili(): void
+    {
+        $categorieQuery = CategoriaMerceologica::query()
+            ->where('attivo', true)
+            ->orderBy('nome');
+
+        if (!empty($this->sedeId)) {
+            $categorieQuery->where('sede_id', $this->sedeId);
+        } else {
+            $userSedeId = auth()->user()?->sede_id;
+            if ($userSedeId) {
+                $categorieQuery->where('sede_id', $userSedeId);
+            }
+        }
+
+        $this->categorie = $categorieQuery->get();
     }
 }
 

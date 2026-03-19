@@ -252,7 +252,7 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Sede *</label>
-                        <select wire:model.defer="sedeId" class="form-select form-select-sm @error('sedeId') is-invalid @enderror">
+                        <select wire:model.live="sedeId" class="form-select form-select-sm @error('sedeId') is-invalid @enderror">
                             <option value="">Seleziona...</option>
                             @foreach($sedi as $sede)
                                 <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
@@ -270,7 +270,7 @@
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">Applica il magazzino a tutte le righe (opzionale).</div>
+                        <div class="form-text">Mostra solo i magazzini della sede selezionata.</div>
                     </div>
 
                     @if($tipoDocumento === 'fattura')
