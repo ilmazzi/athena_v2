@@ -263,14 +263,22 @@
 
                     <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Magazzino globale</label>
-                        <select wire:model.live="categoriaId" class="form-select form-select-sm @error('categoriaId') is-invalid @enderror">
+                        <select wire:model.live="categoriaId"
+                                class="form-select form-select-sm @error('categoriaId') is-invalid @enderror"
+                                @disabled(empty($sedeId))>
                             <option value="">Seleziona...</option>
                             @foreach($categorie as $categoria)
                                 <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">Mostra solo i magazzini della sede selezionata.</div>
+                        <div class="form-text">
+                            @if(empty($sedeId))
+                                Seleziona prima la sede.
+                            @else
+                                Mostra solo i magazzini della sede selezionata.
+                            @endif
+                        </div>
                     </div>
 
                     @if($tipoDocumento === 'fattura')
@@ -401,7 +409,8 @@
                             </td>
                             <td>
                                 <select wire:model.defer="articoli.{{ $index }}.categoria_id"
-                                        class="form-select form-select-sm @error('articoli.'.$index.'.categoria_id') is-invalid @enderror">
+                                        class="form-select form-select-sm @error('articoli.'.$index.'.categoria_id') is-invalid @enderror"
+                                        @disabled(empty($sedeId))>
                                     <option value="">Seleziona...</option>
                                     @foreach($categorie as $categoria)
                                         <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>

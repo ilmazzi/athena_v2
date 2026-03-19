@@ -119,7 +119,7 @@ class ArticoliTable extends Component
     
     // Paginazione e ordinamento
     public $perPage = 25;
-    public $sortField = 'created_at';
+    public $sortField = 'codice';
     public $sortDirection = 'desc';
 
     // Colonne visibili in tabella
@@ -152,7 +152,7 @@ class ArticoliTable extends Component
         'soloVetrina' => ['except' => false],
         'fotoFilter' => ['except' => ''],
         'inDepositoFilter' => ['except' => ''],
-        'sortField' => ['except' => 'created_at'],
+        'sortField' => ['except' => 'codice'],
         'sortDirection' => ['except' => 'desc'],
     ];
 
@@ -380,7 +380,7 @@ class ArticoliTable extends Component
         $this->soloVetrina = false;
         $this->fotoFilter = '';
         $this->inDepositoFilter = '';
-        $this->sortField = 'created_at';
+        $this->sortField = 'codice';
         $this->sortDirection = 'desc';
         $this->resetPage();
         
