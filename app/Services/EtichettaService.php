@@ -118,12 +118,12 @@ class EtichettaService
         return '^XA
 ^MD30
 ^CI28
-^LH260,10                    ; Compensa etichetta centrata su Bellagio
+^LH220,8                     ; Taratura Bellagio: sposta il contenuto più a sinistra
 ^PW552^LL80
-^FO10,10^BQ,2,2^FDQA,{CARICO}^FS
-^FO60,10^A0N,14,14^FD{CARICO}^FS
-^FO60,25^A0N,13,13^FD{PREZZO}^FS
-^FO60,40^A0N,13,13^FB100,2,3,L^FD{CARATI}^FS
+^FO05,10^BQ,2,3^FDQA,{CARICO}^FS
+^FO80,10^A0N,19,19^FD{CARICO}^FS
+^FO80,35^A0N,19,19^FD{PREZZO}^FS
+^FO80,60^A0N,19,19^FB120,2,3,L^FD{CARATI}^FS
 ^XZ';
     }
 
