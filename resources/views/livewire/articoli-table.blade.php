@@ -736,10 +736,10 @@
                                 @endif
                                 @if($visibleColumns['descrizione'] ?? true)
                                 <td>
-                                    <div>
-                                        <span class="fw-semibold ">{{ Str::limit($articolo->descrizione, 30) ?? 'N/A' }}</span>
+                                    <div style="white-space: normal; word-break: break-word;">
+                                        <span class="fw-semibold ">{{ $articolo->descrizione ?? 'N/A' }}</span>
                                         @if($articolo->descrizione_estesa)
-                                            <br><small class="text-muted">{{ Str::limit($articolo->descrizione_estesa, 40) }}</small>
+                                            <br><small class="text-muted">{{ $articolo->descrizione_estesa }}</small>
                                         @endif
                                         @if($articolo->prodottoFinito && $articolo->prodottoFinito->componentiArticoli->isNotEmpty())
                                             @php
@@ -762,18 +762,15 @@
                                             @else
                                                 <span class="fw-semibold">Marca:</span> N/A
                                             @endif
-                                            @if($articolo->caratteristiche && is_array($articolo->caratteristiche) && isset($articolo->caratteristiche['referenza']))
-                                                <span class="ms-2">
-                                                    <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
-                                                    <span class="fw-semibold">Ref:</span> {{ $articolo->caratteristiche['referenza'] }}
-                                                </span>
-                                            @endif
-                                            @if(!empty($articolo->numero_seriale))
-                                                <span class="ms-2">
-                                                    <iconify-icon icon="solar:shield-keyhole-bold" class="text-info me-1"></iconify-icon>
-                                                    <span class="fw-semibold">SN:</span> {{ $articolo->numero_seriale }}
-                                                </span>
-                                            @endif
+                                            <span class="ms-2">
+                                                <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
+                                                <span class="fw-semibold">Ref:</span>
+                                                {{ (is_array($articolo->caratteristiche ?? null) && !empty($articolo->caratteristiche['referenza'])) ? $articolo->caratteristiche['referenza'] : '-' }}
+                                            </span>
+                                            <span class="ms-2">
+                                                <iconify-icon icon="solar:shield-keyhole-bold" class="text-info me-1"></iconify-icon>
+                                                <span class="fw-semibold">SN:</span> {{ $articolo->numero_seriale ?: '-' }}
+                                            </span>
                                         </small>
                                     </div>
                                 </td>
