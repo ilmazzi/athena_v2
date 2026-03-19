@@ -762,10 +762,21 @@
                                             @else
                                                 <span class="fw-semibold">Marca:</span> N/A
                                             @endif
+                                            @php
+                                                $referenzaJson = (is_array($articolo->caratteristiche ?? null) && !empty($articolo->caratteristiche['referenza']))
+                                                    ? trim((string) $articolo->caratteristiche['referenza'])
+                                                    : '';
+                                                $referenzaDoc = (string) optional(
+                                                    collect($articolo->caricoDettagli ?? [])->first(function ($row) {
+                                                        return !empty($row->referenza_fornitore);
+                                                    })
+                                                )->referenza_fornitore;
+                                                $referenzaView = $referenzaJson !== '' ? $referenzaJson : trim($referenzaDoc);
+                                            @endphp
                                             <span class="ms-2">
                                                 <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
                                                 <span class="fw-semibold">Ref:</span>
-                                                {{ (is_array($articolo->caratteristiche ?? null) && !empty($articolo->caratteristiche['referenza'])) ? $articolo->caratteristiche['referenza'] : '-' }}
+                                                {{ $referenzaView !== '' ? $referenzaView : '-' }}
                                             </span>
                                             <span class="ms-2">
                                                 <iconify-icon icon="solar:shield-keyhole-bold" class="text-info me-1"></iconify-icon>

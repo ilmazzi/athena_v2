@@ -1191,6 +1191,9 @@ class ArticoliTable extends Component
                       ->orWhere('articoli.ean', 'like', $searchTerm)
                       ->orWhere('articoli.modello', 'like', $searchTerm)
                       ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                      ->orWhereHas('caricoDettagli', function($subQ) use ($searchTerm) {
+                          $subQ->where('referenza_fornitore', 'like', $searchTerm);
+                      })
                       ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.marca') LIKE ?", [$searchTerm])
                       ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
                           $subQ->where('nome', 'like', $searchTerm)
@@ -1372,7 +1375,12 @@ class ArticoliTable extends Component
 
         switch ($this->prezziMatchType) {
             case 'referenza':
-                $query->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.referenza')) = ?", [$value]);
+                $query->where(function ($q) use ($value) {
+                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.referenza')) = ?", [$value])
+                        ->orWhereHas('caricoDettagli', function($subQ) use ($value) {
+                            $subQ->where('referenza_fornitore', $value);
+                        });
+                });
                 break;
             case 'modello':
                 $query->where('modello', $value);
@@ -1546,6 +1554,7 @@ class ArticoliTable extends Component
             'sede',
             'giacenza',
             'categoriaMerceologica',
+            'caricoDettagli',
             'prodottoFinito.componentiArticoli.articolo',
             'contoDepositoCorrente.sedeDestinataria',
         ];
@@ -1575,6 +1584,9 @@ class ArticoliTable extends Component
                       ->orWhere('ean', 'like', $searchTerm)
                       ->orWhere('modello', 'like', $searchTerm)
                       ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
+                      ->orWhereHas('caricoDettagli', function($subQ) use ($searchTerm) {
+                          $subQ->where('referenza_fornitore', 'like', $searchTerm);
+                      })
                       ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') LIKE ?", [$searchTerm])
                       ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
                           $subQ->where('nome', 'like', $searchTerm)
