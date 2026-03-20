@@ -2501,9 +2501,10 @@ class OcrService
         
         foreach ($articoli as $articolo) {
             $codice = strtoupper(trim($articolo['codice']));
+            $seriale = strtoupper(trim((string) ($articolo['numero_seriale'] ?? '')));
             
-            // Crea chiave univoca basata su codice
-            $key = $codice;
+            // Se presente, il seriale rende univoco il pezzo fisico.
+            $key = $seriale !== '' ? ($codice . '|' . $seriale) : $codice;
             
             // Se codice già visto, salta
             if (isset($seen[$key])) {
@@ -2512,10 +2513,15 @@ class OcrService
             
             // Controlla similarity con codici esistenti (solo OCR errors evidenti)
             $isDuplicate = false;
-            foreach ($seen as $existingCode => $index) {
+            foreach ($seen as $existingKey => $index) {
+                [$existingCode, $existingSeriale] = array_pad(explode('|', $existingKey, 2), 2, '');
+
+                if ($seriale !== '' && $existingSeriale !== '' && $seriale !== $existingSeriale) {
+                    continue;
+                }
                 // Calcola similarità tra codici
                 $distance = levenshtein($codice, $existingCode);
-                $similarity = similar_text($codice, $existingCode, $percent);
+                similar_text($codice, $existingCode, $percent);
                 
                 // Considera duplicato SOLO se:
                 // 1. Distanza 1 E similarità > 92% (es: O→0, I→1)
