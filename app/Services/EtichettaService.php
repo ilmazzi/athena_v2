@@ -50,25 +50,32 @@ class EtichettaService
      * Genera ZPL per cartellino NC non legato ad articolo.
      */
     public function generaEtichettaNcZpl(string $prezzo, string $formatoPrezzo = 'codificato', ?string $carati = null, $stampanteId = null): string
-    {
-        $stampante = $stampanteId
-            ? Stampante::find($stampanteId)
-            : $this->getStampanteDefaultNc();
+{
+    $stampante = $stampanteId
+        ? Stampante::find($stampanteId)
+        : $this->getStampanteDefaultNc();
 
-        if (!$stampante) {
-            throw new \Exception('Nessuna stampante disponibile');
-        }
-
-        $layout = filled($carati) ? 'nc_prezzo_carati' : 'nc_prezzo';
-        $template = $this->getTemplateZPL($stampante->modello, $layout);
-
-        return $this->popolaTemplateNc(
-            $template,
-            $this->formattaPrezzoCompat($prezzo, $formatoPrezzo),
-            $carati,
-            $stampante->modello
-        );
+    if (!$stampante) {
+        throw new \Exception('Nessuna stampante disponibile');
     }
+
+    $prezzoFormattato = $this->formattaPrezzoCompat($prezzo, $formatoPrezzo);
+
+    if ($stampante->modello === 'ZT421') {
+        return $this->buildNcZplZT421($prezzoFormattato, $carati);
+    }
+
+    $layout = filled($carati) ? 'nc_prezzo_carati' : 'nc_prezzo';
+    $template = $this->getTemplateZPL($stampante->modello, $layout);
+
+    return $this->popolaTemplateNc(
+        $template,
+        $prezzoFormattato,
+        $carati,
+        $stampante->modello
+    );
+}
+
 
     /**
      * Stampa cartellino NC non legato ad articolo.
@@ -163,8 +170,8 @@ class EtichettaService
     private function getTemplateZT230(): string
     {
         return '^XA
-^MD30               ; Massima densità
-^PR3                ; Velocità di stampa bassa = più scuro
+^MD30               ; Massima densitÃ 
+^PR3                ; VelocitÃ  di stampa bassa = piÃ¹ scuro
 ^PW552^LL80
 ^FO10,10^BQ,2,2^FDQA,{CARICO}^FS
 ^FO60,10^A@N,14,14,E:TT0003M_.FNT^FD{CARICO}^FS
@@ -309,7 +316,7 @@ class EtichettaService
         ], [
             $carico,
             $caricoQr, // Per QR code
-            '€' . number_format($articolo->prezzo_fornitore ?? $articolo->prezzo_acquisto ?? 0, 2),
+            'â‚¬' . number_format($articolo->prezzo_fornitore ?? $articolo->prezzo_acquisto ?? 0, 2),
             $carati,
             $oro,
             $brill,
@@ -368,10 +375,10 @@ class EtichettaService
 
         if ($isLecco) {
             $prezzoFormattato = trim((string) $prezzoFormattato);
-            if ($prezzoFormattato !== '' && !str_starts_with($prezzoFormattato, '€ ')) {
-                $prezzoFormattato = str_starts_with($prezzoFormattato, '€')
-                    ? '€ ' . ltrim(substr($prezzoFormattato, 1))
-                    : '€ ' . ltrim($prezzoFormattato);
+            if ($prezzoFormattato !== '' && !str_starts_with($prezzoFormattato, 'â‚¬ ')) {
+                $prezzoFormattato = str_starts_with($prezzoFormattato, 'â‚¬')
+                    ? 'â‚¬ ' . ltrim(substr($prezzoFormattato, 1))
+                    : 'â‚¬ ' . ltrim($prezzoFormattato);
             }
 
             if ($carati !== '') {
@@ -453,12 +460,12 @@ class EtichettaService
             $prezzoNumerico = str_replace(',', '.', $prezzoNumerico);
             
             if (is_numeric($prezzoNumerico)) {
-                return '€' . number_format((float)$prezzoNumerico, 2, ',', '.');
+                return 'â‚¬' . number_format((float)$prezzoNumerico, 2, ',', '.');
             } else {
-                return '€' . $prezzo; // Se non è numerico, usa così com'è
+                return 'â‚¬' . $prezzo; // Se non Ã¨ numerico, usa cosÃ¬ com'Ã¨
             }
         } else {
-            // Formato codificato (es. 345X3P3) - usa così com'è
+            // Formato codificato (es. 345X3P3) - usa cosÃ¬ com'Ã¨
             return $prezzo;
         }
     }
@@ -468,14 +475,18 @@ class EtichettaService
         if ($formatoPrezzo !== 'euro') {
             return $prezzo;
         }
-
+    
         $prezzoNumerico = $this->normalizeEuroPriceCompat($prezzo);
         if ($prezzoNumerico === null) {
-            return 'â‚¬' . $prezzo;
+            $raw = trim((string) $prezzo);
+            $raw = preg_replace('/^[^\d]*/u', '', $raw);
+    
+            return '€ ' . $raw;
         }
-
-        return 'â‚¬' . number_format($prezzoNumerico, 2, ',', '.');
+    
+        return '€ ' . number_format($prezzoNumerico, 2, ',', '.');
     }
+    
 
     private function normalizeEuroPriceCompat($value): ?float
     {
@@ -537,11 +548,34 @@ class EtichettaService
     private function normalizePrinterEncoding(string $zpl): string
     {
         return str_replace(
-            ['Ã¢â€šÂ¬', 'â‚¬', '€'],
+            ['ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬', 'Ã¢â€šÂ¬', 'â‚¬'],
             '€',
             $zpl
         );
     }
+    
+    private function buildNcZplZT421(string $prezzoFormattato, ?string $carati): string
+    {
+        $prezzoFormattato = trim($prezzoFormattato);
+        $prezzoFormattato = preg_replace('/^[^\d]*/u', '', $prezzoFormattato);
+        $prezzoFormattato = '€ ' . ltrim($prezzoFormattato);
+    
+        $carati = trim((string) $carati);
+        if ($carati !== '') {
+            $carati = preg_replace('/^ct\s*/i', '', $carati);
+            $carati = 'CT ' . ltrim($carati);
+        }
+    
+        return '^XA
+    ^MD30
+    ^PR3
+    ^LH180,0
+    ^PW552^LL80
+    ^FO60,25^A@N,13,13,E:TT0003M_.FNT^FD' . $prezzoFormattato . '^FS
+    ^FO60,40^A@N,13,13,E:TT0003M_.FNT^FD' . $carati . '^FS
+    ^XZ';
+    }
+    
 
     /**
      * Stampa etichetta per un articolo
@@ -565,3 +599,4 @@ class EtichettaService
         );
     }
 }
+
