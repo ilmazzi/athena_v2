@@ -109,7 +109,7 @@ class MovimentazioneInternaController extends Controller
     public function stampaDdt($movimentazioneId)
     {
         $movimentazione = \App\Models\Movimentazione::with([
-            'dettagli.articolo',
+            'dettagli.articolo' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
             'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
@@ -125,7 +125,7 @@ class MovimentazioneInternaController extends Controller
     public function downloadDdt($movimentazioneId)
     {
         $movimentazione = \App\Models\Movimentazione::with([
-            'dettagli.articolo',
+            'dettagli.articolo' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
             'dettagli.prodottoFinito.componentiArticoli.articolo',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
