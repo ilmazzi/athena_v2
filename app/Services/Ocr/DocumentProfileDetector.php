@@ -37,6 +37,17 @@ class DocumentProfileDetector
         }
 
         if (
+            str_contains($normalized, 'TUDOR')
+            && (
+                str_contains($normalized, 'LISTA ANALITICA')
+                || str_contains($normalized, 'COD. ARTICOLO')
+                || str_contains($normalized, 'N. SERIE')
+            )
+        ) {
+            return new DocumentProfile('tudor', $tipoDocumento, 'tudor', ['keyword' => 'TUDOR']);
+        }
+
+        if (
             str_contains($normalized, 'IDANDI')
             || preg_match('/\b(IDAN|DANDI|ANDI|SATC|SAT|SATO)\b/', $normalized)
         ) {

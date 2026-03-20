@@ -15,6 +15,7 @@ use App\Services\Ocr\Parsers\PomellatoDdtArticoliParser;
 use App\Services\Ocr\Parsers\PomellatoFatturaArticoliParser;
 use App\Services\Ocr\Parsers\RolexArticoliParser;
 use App\Services\Ocr\Parsers\SwatchGroupArticoliParser;
+use App\Services\Ocr\Parsers\TudorArticoliParser;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +45,7 @@ class OcrService
             new PomellatoFatturaArticoliParser(),
             new PomellatoDdtArticoliParser(),
             new SwatchGroupArticoliParser(),
+            new TudorArticoliParser(),
             new IdandiArticoliParser(),
             new BeringArticoliParser(),
             new MarcoBicegoArticoliParser(),
@@ -1336,6 +1338,70 @@ class OcrService
         }
 
         return array_values($articoli);
+    }
+
+    public function parseTudorProfileArticoli(string $text): array
+    {
+        $articoli = [];
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text)), static fn ($line) => $line !== ''));
+        $count = count($lines);
+
+        for ($i = 0; $i < $count; $i++) {
+            $line = $lines[$i];
+
+            if (
+                str_starts_with(strtoupper($line), 'TOTALE ')
+                || !preg_match('/^([A-Z0-9\-]{8,20})\s+([A-Z0-9]{6,10})\s+TUDOR\s+(.+?)\s+(\d+)\s*PCE\s+([\d\.,]+)\s+([\d\.,]+)$/i', $line, $m)
+            ) {
+                continue;
+            }
+
+            $codice = strtoupper(trim($m[1]));
+            $seriale = strtoupper(trim($m[2]));
+            $descrizione = 'TUDOR ' . trim($m[3]);
+            $quantita = max(1, (int) $m[4]);
+            $prezzoUnitario = $this->parsePriceToFloat($m[5]);
+            $prezzoTotale = $this->parsePriceToFloat($m[6]);
+
+            $nextLine = $lines[$i + 1] ?? null;
+            if ($nextLine && !$this->isTudorHeaderOrTotalLine($nextLine) && !$this->isLikelyNewTudorRow($nextLine)) {
+                if (preg_match('/^(\d{4})\s+(.+)$/', $nextLine, $continuation)) {
+                    if (str_ends_with($codice, '-')) {
+                        $codice .= $continuation[1];
+                    } else {
+                        $descrizione .= ' ' . $continuation[1];
+                    }
+                    $descrizione .= ' ' . trim($continuation[2]);
+                } else {
+                    $descrizione .= ' ' . $nextLine;
+                }
+
+                $i++;
+            }
+
+            $descrizione = trim(preg_replace('/\s+/', ' ', $descrizione));
+
+            $articoli[$codice . '|' . $seriale] = [
+                'codice' => $codice,
+                'descrizione' => $descrizione,
+                'quantita' => $quantita,
+                'numero_seriale' => $seriale,
+                'prezzo_unitario' => $prezzoUnitario,
+                'prezzo_totale' => $prezzoTotale,
+            ];
+        }
+
+        return array_values($articoli);
+    }
+
+    protected function isLikelyNewTudorRow(string $line): bool
+    {
+        return (bool) preg_match('/^[A-Z0-9\-]{8,20}\s+[A-Z0-9]{6,10}\s+TUDOR\s+/i', $line);
+    }
+
+    protected function isTudorHeaderOrTotalLine(string $line): bool
+    {
+        return (bool) preg_match('/^(TOTALE\b|COD\.\s*ARTICOLO\b|N\.\s*SERIE\b|DESCRIZIONE\b)/i', $line);
     }
 
     public function parseIdandiProfileArticoli(string $text): array
