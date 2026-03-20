@@ -232,6 +232,10 @@ class EtichettaService
 
     private function getTemplateNc(string $modello): string
     {
+        if ($modello === 'ZT421') {
+            return $this->getTemplateNcZT421();
+        }
+
         if ($modello === 'ZT420') {
             return $this->getTemplateNcZT420();
         }
@@ -246,6 +250,18 @@ class EtichettaService
         }
 
         return file_get_contents($path);
+    }
+
+    private function getTemplateNcZT421(): string
+    {
+        return '^XA
+^MD30
+^CI28
+^LH180,0
+^PW552^LL80
+^FO60,25^A0N,16,16^FD{PREZZO}^FS
+^FO60,50^A0N,14,14^FB100,2,3,L^FD{CARATI}^FS
+^XZ';
     }
 
     private function getTemplateNcZT420(): string
@@ -480,6 +496,8 @@ class EtichettaService
     public function inviaAllaStampante(string $ip, int $port, string $zpl): bool
     {
         try {
+            $zpl = $this->normalizePrinterEncoding($zpl);
+
             $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
             if (!$socket) {
                 throw new \Exception('Impossibile creare il socket');
@@ -498,6 +516,15 @@ class EtichettaService
             Log::error('Errore stampa etichetta: ' . $e->getMessage());
             return false;
         }
+    }
+
+    private function normalizePrinterEncoding(string $zpl): string
+    {
+        return str_replace(
+            ['Ã¢â€šÂ¬', 'â‚¬', '€'],
+            chr(128),
+            $zpl
+        );
     }
 
     /**
