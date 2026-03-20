@@ -630,11 +630,24 @@ class MovimentazioneInternaNew extends Component
         $giacenzaSede = GiacenzaSede::where('articolo_id', $articoloId)
             ->where('sede_id', $sedeId)
             ->first();
-        if (!$giacenzaSede) {
-            return;
+
+        $quantita = 0;
+        if ($giacenzaSede) {
+            $quantita = max($giacenzaSede->quantita_residua ?? 0, $giacenzaSede->quantita ?? 0);
+        } else {
+            $giacenzaFallback = Giacenza::where('articolo_id', $articoloId)
+                ->where(function ($q) {
+                    $q->where('quantita_residua', '>', 0)
+                      ->orWhere('quantita', '>', 0);
+                })
+                ->orderByDesc('quantita_residua')
+                ->first();
+
+            if ($giacenzaFallback) {
+                $quantita = max($giacenzaFallback->quantita_residua ?? 0, $giacenzaFallback->quantita ?? 0);
+            }
         }
 
-        $quantita = max($giacenzaSede->quantita_residua ?? 0, $giacenzaSede->quantita ?? 0);
         if ($quantita <= 0) {
             return;
         }
