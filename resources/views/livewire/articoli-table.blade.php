@@ -1534,7 +1534,7 @@
 
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo acquisto</label>
-                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" readonly>
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="€ 0,00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo fornitore</label>

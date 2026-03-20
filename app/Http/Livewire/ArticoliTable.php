@@ -994,6 +994,7 @@ class ArticoliTable extends Component
             'modifica.peso_netto' => 'nullable',
             'modifica.titolo' => 'nullable|string|max:50',
             'modifica.caratura' => 'nullable|string|max:50',
+            'modifica.prezzo_acquisto' => 'nullable',
             'modifica.prezzo_fornitore' => 'nullable',
             'modifica.note' => 'nullable|string',
             'modifica.ean' => 'nullable|string|max:60',
@@ -1009,10 +1010,15 @@ class ArticoliTable extends Component
         try {
             $articolo = Articolo::findOrFail($this->articoloDaModificare->id);
 
+            $prezzoAcquisto = $this->normalizePrezzo($this->modifica['prezzo_acquisto'] ?? null);
             $prezzoFornitore = $this->normalizePrezzo($this->modifica['prezzo_fornitore'] ?? null);
             $pesoLordo = $this->normalizePrezzo($this->modifica['peso_lordo'] ?? null);
             $pesoNetto = $this->normalizePrezzo($this->modifica['peso_netto'] ?? null);
 
+            if (($this->modifica['prezzo_acquisto'] ?? '') !== '' && $prezzoAcquisto === null) {
+                session()->flash('error', 'Prezzo acquisto non valido.');
+                return;
+            }
             if (($this->modifica['prezzo_fornitore'] ?? '') !== '' && $prezzoFornitore === null) {
                 session()->flash('error', 'Prezzo fornitore non valido.');
                 return;
@@ -1055,6 +1061,7 @@ class ArticoliTable extends Component
                 'peso_netto' => $pesoNetto,
                 'titolo' => $this->modifica['titolo'] ?: null,
                 'caratura' => $this->modifica['caratura'] ?: null,
+                'prezzo_acquisto' => $prezzoAcquisto,
                 'prezzo_fornitore' => $prezzoFornitore,
                 'note' => $this->modifica['note'] ?: null,
                 'ean' => $this->modifica['ean'] ?: null,
