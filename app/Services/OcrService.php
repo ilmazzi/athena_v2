@@ -589,6 +589,20 @@ class OcrService
             }
         }
 
+        if ($this->shouldTryTudorFallback($text)) {
+            $parsed = $this->parseTudorProfileArticoli($text);
+            if (empty($parsed) && $this->currentPdfPath) {
+                $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+                if ($pdfText) {
+                    $parsed = $this->parseTudorProfileArticoli($pdfText);
+                }
+            }
+
+            if (!empty($parsed)) {
+                return $parsed;
+            }
+        }
+
         if ($isTudorProfile) {
             return [];
         }
@@ -1236,6 +1250,23 @@ class OcrService
             || preg_match('/Invoice\s*Number|Number\s*\n/i', $text)
             || preg_match('/Document\s+EWFP|EWFP\d/i', $text)
             || preg_match('/\d{4}\/VE\/\d+/', $text);
+    }
+
+    protected function shouldTryTudorFallback(string $text): bool
+    {
+        if (!preg_match('/LISTA\s+ANALITICA/i', $text)) {
+            return false;
+        }
+
+        if (
+            !preg_match('/COD\.\s*ARTICOLO/i', $text)
+            && !preg_match('/N\.\s*SERIE/i', $text)
+        ) {
+            return false;
+        }
+
+        return preg_match('/[A-Z0-9\-]{8,24}\s+[A-Z0-9]{6,10}\s+.+?\s+\d+\s*PCE\s+[\d\.,]+\s+[\d\.,]+/mi', $text)
+            || preg_match('/\bTUDOR\b/i', $text);
     }
 
     public function parsePomellatoDdtProfileArticoli(string $text): array
