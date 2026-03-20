@@ -580,12 +580,17 @@ class OcrService
         $skipLineIndexes = [];
         $profile = $this->currentProfile ?? $this->profileDetector->detect($text, 'ddt');
         $parser = $this->parserRegistry->resolve($profile);
+        $isTudorProfile = $profile->is('tudor');
 
         if ($parser) {
             $parsed = $parser->parse($text, new OcrParsingContext($this, $profile, $this->currentPdfPath));
             if (!empty($parsed)) {
                 return $parsed;
             }
+        }
+
+        if ($isTudorProfile) {
+            return [];
         }
 
         if ($this->shouldTryPomellatoFatturaFallback($text)) {
@@ -1349,16 +1354,20 @@ class OcrService
         for ($i = 0; $i < $count; $i++) {
             $line = $lines[$i];
 
-            if (
-                str_starts_with(strtoupper($line), 'TOTALE ')
-                || !preg_match('/^([A-Z0-9\-]{8,20})\s+([A-Z0-9]{6,10})\s+TUDOR\s+(.+?)\s+(\d+)\s*PCE\s+([\d\.,]+)\s+([\d\.,]+)$/i', $line, $m)
-            ) {
+            if ($this->isTudorHeaderOrTotalLine($line)) {
+                continue;
+            }
+
+            if (!preg_match($this->getTudorRowPattern(), $line, $m)) {
                 continue;
             }
 
             $codice = strtoupper(trim($m[1]));
             $seriale = strtoupper(trim($m[2]));
-            $descrizione = 'TUDOR ' . trim($m[3]);
+            $descrizione = trim($m[3]);
+            if (!preg_match('/^TUDOR\b/i', $descrizione)) {
+                $descrizione = 'TUDOR ' . $descrizione;
+            }
             $quantita = max(1, (int) $m[4]);
             $prezzoUnitario = $this->parsePriceToFloat($m[5]);
             $prezzoTotale = $this->parsePriceToFloat($m[6]);
@@ -1396,12 +1405,17 @@ class OcrService
 
     protected function isLikelyNewTudorRow(string $line): bool
     {
-        return (bool) preg_match('/^[A-Z0-9\-]{8,20}\s+[A-Z0-9]{6,10}\s+TUDOR\s+/i', $line);
+        return (bool) preg_match($this->getTudorRowPattern(), $line);
     }
 
     protected function isTudorHeaderOrTotalLine(string $line): bool
     {
-        return (bool) preg_match('/^(TOTALE\b|COD\.\s*ARTICOLO\b|N\.\s*SERIE\b|DESCRIZIONE\b)/i', $line);
+        return (bool) preg_match('/^(TOTALE\b|DATA DEL DOCUMENTO\b|DATA DI RITIRO\b|PESO\b|COD\.\s*ARTICOLO\b|N\.\s*SERIE\b|DESCRIZIONE\b|QUANTIT[AÀ]\b|PREZZO\b|SCONTO\b|IMPORTO\b)/i', $line);
+    }
+
+    protected function getTudorRowPattern(): string
+    {
+        return '/^([A-Z0-9\-]{8,24})\s+([A-Z0-9]{6,10})\s+(.+?)\s+(\d+)\s*PCE\s+([\d\.,]+)\s+([\d\.,]+)$/i';
     }
 
     public function parseIdandiProfileArticoli(string $text): array
