@@ -538,7 +538,7 @@ class EtichettaService
     {
         return str_replace(
             ['Ã¢â€šÂ¬', 'â‚¬', '€'],
-            chr(128),
+            '€',
             $zpl
         );
     }
