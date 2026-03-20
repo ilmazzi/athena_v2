@@ -37,12 +37,12 @@ class DocumentProfileDetector
         }
 
         if (
-            str_contains($normalized, 'TUDOR')
+            str_contains($normalized, 'LISTA ANALITICA')
             && (
-                str_contains($normalized, 'LISTA ANALITICA')
-                || str_contains($normalized, 'COD. ARTICOLO')
+                str_contains($normalized, 'COD. ARTICOLO')
                 || str_contains($normalized, 'N. SERIE')
             )
+            && preg_match('/[A-Z0-9\-]{8,20}\s+[A-Z0-9]{6,10}\s+.+?\s+\d+\s*PCE\s+[\d\.,]+\s+[\d\.,]+/m', $normalized)
         ) {
             return new DocumentProfile('tudor', $tipoDocumento, 'tudor', ['keyword' => 'TUDOR']);
         }
