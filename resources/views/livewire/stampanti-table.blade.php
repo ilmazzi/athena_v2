@@ -166,6 +166,7 @@
                                 <label class="form-label">Modello</label>
                                 <select wire:model="modello" class="form-select" required>
                                     <option value="ZT230">ZT230 (Piccola)</option>
+                                    <option value="ZT421">ZT421 (Lecco)</option>
                                     <option value="ZT420">ZT420 (Media)</option>
                                     <option value="ZT620">ZT620 (Grande)</option>
                                 </select>

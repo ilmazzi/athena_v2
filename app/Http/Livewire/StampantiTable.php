@@ -34,7 +34,7 @@ class StampantiTable extends Component
         'nome' => 'required|string|max:255',
         'ip_address' => 'required|ip',
         'port' => 'required|integer|min:1|max:65535',
-        'modello' => 'required|string|in:ZT230,ZT420,ZT620',
+        'modello' => 'required|string|in:ZT230,ZT421,ZT420,ZT620',
         'categorie_permesse' => 'required|array|min:1',
         'sedi_permesse' => 'required|array|min:1',
         'attiva' => 'boolean'
