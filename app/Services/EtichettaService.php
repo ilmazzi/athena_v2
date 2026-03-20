@@ -64,7 +64,7 @@ class EtichettaService
 
         return $this->popolaTemplateNc(
             $template,
-            $this->formattaPrezzo($prezzo, $formatoPrezzo),
+            $this->formattaPrezzoCompat($prezzo, $formatoPrezzo),
             $carati,
             $stampante->modello
         );
@@ -307,7 +307,7 @@ class EtichettaService
     private function popolaTemplateConPrezzo(string $template, Articolo $articolo, string $prezzo, string $formatoPrezzo, string $layout = 'standard'): string
     {
         // Formatta il prezzo in base al formato
-        $prezzoFormattato = $this->formattaPrezzo($prezzo, $formatoPrezzo);
+        $prezzoFormattato = $this->formattaPrezzoCompat($prezzo, $formatoPrezzo);
         $carico = $layout === 'standard' ? $this->getEtichettaCarico($articolo) : '';
         $carati = $this->getEtichettaCarati($articolo);
         $oro = $this->getEtichettaOro($articolo);
@@ -429,6 +429,49 @@ class EtichettaService
             // Formato codificato (es. 345X3P3) - usa così com'è
             return $prezzo;
         }
+    }
+
+    private function formattaPrezzoCompat(string $prezzo, string $formatoPrezzo): string
+    {
+        if ($formatoPrezzo !== 'euro') {
+            return $prezzo;
+        }
+
+        $prezzoNumerico = $this->normalizeEuroPriceCompat($prezzo);
+        if ($prezzoNumerico === null) {
+            return 'â‚¬' . $prezzo;
+        }
+
+        return 'â‚¬' . number_format($prezzoNumerico, 2, ',', '.');
+    }
+
+    private function normalizeEuroPriceCompat($value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $raw = preg_replace('/[^\d,.\-]/', '', trim((string) $value));
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{1,3}(?:,\d{3})*(?:\.\d+)?$/', $raw) || preg_match('/^\d+(?:\.\d+)?$/', $raw)) {
+            $normalized = str_replace(',', '', $raw);
+            return is_numeric($normalized) ? (float) $normalized : null;
+        }
+
+        if (preg_match('/^\d{1,3}(?:\.\d{3})*(?:,\d+)?$/', $raw) || preg_match('/^\d+(?:,\d+)?$/', $raw)) {
+            $normalized = str_replace('.', '', $raw);
+            $normalized = str_replace(',', '.', $normalized);
+            return is_numeric($normalized) ? (float) $normalized : null;
+        }
+
+        return null;
     }
 
     /**

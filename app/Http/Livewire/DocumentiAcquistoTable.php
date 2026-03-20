@@ -692,7 +692,6 @@ class DocumentiAcquistoTable extends Component
             return '';
         }
 
-        return number_format($prezzo, 2, ',', '');
+        return number_format($prezzo, 2, ',', '.');
     }
 }
-
