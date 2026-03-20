@@ -149,7 +149,7 @@ class EtichettaService
 
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
-            'ZT421' => $this->getTemplateZT620(),
+            'ZT421' => $this->getTemplateZT421(),
             'ZT420' => $this->getTemplateZT420(),
             'ZT620' => $this->getTemplateZT620(),
         ];
@@ -180,15 +180,15 @@ class EtichettaService
     {
         return '^XA
 ^PW552
-^LL120
-^LH0,0
+^LL80
+^LH-120,-10
 ^CI28
 ^MD30
 ^PR3
-^FO20,15^BQN,2,4^FDLA,{CARICO}^FS
-^FO150,18^A0N,28,28^FD{CARICO}^FS
-^FO150,52^A0N,24,24^FD{PREZZO}^FS
-^FO150,82^A0N,22,22^FB340,2,4,L,0^FD{CARATI}^FS
+^FO5,8^BQN,2,2^FDLA,{CARICO}^FS
+^FO70,12^A0N,18,18^FD{CARICO}^FS
+^FO70,38^A0N,16,16^FD{PREZZO}^FS
+^FO70,56^A0N,14,14^FB140,2,3,L,0^FD{CARATI}^FS
 ^XZ';
     }
 
