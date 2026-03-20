@@ -364,6 +364,22 @@ class EtichettaService
     {
         $carati = trim((string) $carati);
         $isRoma = $modello === 'ZT620';
+        $isLecco = $modello === 'ZT421';
+
+        if ($isLecco) {
+            $prezzoFormattato = trim((string) $prezzoFormattato);
+            if ($prezzoFormattato !== '' && !str_starts_with($prezzoFormattato, '€ ')) {
+                $prezzoFormattato = str_starts_with($prezzoFormattato, '€')
+                    ? '€ ' . ltrim(substr($prezzoFormattato, 1))
+                    : '€ ' . ltrim($prezzoFormattato);
+            }
+
+            if ($carati !== '') {
+                $carati = preg_match('/^ct\b/i', $carati)
+                    ? 'CT ' . trim(substr($carati, 2))
+                    : 'CT ' . $carati;
+            }
+        }
 
         return str_replace([
             '{CARICO}',
