@@ -945,7 +945,7 @@
                                         @if($articolo->prezzo_acquisto)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:dollar-bold" class="text-warning"></iconify-icon>
-                                                <span class="fw-semibold text-warning">€{{ number_format($articolo->prezzo_acquisto, 0, ',', '.') }}</span>
+                                                <span class="fw-semibold text-warning">€{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -959,7 +959,7 @@
                                         @if($articolo->prezzo_fornitore)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
-                                                <span class="fw-semibold text-success">€{{ number_format($articolo->prezzo_fornitore, 0, ',', '.') }}</span>
+                                                <span class="fw-semibold text-success">€{{ number_format($articolo->prezzo_fornitore, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -971,7 +971,7 @@
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->prezzo_acquisto && $articolo->giacenza)
-                                            <span class="fw-semibold ">€{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 0, ',', '.') }}</span>
+                                            <span class="fw-semibold ">€{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 2, ',', '.') }}</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
