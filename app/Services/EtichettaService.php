@@ -149,7 +149,7 @@ class EtichettaService
 
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
-            'ZT421' => $this->getTemplateZT421(),
+            'ZT421' => $this->getTemplateZT230(),
             'ZT420' => $this->getTemplateZT420(),
             'ZT620' => $this->getTemplateZT620(),
         ];
