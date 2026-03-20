@@ -149,7 +149,7 @@ class EtichettaService
 
         $templates = [
             'ZT230' => $this->getTemplateZT230(),
-            'ZT421' => $this->getTemplateZT230(),
+            'ZT421' => $this->getTemplateZT421(),
             'ZT420' => $this->getTemplateZT420(),
             'ZT620' => $this->getTemplateZT620(),
         ];
@@ -170,6 +170,23 @@ class EtichettaService
 ^FO60,10^A@N,14,14,E:TT0003M_.FNT^FD{CARICO}^FS
 ^FO60,25^A@N,13,13,E:TT0003M_.FNT^FD{PREZZO}^FS
 ^FO60,40^A@N,13,13,E:TT0003M_.FNT^FB100,2,3,L^FD{CARATI}^FS
+^XZ';
+    }
+
+    /**
+     * Template per ZT421 (Lecco) con font residenti Zebra.
+     */
+    private function getTemplateZT421(): string
+    {
+        return '^XA
+^MD30
+^CI28
+^PR3
+^PW552^LL80
+^FO10,10^BQ,2,2^FDQA,{CARICO}^FS
+^FO60,10^A0N,18,18^FD{CARICO}^FS
+^FO60,30^A0N,16,16^FD{PREZZO}^FS
+^FO60,48^A0N,15,15^FB110,2,3,L^FD{CARATI}^FS
 ^XZ';
     }
 
