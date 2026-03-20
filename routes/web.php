@@ -23,6 +23,7 @@ use App\Http\Livewire\InventarioMonitor;
 use App\Http\Livewire\GiacenzePerSede;
 use App\Http\Livewire\GiacenzePerUbicazione;
 use App\Http\Livewire\GiacenzeInventario;
+use App\Http\Livewire\StampaNc;
 use App\Http\Controllers\StampaController;
 
 require __DIR__.'/auth.php';
@@ -53,6 +54,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [MagazzinoViewController::class, 'index'])->name('magazzino.index');
         Route::get('/scarico', ScaricoMagazzino::class)->name('magazzino.scarico');
         Route::get('/scanner', ScannerInventario::class)->name('magazzino.scanner');
+        Route::get('/stampa-nc', StampaNc::class)->name('magazzino.stampa-nc');
     });
 
     // Amministrazione Magazzino routes

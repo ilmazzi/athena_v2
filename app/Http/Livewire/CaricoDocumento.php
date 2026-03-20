@@ -170,17 +170,14 @@ class CaricoDocumento extends Component
         $this->confidenceScore = $doc->confidence_score;
         $this->articoli = $dati['articoli'] ?? [];
 
-        // Verifica esistenza articoli
         foreach ($this->articoli as $index => $articolo) {
-            $articoloEsistente = Articolo::where('codice', $articolo['codice'] ?? '')->first();
             $prezzoBaseEtichetta = $articolo['prezzo_unitario']
-                ?? $articoloEsistente?->prezzo_fornitore
                 ?? null;
             $prezzoBaseEtichettaNormalizzato = $this->normalizePrice($prezzoBaseEtichetta);
             $prezzoEtichettaEstratto = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
 
-            $this->articoli[$index]['articolo_id'] = $articoloEsistente?->id;
-            $this->articoli[$index]['esiste'] = !is_null($articoloEsistente);
+            $this->articoli[$index]['articolo_id'] = null;
+            $this->articoli[$index]['esiste'] = false;
             $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
             $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
             $this->articoli[$index]['prezzo_etichetta'] = $prezzoEtichettaEstratto !== ''
@@ -190,9 +187,10 @@ class CaricoDocumento extends Component
                         ? number_format((float) $prezzoBaseEtichettaNormalizzato, 2, ',', '')
                         : ''
                 );
-            $this->articoli[$index]['categoria_id'] = $articoloEsistente?->categoria_merceologica_id
-                ?? $articolo['categoria_id']
+            $this->articoli[$index]['categoria_id'] = $articolo['categoria_id']
                 ?? $this->categoriaId;
+            $this->articoli[$index]['numero_seriale'] = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
+            $this->articoli[$index]['ean'] = trim((string) ($articolo['ean'] ?? ''));
         }
     }
 
@@ -377,15 +375,103 @@ class CaricoDocumento extends Component
 
             // 2. Processa articoli
             $articoliDaStampare = [];
+            $this->assertSerialsAreUniqueForCurrentLoad();
 
             foreach ($this->articoli as $articolo) {
                 $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
                 $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
                 $referenzaFornitore = trim((string) ($articolo['codice'] ?? ''));
+                $numeroSeriale = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
+                $ean = trim((string) ($articolo['ean'] ?? '')) ?: null;
                 if ($prezzoUnitario !== null && (!$prezzoTotale || $prezzoTotale <= 0)) {
                     $prezzoTotale = $prezzoUnitario * ($articolo['quantita'] ?? 1);
                 }
                 $articoloCategoriaId = $articolo['categoria_id'] ?? $this->categoriaId;
+
+                $this->assertSerialIsAvailable($numeroSeriale);
+
+                $codiceService = app(\App\Services\CodiceService::class);
+                $codiceVO = $codiceService->prossimoCodiceDisponibile($articoloCategoriaId);
+
+                $nuovoArticolo = Articolo::create([
+                    'codice' => $codiceVO->toString(),
+                    'descrizione' => $articolo['descrizione'] ?? '',
+                    'categoria_merceologica_id' => $articoloCategoriaId,
+                    'sede_id' => $this->sedeId,
+                    'fornitore_id' => $this->fornitoreId ?: null,
+                    'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
+                    'prezzo_fornitore' => $prezzoUnitario,
+                    'ean' => $ean,
+                    'numero_seriale' => $numeroSeriale,
+                    'caratura' => $articolo['caratura'] ?? null,
+                    'caratteristiche' => [
+                        'referenza' => $referenzaFornitore,
+                        'marca' => null,
+                        'oro' => null,
+                        'pietre' => null,
+                        'brill' => null,
+                    ],
+                    'stato' => 'disponibile',
+                    'stato_articolo' => 'disponibile',
+                    'tipo_carico' => $this->tipoDocumento,
+                    'numero_documento_carico' => $this->numeroDocumento,
+                    'data_carico' => $this->dataDocumento,
+                ]);
+                $articoloId = $nuovoArticolo->id;
+
+                CaricoDettaglio::create([
+                    'ddt_id' => $this->tipoDocumento === 'ddt' ? $documento->id : null,
+                    'fattura_id' => $this->tipoDocumento === 'fattura' ? $documento->id : null,
+                    'articolo_id' => $articoloId,
+                    'referenza_fornitore' => $referenzaFornitore,
+                    'descrizione' => $articolo['descrizione'] ?? '',
+                    'quantita' => $articolo['quantita'],
+                    'numero_seriale' => $numeroSeriale,
+                    'ean' => $ean,
+                    'prezzo_unitario' => $prezzoUnitario,
+                    'prezzo_totale' => $prezzoTotale,
+                    'verificato' => true,
+                    'creato_nuovo' => true,
+                ]);
+
+                if ($this->tipoDocumento === 'ddt') {
+                    \App\Models\DdtDettaglio::create([
+                        'ddt_id' => $documento->id,
+                        'articolo_id' => $articoloId,
+                        'quantita' => $articolo['quantita'],
+                        'descrizione' => $articolo['descrizione'] ?? '',
+                    ]);
+                } else {
+                    \App\Models\FatturaDettaglio::create([
+                        'fattura_id' => $documento->id,
+                        'articolo_id' => $articoloId,
+                        'quantita' => $articolo['quantita'],
+                        'prezzo_unitario' => $prezzoUnitario,
+                        'totale_riga' => $prezzoTotale,
+                        'codice_articolo' => $articolo['codice'] ?? null,
+                        'descrizione' => $articolo['descrizione'] ?? '',
+                        'caricato' => true,
+                    ]);
+                }
+
+                Giacenza::create([
+                    'articolo_id' => $articoloId,
+                    'sede_id' => $this->sedeId,
+                    'quantita' => $articolo['quantita'],
+                    'quantita_residua' => $articolo['quantita'],
+                    'quantita_iniziale' => $articolo['quantita'],
+                ]);
+
+                $numeroArticoli++;
+                $quantitaTotale += $articolo['quantita'];
+
+                $articoliDaStampare[] = [
+                    'articolo_id' => $articoloId,
+                    'quantita' => (int) ($articolo['quantita'] ?? 1),
+                    'prezzo_etichetta' => $articolo['prezzo_etichetta'] ?? '',
+                ];
+
+                continue;
 
                 // Crea o aggiorna articolo
                 if (empty($articolo['articolo_id'])) {
@@ -535,7 +621,7 @@ class CaricoDocumento extends Component
             // 3. Aggiorna OCR document
             if ($this->ocrDocumentId) {
                 OcrDocument::find($this->ocrDocumentId)->update([
-                    'status' => 'completed',
+                    'status' => 'validated',
                     'validated_by' => auth()->id(),
                     'validated_at' => now(),
                 ]);
@@ -699,6 +785,51 @@ class CaricoDocumento extends Component
         return 'X' . $valore . ($tipo === 'P' ? 'P' : 'G') . $suffix;
     }
 
+    protected function normalizeSerial($value): ?string
+    {
+        $serial = strtoupper(trim((string) $value));
+
+        return $serial !== '' ? $serial : null;
+    }
+
+    protected function assertSerialsAreUniqueForCurrentLoad(): void
+    {
+        $serials = [];
+
+        foreach ($this->articoli as $index => $articolo) {
+            $serial = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
+            if ($serial === null) {
+                continue;
+            }
+
+            if (isset($serials[$serial])) {
+                $firstRow = $serials[$serial] + 1;
+                $currentRow = $index + 1;
+                throw new \Exception("Seriale duplicato nel documento: {$serial} presente alle righe {$firstRow} e {$currentRow}.");
+            }
+
+            $serials[$serial] = $index;
+        }
+    }
+
+    protected function assertSerialIsAvailable(?string $serial): void
+    {
+        if ($serial === null) {
+            return;
+        }
+
+        $existingArticle = Articolo::withoutGlobalScopes()
+            ->withTrashed()
+            ->whereRaw('UPPER(TRIM(numero_seriale)) = ?', [$serial])
+            ->first();
+
+        if (!$existingArticle) {
+            return;
+        }
+
+        throw new \Exception("Seriale già presente in magazzino: {$serial} (articolo {$existingArticle->codice}).");
+    }
+
     private function refreshCategorieDisponibili(): void
     {
         if (empty($this->sedeId)) {
@@ -714,4 +845,3 @@ class CaricoDocumento extends Component
         $this->categorie = $categorieQuery->get();
     }
 }
-

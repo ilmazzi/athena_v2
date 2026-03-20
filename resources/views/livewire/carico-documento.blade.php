@@ -389,11 +389,7 @@
                         <tr wire:key="art-{{ $index }}">
                             <td class="text-center">{{ $index + 1 }}</td>
                             <td>
-                                @if($articolo['esiste'] ?? false)
-                                    <span class="badge bg-success-subtle text-success">Esiste</span>
-                                @else
-                                    <span class="badge bg-warning-subtle text-warning">Nuovo</span>
-                                @endif
+                                <span class="badge bg-warning-subtle text-warning">Nuovo</span>
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"

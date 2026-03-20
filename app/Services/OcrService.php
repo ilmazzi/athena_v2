@@ -4,6 +4,17 @@ namespace App\Services;
 
 use App\Models\Fornitore;
 use App\Models\OcrDocument;
+use App\Services\Ocr\DocumentProfile;
+use App\Services\Ocr\DocumentProfileDetector;
+use App\Services\Ocr\OcrParserRegistry;
+use App\Services\Ocr\OcrParsingContext;
+use App\Services\Ocr\Parsers\BeringArticoliParser;
+use App\Services\Ocr\Parsers\IdandiArticoliParser;
+use App\Services\Ocr\Parsers\MarcoBicegoArticoliParser;
+use App\Services\Ocr\Parsers\PomellatoDdtArticoliParser;
+use App\Services\Ocr\Parsers\PomellatoFatturaArticoliParser;
+use App\Services\Ocr\Parsers\RolexArticoliParser;
+use App\Services\Ocr\Parsers\SwatchGroupArticoliParser;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -12,10 +23,32 @@ use thiagoalessio\TesseractOCR\TesseractOCR;
 
 class OcrService
 {
+    protected DocumentProfileDetector $profileDetector;
+
+    protected OcrParserRegistry $parserRegistry;
+
     /**
      * Percorso PDF corrente (per parsing specifici).
      */
     protected ?string $currentPdfPath = null;
+
+    protected ?DocumentProfile $currentProfile = null;
+
+    public function __construct(
+        ?DocumentProfileDetector $profileDetector = null,
+        ?OcrParserRegistry $parserRegistry = null,
+    ) {
+        $this->profileDetector = $profileDetector ?? new DocumentProfileDetector();
+        $this->parserRegistry = $parserRegistry ?? new OcrParserRegistry([
+            new RolexArticoliParser(),
+            new PomellatoFatturaArticoliParser(),
+            new PomellatoDdtArticoliParser(),
+            new SwatchGroupArticoliParser(),
+            new IdandiArticoliParser(),
+            new BeringArticoliParser(),
+            new MarcoBicegoArticoliParser(),
+        ]);
+    }
     /**
      * Processa un PDF caricato
      */
@@ -40,6 +73,7 @@ class OcrService
             
             // 4. Estrai testo con OCR
             $rawText = $this->extractTextFromImages($imagePaths);
+            $this->currentProfile = $this->profileDetector->detect($rawText, $tipo);
             
             // 5. Struttura dati estratti
             $structuredData = $this->parseExtractedText($rawText, $tipo);
@@ -270,9 +304,13 @@ class OcrService
      */
     protected function parseExtractedText(string $text, string $tipo): array
     {
+        $profile = $this->currentProfile ?? $this->profileDetector->detect($text, $tipo);
+
         $data = [
             'tipo' => $tipo,
             'raw_text_length' => strlen($text),
+            'document_profile' => $profile->key,
+            'document_family' => $profile->family,
         ];
 
         $patterns = config('ocr.patterns');
@@ -538,6 +576,15 @@ class OcrService
         $articoli = [];
         $lines = preg_split('/\R/', $text);
         $skipLineIndexes = [];
+        $profile = $this->currentProfile ?? $this->profileDetector->detect($text, 'ddt');
+        $parser = $this->parserRegistry->resolve($profile);
+
+        if ($parser) {
+            $parsed = $parser->parse($text, new OcrParsingContext($this, $profile, $this->currentPdfPath));
+            if (!empty($parsed)) {
+                return $parsed;
+            }
+        }
         
         // Blacklist: parole che NON sono articoli (intestazioni, indirizzi, ecc)
         $blacklistWords = [
@@ -551,11 +598,10 @@ class OcrService
             'italy', 'italia', 'switzerland', 'svizzera'
         ];
 
+        /* Legacy migrato nel registry:
         // Parsing specifico ROLEX: blocchi "Referenza" con codici Mxxxx-0000
-        $rolexArticoli = $this->parseRolexArticoli($text);
-        if (!empty($rolexArticoli)) {
-            return $rolexArticoli;
-        }
+        // parser dedicato via registry
+        // parser dedicato via registry
 
         // Parsing specifico POMELLATO FATTURA: riconoscimento molto permissivo (OCR può spezzare parole)
         $isPomellatoFattura = preg_match('/POMELLATO/i', $text)
@@ -577,8 +623,10 @@ class OcrService
                 return $pomellatoFatturaArticoli;
             }
         }
+        */
 
         // Parsing specifico POMELLATO DDT: riga tabellare con codice + variante + quantità + NR
+        /* Legacy migrato nel registry:
         foreach ($lines as $idx => $line) {
             $lineTrim = trim($line);
             if ($lineTrim === '') {
@@ -672,7 +720,9 @@ class OcrService
                 $skipLineIndexes[$idx] = true;
             }
         }
+        */
 
+        if (false) { // Legacy migrato nel registry
         // Parsing specifico BERING: "Item no ... Delivered Ordered Remaining"
         foreach ($lines as $idx => $line) {
             $lineTrim = trim($line);
@@ -699,6 +749,7 @@ class OcrService
         }
 
         // Rimuovi righe già parse per evitare match generici (es. IVA 22)
+        }
         if (!empty($skipLineIndexes)) {
             $filteredLines = [];
             foreach ($lines as $idx => $line) {
@@ -710,6 +761,7 @@ class OcrService
         }
 
         // Pattern specifico Marco Bicego: riga articoli con EAN + codice + misura + collezione + quantità
+        /* Legacy migrato nel registry:
         if (preg_match_all(
             '/^(\d{8,14})\s+([A-Z0-9_\/\-]{4,20})\s+(\d{1,3})\s+([A-Za-z][A-Za-z0-9\s\.\-]{2,40})\s+(\d{1,3}[.,]\d{2})\s*(?:PZ|PC|Pcs?)\s+[\d.,]{1,6}(?:\s*\r?\n\s*([^\r\n]{5,120}))?/im',
             $text,
@@ -735,7 +787,8 @@ class OcrService
                 ];
             }
         }
-        
+        */
+
         // Pattern per righe articolo (multi-formato)
         // PRIORITÀ: I pattern più specifici PRIMA, quelli generici DOPO
         $patterns = [
@@ -1135,6 +1188,254 @@ class OcrService
         }
         
         return array_values($articoli); // Re-index array
+    }
+
+    public function parseRolexProfileArticoli(string $text): array
+    {
+        return $this->parseRolexArticoli($text);
+    }
+
+    public function parsePomellatoFatturaProfileArticoli(string $text): array
+    {
+        $articoli = $this->parsePomellatoFattura($text);
+
+        if (!empty($articoli)) {
+            return $articoli;
+        }
+
+        if (!$this->currentPdfPath) {
+            return [];
+        }
+
+        $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+
+        return $pdfText ? $this->parsePomellatoFattura($pdfText) : [];
+    }
+
+    public function parsePomellatoDdtProfileArticoli(string $text): array
+    {
+        $articoli = [];
+        $lines = preg_split('/\R/', $text);
+
+        foreach ($lines as $idx => $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '') {
+                continue;
+            }
+
+            if (!preg_match('/^\s*\d{1,3}\s+([A-Z0-9]{4,10})\s+([A-Z0-9]{3,6})\s+[A-Z0-9]{3,6}\s+\d{1,3}\s+(?:[\d.,]+\s+)?([\d.,]+)\s+(\d{1,3}[,\.]\d{2})\s+(?:NR|PZ|PC)\b/i', $lineTrim, $m)) {
+                continue;
+            }
+
+            $codiceBase = strtoupper(trim($m[1]));
+            $codiceVariante = strtoupper(trim($m[2]));
+            $caratiRaw = $m[3] ?? '';
+            $quantita = (float) str_replace(',', '.', $m[4]);
+            $caratura = $caratiRaw !== '' ? str_replace(',', '.', $caratiRaw) : null;
+
+            $prezzoUnitario = null;
+            $prezzoTotale = null;
+            if (preg_match('/\bEUR\s+([0-9\.\,]+)\s+([0-9\.\,]+)/i', $lineTrim, $priceMatch)) {
+                $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
+                $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
+            } elseif (preg_match('/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s+([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})\s*$/', $lineTrim, $priceMatch)) {
+                $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
+                $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
+            }
+
+            $descrizione = '';
+            $nextLine = isset($lines[$idx + 1]) ? trim($lines[$idx + 1]) : '';
+            if ($nextLine !== '' && !preg_match('/^(MADE\s+IN|LOTTO:|CAT\.?DOG\.?:?|TOTALE\b)/i', $nextLine)) {
+                $descrizione = $nextLine;
+            }
+
+            $articoli[$codiceBase . '-' . $codiceVariante] = [
+                'codice' => $codiceBase . '-' . $codiceVariante,
+                'descrizione' => $descrizione,
+                'quantita' => max(1, (int) round($quantita)),
+                'caratura' => $caratura,
+                'prezzo_unitario' => $prezzoUnitario,
+                'prezzo_totale' => $prezzoTotale,
+            ];
+        }
+
+        return array_values($articoli);
+    }
+
+    public function parseSwatchGroupProfileArticoli(string $text): array
+    {
+        $articoli = [];
+
+        $patterns = [
+            '/\d{10}\/[\d\.,:\s\/]+\s+([\$A-Z0-9\.\-]{4,20})\s+(.+?)\s+[\\\\|\"\(\{\#\s]*(\d{1,3})\s*(?:PZ|PC|Pz|pz|P2|ez|192|Mz|R2|SP|flez|FÃ |TPZ|PEPE|TRE|Mailat|PÃ€|Tez|Ãˆ)[\s\)\/\\\\]*/i',
+            '/\d{10}\/[\d\.,:\s\/]+\s+([\$A-Z0-9\.\-]{4,20})\s+([A-Z][A-Z0-9\s\+\-\/,\.]{3,60}?)\s*[\\\\|\"\(\{\#\s]*$/im',
+            '/\d{10}\/[\d\.,:\s]+\s+(\d{6,12})\s+([A-Z][A-Z\s\d\-\/]{5,80}?)\s+(\d{1,5})\s*(?:PZ|PC|Pz)?/i',
+            '/^(\d{6,12})\s+([A-Z][\w\s\-\/\.]{5,80}?)\s+(\d{1,5})\s*(?:PZ|PC|PCS)?/im',
+            '/^(\d{4,10})\s{2,}(\d{1,5})\s*$/m',
+        ];
+
+        foreach ($patterns as $pattern) {
+            preg_match_all($pattern, $text, $matches, PREG_SET_ORDER);
+
+            foreach ($matches as $match) {
+                $articolo = [];
+
+                if (count($match) >= 4) {
+                    $articolo['codice'] = strtoupper(trim(str_replace('$', 'S', $match[1])));
+                    $articolo['codice'] = preg_replace('/\s+/', '', $articolo['codice']);
+                    $articolo['codice'] = rtrim($articolo['codice'], '.');
+                    if (preg_match('/[A-Z0-9][A-Z0-9\.\-]*\d[A-Z0-9\.\-]*/', $articolo['codice'], $codeMatch)) {
+                        $articolo['codice'] = $codeMatch[0];
+                    }
+
+                    $articolo['descrizione'] = trim($match[2]);
+                    $qta = trim($match[3]);
+
+                    if (empty($qta)) {
+                        $articolo['quantita'] = 1;
+                    } else {
+                        $qta = (int) $qta;
+                        if (in_array($qta, [0, 2, 12, 192], true)) {
+                            $qta = 1;
+                        }
+                        $articolo['quantita'] = $qta;
+                    }
+                } elseif (count($match) === 3) {
+                    $articolo['codice'] = strtoupper(trim(str_replace('$', 'S', $match[1])));
+                    $articolo['descrizione'] = trim($match[2]);
+                    $articolo['quantita'] = 1;
+                }
+
+                if (empty($articolo['codice']) || empty($articolo['quantita'])) {
+                    continue;
+                }
+
+                $articolo['numero_seriale'] = $this->extractSerialNumber($text, $articolo['codice']);
+                $articolo['ean'] = $this->extractEAN($text, $articolo['codice']);
+                $articoli[$articolo['codice']] = $articolo;
+            }
+        }
+
+        return array_values($articoli);
+    }
+
+    public function parseIdandiProfileArticoli(string $text): array
+    {
+        $articoli = [];
+        $lines = preg_split('/\R/', $text);
+
+        foreach ($lines as $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '' || (stripos($lineTrim, 'â‚¬') === false && !preg_match('/\bE\s*[0-9]{1,6}[.,][0-9]{2}\b/i', $lineTrim))) {
+                continue;
+            }
+
+            if (!preg_match('/(IDAN|DANDI|ANDI|ROM|SATC|SAT|SATO)/i', $lineTrim)) {
+                continue;
+            }
+
+            $code = null;
+            $description = null;
+            $qtyRaw = null;
+
+            if (preg_match('/^([A-Z0-9\-=\\-]{1,6})\s+([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+(?:PZ|PC|Pcs?|PE|PÂ£|PÃ‰)?\s*([0-9I]{1,5})\s+â‚¬?/i', $lineTrim, $m)) {
+                $code = $m[1] . '-' . $m[2];
+                $description = $m[3];
+                $qtyRaw = $m[4];
+            } elseif (preg_match('/^([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+(?:PZ|PC|Pcs?|PE|PÂ£|PÃ‰)?\s*([0-9I]{1,5})\s+â‚¬?/i', $lineTrim, $m)) {
+                $code = $m[1];
+                $description = $m[2];
+                $qtyRaw = $m[3];
+            } elseif (preg_match('/^([A-Z0-9\-=\\-]{6,25})\s+(.+?)\s+([0-9I]{1,5})\s+â‚¬?/i', $lineTrim, $m)) {
+                $code = $m[1];
+                $description = $m[2];
+                $qtyRaw = $m[3];
+            }
+
+            if (!$code) {
+                continue;
+            }
+
+            $normalizedCode = $this->normalizeIdandiCode($code);
+            $qtyRaw = str_replace(['I', 'l', '|'], '1', strtoupper((string) $qtyRaw));
+            $qty = max(1, (int) $qtyRaw);
+            $prices = $this->extractEuroAmounts($lineTrim);
+
+            $articoli[$normalizedCode] = [
+                'codice' => $normalizedCode,
+                'descrizione' => trim($description ?? ''),
+                'quantita' => $qty,
+                'prezzo_unitario' => $prices['unitario'] ?? null,
+                'prezzo_totale' => $prices['totale'] ?? null,
+            ];
+        }
+
+        return array_values($articoli);
+    }
+
+    public function parseBeringProfileArticoli(string $text): array
+    {
+        $articoli = [];
+        $lines = preg_split('/\R/', $text);
+
+        foreach ($lines as $line) {
+            $lineTrim = trim($line);
+            if ($lineTrim === '') {
+                continue;
+            }
+
+            if (!preg_match('/\bBERING\b/i', $lineTrim) && !preg_match('/^\d{4,6}[\-A-Z0-9]*/', $lineTrim)) {
+                continue;
+            }
+
+            if (!preg_match('/^([0-9]{4,6}(?:-[A-Z0-9]{2,})?)\s+(.+?)\s+(\d{1,5})\s+(\d{1,5})\s+(\d{1,5})$/i', $lineTrim, $m)) {
+                continue;
+            }
+
+            $codice = strtoupper(trim($m[1]));
+            $descrizione = trim($m[2]);
+            $qty = (int) $m[3];
+
+            $articoli[$codice] = [
+                'codice' => $codice,
+                'descrizione' => $descrizione,
+                'quantita' => max(1, $qty),
+            ];
+        }
+
+        return array_values($articoli);
+    }
+
+    public function parseMarcoBicegoProfileArticoli(string $text): array
+    {
+        $articoli = [];
+
+        if (!preg_match_all(
+            '/^(\d{8,14})\s+([A-Z0-9_\/\-]{4,20})\s+(\d{1,3})\s+([A-Za-z][A-Za-z0-9\s\.\-]{2,40})\s+(\d{1,3}[.,]\d{2})\s*(?:PZ|PC|Pcs?)\s+[\d.,]{1,6}(?:\s*\r?\n\s*([^\r\n]{5,120}))?/im',
+            $text,
+            $mbMatches,
+            PREG_SET_ORDER
+        )) {
+            return [];
+        }
+
+        foreach ($mbMatches as $match) {
+            $codice = strtoupper(trim($match[2]));
+            $quantita = (int) str_replace(',', '.', $match[5]);
+
+            $descrizione = !empty($match[6])
+                ? trim($match[6])
+                : trim($match[4] . ' ' . $match[3]);
+
+            $articoli[$codice] = [
+                'codice' => $codice,
+                'descrizione' => $descrizione,
+                'quantita' => max(1, $quantita),
+                'ean' => preg_replace('/\D/', '', $match[1]),
+            ];
+        }
+
+        return array_values($articoli);
     }
 
     /**
@@ -2224,8 +2525,10 @@ class OcrService
         $document->update(['status' => 'processing']);
 
         try {
+            $this->currentPdfPath = $document->pdf_path;
             $imagePaths = $this->convertPdfToImages($document->pdf_path);
             $rawText = $this->extractTextFromImages($imagePaths);
+            $this->currentProfile = $this->profileDetector->detect($rawText, $document->tipo);
             $structuredData = $this->parseExtractedText($rawText, $document->tipo);
             $fornitoreId = $this->findFornitore($structuredData, $rawText);
             $confidenceScore = $this->calculateConfidence($structuredData);
@@ -2495,10 +2798,10 @@ class OcrService
         if (!empty($scores)) {
             arsort($scores);
             $bestId = array_key_first($scores);
-            if ($bestId && !empty($structuredData['partita_iva'])) {
+            if ($bestId && !empty($partitaIva)) {
                 $best = Fornitore::find($bestId);
                 if ($best && empty($best->partita_iva)) {
-                    $best->update(['partita_iva' => $structuredData['partita_iva']]);
+                    $best->update(['partita_iva' => $partitaIva]);
                 }
             }
             return $bestId ?: null;
@@ -2524,4 +2827,3 @@ class OcrService
         $fornitore->update(['partita_iva' => $normalized]);
     }
 }
-

@@ -47,6 +47,51 @@ class EtichettaService
     }
 
     /**
+     * Genera ZPL per cartellino NC non legato ad articolo.
+     */
+    public function generaEtichettaNcZpl(string $prezzo, string $formatoPrezzo = 'codificato', ?string $carati = null, $stampanteId = null): string
+    {
+        $stampante = $stampanteId
+            ? Stampante::find($stampanteId)
+            : $this->getStampanteDefaultNc();
+
+        if (!$stampante) {
+            throw new \Exception('Nessuna stampante disponibile');
+        }
+
+        $layout = filled($carati) ? 'nc_prezzo_carati' : 'nc_prezzo';
+        $template = $this->getTemplateZPL($stampante->modello, $layout);
+
+        return $this->popolaTemplateNc(
+            $template,
+            $this->formattaPrezzo($prezzo, $formatoPrezzo),
+            $carati,
+            $stampante->modello
+        );
+    }
+
+    /**
+     * Stampa cartellino NC non legato ad articolo.
+     */
+    public function stampaEtichettaNc(string $prezzo, string $formatoPrezzo = 'codificato', ?string $carati = null, $stampanteId = null, int $quantita = 1): bool
+    {
+        $stampante = $stampanteId
+            ? Stampante::find($stampanteId)
+            : $this->getStampanteDefaultNc();
+
+        if (!$stampante) {
+            throw new \Exception('Nessuna stampante disponibile');
+        }
+
+        $quantita = max(1, $quantita);
+        $zpl = $this->generaEtichettaNcZpl($prezzo, $formatoPrezzo, $carati, $stampante->id);
+
+        $payload = str_repeat($zpl, $quantita);
+
+        return $this->inviaAllaStampante($stampante->ip_address, $stampante->port, $payload);
+    }
+
+    /**
      * Ottieni la stampante predefinita per un articolo
      */
     public function getStampanteDefault(Articolo $articolo): ?Stampante
@@ -74,6 +119,23 @@ class EtichettaService
 
                 return $stampante->canPrintArticolo($articolo);
             });
+    }
+
+    /**
+     * Stampante predefinita per cartellini NC: usa default utente o prima attiva.
+     */
+    public function getStampanteDefaultNc(): ?Stampante
+    {
+        $user = Auth::user();
+
+        if ($user && $user->stampante_default_id) {
+            $stampante = Stampante::find($user->stampante_default_id);
+            if ($stampante?->attiva) {
+                return $stampante;
+            }
+        }
+
+        return Stampante::where('attiva', true)->orderBy('nome')->first();
     }
 
     /**
@@ -245,6 +307,30 @@ class EtichettaService
             $oro,
             $brill,
             $pietre
+        ], $template);
+    }
+
+    private function popolaTemplateNc(string $template, string $prezzoFormattato, ?string $carati, string $modello): string
+    {
+        $carati = trim((string) $carati);
+        $isRoma = $modello === 'ZT620';
+
+        return str_replace([
+            '{CARICO}',
+            '{CARICOQR}',
+            '{PREZZO}',
+            '{CARATI}',
+            '{ORO}',
+            '{BRILL}',
+            '{PIETRE}',
+        ], [
+            '',
+            '',
+            $prezzoFormattato,
+            $carati,
+            $isRoma ? $carati : '',
+            '',
+            '',
         ], $template);
     }
 
