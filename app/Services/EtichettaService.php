@@ -214,6 +214,10 @@ class EtichettaService
 
     private function getTemplateNc(string $modello): string
     {
+        if ($modello === 'ZT420') {
+            return $this->getTemplateNcZT420();
+        }
+
         $path = $modello === 'ZT620'
             ? resource_path('zpl/etichetta_template_nc_roma.zpl')
             : resource_path('zpl/etichetta_nc_template.zpl');
@@ -224,6 +228,18 @@ class EtichettaService
         }
 
         return file_get_contents($path);
+    }
+
+    private function getTemplateNcZT420(): string
+    {
+        return '^XA
+^MD30
+^CI28
+^LH160,8
+^PW552^LL80
+^FO80,35^A0N,19,19^FD{PREZZO}^FS
+^FO80,60^A0N,19,19^FB120,2,3,L^FD{CARATI}^FS
+^XZ';
     }
 
     /**
