@@ -333,7 +333,7 @@ class MovimentazioneInternaNew extends Component
                             throw new \Exception("Il PF {$articolo->codice} non ha giacenza disponibile per movimentazione.");
                         }
 
-                        $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                        $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articolo);
                         if ($magazzinoOrigineId <= 0) {
                             throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                         }
@@ -361,7 +361,7 @@ class MovimentazioneInternaNew extends Component
                             $articoloComponente = $componente->articolo;
                             $destCategoria = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloComponente);
 
-                            $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articoloComponente);
+                            $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articoloComponente);
                             if ($magazzinoOrigineId <= 0) {
                                 throw new \Exception("Categoria origine non valida per articolo {$articoloComponente->id} (sede {$this->sedeOrigineId}).");
                             }
@@ -395,7 +395,7 @@ class MovimentazioneInternaNew extends Component
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }
 
-                    $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSede($this->sedeOrigineId, $articolo);
+                    $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articolo);
                     if ($magazzinoOrigineId <= 0) {
                         throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                     }
@@ -548,6 +548,81 @@ class MovimentazioneInternaNew extends Component
         }
 
         return (int) $categoriaId;
+    }
+
+    private function trovaCategoriaOrigineDaSedeCompat(int $sedeId, Articolo $articolo): int
+    {
+        $categoriaCompatibileSede = $this->trovaCategoriaCompatibilePerSede($sedeId, $articolo);
+
+        $giacenza = Giacenza::where('articolo_id', $articolo->id)
+            ->where('sede_id', $sedeId)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if ($giacenza && !empty($giacenza->categoria_merceologica_id)) {
+            return (int) $giacenza->categoria_merceologica_id;
+        }
+
+        if ($categoriaCompatibileSede > 0) {
+            return $categoriaCompatibileSede;
+        }
+
+        $giacenzaSede = GiacenzaSede::where('articolo_id', $articolo->id)
+            ->where('sede_id', $sedeId)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->first();
+
+        if ($giacenzaSede) {
+            $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
+            if ($categoriaId > 0) {
+                return (int) $categoriaId;
+            }
+        }
+
+        $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if ($giacenzaFallback && !empty($giacenzaFallback->categoria_merceologica_id)) {
+            return (int) $giacenzaFallback->categoria_merceologica_id;
+        }
+
+        $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
+        if (!$categoriaId) {
+            throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
+        }
+
+        return (int) $categoriaId;
+    }
+
+    private function trovaCategoriaCompatibilePerSede(int $sedeId, Articolo $articolo): int
+    {
+        $categoriaOrigine = $articolo->categoriaMerceologica;
+        $magazzinoCode = $this->resolveMagazzinoCodeFromCategoria($categoriaOrigine);
+
+        if (!$magazzinoCode) {
+            return 0;
+        }
+
+        $categoria = CategoriaMerceologica::withoutGlobalScopes()
+            ->where('sede_id', $sedeId)
+            ->get()
+            ->first(function ($candidate) use ($magazzinoCode) {
+                return $this->resolveMagazzinoCodeFromCategoria($candidate) === $magazzinoCode;
+            });
+
+        return $categoria?->id ? (int) $categoria->id : 0;
     }
 
     private function syncGiacenzaOrigineDaSede(int $articoloId, int $sedeId, int $categoriaId): void
