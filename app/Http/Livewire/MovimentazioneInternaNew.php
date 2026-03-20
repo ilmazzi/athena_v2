@@ -451,18 +451,47 @@ class MovimentazioneInternaNew extends Component
      */
     private function trovaCategoriaDaSede($sedeId, $articolo)
     {
-        // Cerca categoria con stesso nome nella sede destinazione
-        $categoria = CategoriaMerceologica::where('sede_id', $sedeId)
-            ->where('nome', $articolo->categoriaMerceologica->nome)
-            ->first();
-            
+        $categoriaOrigine = $articolo->categoriaMerceologica;
+        $magazzinoCode = $this->resolveMagazzinoCodeFromCategoria($categoriaOrigine);
+
+        $categoria = CategoriaMerceologica::withoutGlobalScopes()
+            ->where('sede_id', $sedeId)
+            ->get()
+            ->first(function ($candidate) use ($magazzinoCode) {
+                return $this->resolveMagazzinoCodeFromCategoria($candidate) === $magazzinoCode;
+            });
+
         if (!$categoria) {
             throw new \Exception(
-                "Categoria '{$articolo->categoriaMerceologica->nome}' non presente nella sede di destinazione."
+                "Categoria '{$categoriaOrigine->nome}' non presente nella sede di destinazione."
             );
         }
         
         return $categoria->id;
+    }
+
+    private function resolveMagazzinoCodeFromCategoria(?CategoriaMerceologica $categoria): ?int
+    {
+        if (!$categoria) {
+            return null;
+        }
+
+        $codice = trim((string) $categoria->codice);
+        $nome = trim((string) $categoria->nome);
+
+        if ($codice !== '' && ctype_digit($codice)) {
+            return (int) $codice;
+        }
+
+        if ($codice !== '' && preg_match('/(?:MAG|MAGAZZINO)\s*([0-9]+)/i', $codice, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if ($nome !== '' && preg_match('/MAGAZZINO\s*([0-9]+)/i', $nome, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
     }
 
     private function trovaCategoriaOrigineDaSede(int $sedeId, Articolo $articolo): int
