@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\CaricoDettaglio;
 use App\Models\Articolo;
+use App\Models\CategoriaMerceologica;
 use App\Models\ValueObjects\CodiceArticolo;
 use App\Services\CodiceService;
 use Illuminate\Console\Command;
@@ -55,7 +56,7 @@ class FixCodiciMagazzinoCarico extends Command
             }
 
             $prefisso = $codiceVO->getMagazzinoId();
-            $magazzino = (int) $articolo->categoria_merceologica_id;
+            $magazzino = $this->resolveMagazzinoCode((int) $articolo->categoria_merceologica_id);
 
             if ($prefisso === $magazzino) {
                 continue;
@@ -95,5 +96,34 @@ class FixCodiciMagazzinoCarico extends Command
             }
             $carico++;
         }
+    }
+
+    private function resolveMagazzinoCode(int $categoriaId): int
+    {
+        $categoria = CategoriaMerceologica::query()
+            ->withoutGlobalScopes()
+            ->withTrashed()
+            ->find($categoriaId);
+
+        if (!$categoria) {
+            return $categoriaId;
+        }
+
+        $codice = trim((string) $categoria->codice);
+        $nome = trim((string) $categoria->nome);
+
+        if ($codice !== '' && ctype_digit($codice)) {
+            return (int) $codice;
+        }
+
+        if ($codice !== '' && preg_match('/(?:MAG|MAGAZZINO)\s*([0-9]+)/i', $codice, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if ($nome !== '' && preg_match('/MAGAZZINO\s*([0-9]+)/i', $nome, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return $categoriaId;
     }
 }

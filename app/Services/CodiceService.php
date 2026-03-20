@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Articolo;
+use App\Models\CategoriaMerceologica;
 use App\Models\ValueObjects\CodiceArticolo;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,13 @@ class CodiceService
             ->withTrashed();
     }
 
+    private function categorieQuery()
+    {
+        return CategoriaMerceologica::query()
+            ->withoutGlobalScopes()
+            ->withTrashed();
+    }
+
     /**
      * Genera prossimo codice carico per magazzino
      * 
@@ -41,13 +49,15 @@ class CodiceService
     public function generaProssimoCodice(int $magazzinoId): CodiceArticolo
     {
         return DB::transaction(function () use ($magazzinoId) {
+            $magazzinoCode = $this->resolveMagazzinoCode($magazzinoId);
+
             // Trova ultimo carico per questo magazzino con lock
-            $ultimoCarico = $this->getUltimoCarico($magazzinoId);
+            $ultimoCarico = $this->getUltimoCarico($magazzinoCode);
             
             // Prossimo carico = ultimo + 1
             $prossimoCarico = $ultimoCarico + 1;
             
-            return new CodiceArticolo($magazzinoId, $prossimoCarico);
+            return new CodiceArticolo($magazzinoCode, $prossimoCarico);
         });
     }
     
@@ -59,11 +69,15 @@ class CodiceService
      */
     private function getUltimoCarico(int $magazzinoId): int
     {
+        $prefix = $magazzinoId . '-';
         // Ottieni TUTTI gli articoli per questo magazzino e trova il numero più alto
         $articoli = $this->codiciQuery()
-            ->where('categoria_merceologica_id', $magazzinoId)
+            ->where(function ($query) use ($prefix) {
+                $query->where('codice', 'like', $prefix . '%')
+                    ->orWhere('codice_base', 'like', $prefix . '%');
+            })
             ->lockForUpdate()  // Pessimistic lock
-            ->get();
+            ->get(['codice', 'codice_base']);
         
         if ($articoli->isEmpty()) {
             return 0;  // Primo carico per questo magazzino
@@ -87,6 +101,32 @@ class CodiceService
         }
         
         return $maxCarico;
+    }
+
+    private function resolveMagazzinoCode(int $magazzinoId): int
+    {
+        $categoria = $this->categorieQuery()->find($magazzinoId);
+
+        if (!$categoria) {
+            return $magazzinoId;
+        }
+
+        $codice = trim((string) $categoria->codice);
+        $nome = trim((string) $categoria->nome);
+
+        if ($codice !== '' && ctype_digit($codice)) {
+            return (int) $codice;
+        }
+
+        if ($codice !== '' && preg_match('/(?:MAG|MAGAZZINO)\s*([0-9]+)/i', $codice, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if ($nome !== '' && preg_match('/MAGAZZINO\s*([0-9]+)/i', $nome, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return $magazzinoId;
     }
     
     /**
@@ -113,12 +153,13 @@ class CodiceService
      */
     public function prossimoCodiceDisponibile(int $magazzinoId): CodiceArticolo
     {
+        $magazzinoCode = $this->resolveMagazzinoCode($magazzinoId);
         $codice = $this->generaProssimoCodice($magazzinoId);
         
         // Verifica se esiste già (edge case)
         while ($this->codiceEsiste($codice)) {
             $carico = $codice->getCarico() + 1;
-            $codice = new CodiceArticolo($magazzinoId, $carico);
+            $codice = new CodiceArticolo($magazzinoCode, $carico);
         }
         
         return $codice;
