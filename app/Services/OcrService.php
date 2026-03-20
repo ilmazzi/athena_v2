@@ -585,6 +585,13 @@ class OcrService
                 return $parsed;
             }
         }
+
+        if ($this->shouldTryPomellatoFatturaFallback($text)) {
+            $parsed = $this->parsePomellatoFatturaProfileArticoli($text);
+            if (!empty($parsed)) {
+                return $parsed;
+            }
+        }
         
         // Blacklist: parole che NON sono articoli (intestazioni, indirizzi, ecc)
         $blacklistWords = [
@@ -1210,6 +1217,18 @@ class OcrService
         $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
 
         return $pdfText ? $this->parsePomellatoFattura($pdfText) : [];
+    }
+
+    protected function shouldTryPomellatoFatturaFallback(string $text): bool
+    {
+        if (!preg_match('/POMELLATO/i', $text)) {
+            return false;
+        }
+
+        return preg_match('/IN\s*VOICE|Invoice|INVOICE/i', $text)
+            || preg_match('/Invoice\s*Number|Number\s*\n/i', $text)
+            || preg_match('/Document\s+EWFP|EWFP\d/i', $text)
+            || preg_match('/\d{4}\/VE\/\d+/', $text);
     }
 
     public function parsePomellatoDdtProfileArticoli(string $text): array
