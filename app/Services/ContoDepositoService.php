@@ -153,6 +153,8 @@ class ContoDepositoService
             // Se deposito inter-società, muovi quantità tra giacenze_sedi
             // SALVA il magazzino originale nei dettagli del movimento
             $magazzinoOriginaleId = $articolo->categoria_merceologica_id;
+            $magazzinoOriginaleLogico = $articolo->magazzino_logico
+                ?? app(MagazzinoLogicoService::class)->resolveFromCategoriaId($magazzinoOriginaleId);
             
             if ($contoDeposito->isInterSocieta()) {
                 $societaDestinataria = $contoDeposito->getSocietaDestinataria();
@@ -175,7 +177,10 @@ class ContoDepositoService
                         $to->increment('quantita', $quantita);
                         $to->increment('quantita_residua', $quantita);
                         // Associa magazzino CD (per visualizzazione depositi)
-                        $articolo->update(['categoria_merceologica_id' => $magazzinoCD->id]);
+                        $articolo->update([
+                            'categoria_merceologica_id' => $magazzinoCD->id,
+                            'magazzino_logico' => $magazzinoOriginaleLogico,
+                        ]);
                     }
                 }
             }
@@ -195,6 +200,7 @@ class ContoDepositoService
                 $movimento->update([
                     'dettagli' => array_merge($movimento->dettagli ?? [], [
                         'magazzino_originale_id' => $magazzinoOriginaleId,
+                        'magazzino_originale_logico' => $magazzinoOriginaleLogico,
                     ])
                 ]);
             }
@@ -271,8 +277,12 @@ class ContoDepositoService
 
             if ($contoDeposito->isInterSocieta() && $quantita > 0) {
                 $magazzinoOriginaleId = $movimentiInvio->first()->dettagli['magazzino_originale_id'] ?? null;
+                $magazzinoOriginaleLogico = $movimentiInvio->first()->dettagli['magazzino_originale_logico'] ?? null;
                 if ($magazzinoOriginaleId) {
                     $articolo->categoria_merceologica_id = $magazzinoOriginaleId;
+                }
+                if ($magazzinoOriginaleLogico) {
+                    $articolo->magazzino_logico = (int) $magazzinoOriginaleLogico;
                 }
 
                 $mittenteId = $contoDeposito->sede_mittente_id;
@@ -552,6 +562,8 @@ class ContoDepositoService
                     if ($movimentoInvio && isset($movimentoInvio->dettagli['magazzino_originale_id'])) {
                         // Usa magazzino salvato nei dettagli
                         $magazzinoOriginaleId = $movimentoInvio->dettagli['magazzino_originale_id'];
+                        $articolo->magazzino_logico = $movimentoInvio->dettagli['magazzino_originale_logico']
+                            ?? $articolo->magazzino_logico;
                     } else {
                         // Fallback: trova magazzino nella sede mittente (primo disponibile)
                         $sedeMittente = $contoDeposito->sedeMittente;

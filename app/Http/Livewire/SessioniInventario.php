@@ -8,6 +8,8 @@ use App\Models\CategoriaMerceologica;
 use App\Services\InventarioService;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Services\MagazzinoLogicoService;
+
 
 class SessioniInventario extends Component
 {
@@ -30,8 +32,25 @@ class SessioniInventario extends Component
     public function mount()
     {
         $this->sedi = Sede::all();
-        $this->categorie = CategoriaMerceologica::all();
+    
+        $service = app(MagazzinoLogicoService::class);
+        $this->categorie = CategoriaMerceologica::query()
+            ->orderBy('nome')
+            ->get()
+            ->map(function ($categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+    
+                return $magazzinoLogico ? (object) [
+                    'id' => $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                ] : null;
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
     }
+    
 
     public function apriModal()
     {

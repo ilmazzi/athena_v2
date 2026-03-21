@@ -4,6 +4,7 @@ namespace App\Http\Livewire;
 
 use App\Models\Articolo;
 use App\Models\CategoriaMerceologica;
+use App\Services\MagazzinoLogicoService;
 use App\Models\Sede;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -284,7 +285,7 @@ class ScaricoMagazzino extends Component
         }
 
         if ($this->categoriaFilter) {
-            $query->where('categoria_merceologica_id', $this->categoriaFilter);
+            $query->where('magazzino_logico', (int) $this->categoriaFilter);
         }
 
         if ($this->sedeFilter) {
@@ -304,9 +305,21 @@ class ScaricoMagazzino extends Component
         $this->updateSelezionaTuttiState();
 
         // Opzioni per filtri
+        $service = app(MagazzinoLogicoService::class);
         $categorie = CategoriaMerceologica::where('attivo', true)
             ->orderBy('nome')
-            ->get();
+            ->get()
+            ->map(function ($categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+                return $magazzinoLogico ? (object) [
+                    'id' => $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                ] : null;
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
 
         $sedi = Sede::orderBy('nome')->get();
 

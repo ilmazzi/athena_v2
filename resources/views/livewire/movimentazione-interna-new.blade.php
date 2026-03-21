@@ -180,7 +180,7 @@
                                         </div>
                                     @endif
                                 </td>
-                                <td>{{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}</td>
+                                <td>{{ $articolo->magazzino_logico ? 'Magazzino ' . $articolo->magazzino_logico : 'N/A' }}</td>
                                 <td>
                                     @if($articolo->giacenza)
                                         <span class="badge bg-light-info text-info">

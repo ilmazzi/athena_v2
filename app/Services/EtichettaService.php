@@ -548,11 +548,12 @@ class EtichettaService
     private function normalizePrinterEncoding(string $zpl): string
     {
         return str_replace(
-            ['ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬', 'Ã¢â€šÂ¬', 'â‚¬'],
+            ['ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬', 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬', 'Ã¢â€šÂ¬'],
             '€',
             $zpl
         );
     }
+    
     
     private function buildNcZplZT421(string $prezzoFormattato, ?string $carati): string
     {

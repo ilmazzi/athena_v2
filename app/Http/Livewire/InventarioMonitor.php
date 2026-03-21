@@ -8,6 +8,7 @@ use App\Models\InventarioScansione;
 use App\Models\InventarioEvento;
 use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
+use App\Services\MagazzinoLogicoService;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\Schema;
@@ -70,7 +71,7 @@ class InventarioMonitor extends Component
     {
         $this->sessioneId = $sessione;
         $this->sedi = Sede::all();
-        $this->categorie = CategoriaMerceologica::all();
+        $this->categorie = collect($this->buildMagazzinoOptions());
         
         if ($this->sessioneId) {
             $this->caricaSessione();
@@ -91,78 +92,102 @@ class InventarioMonitor extends Component
         }
     }
 
+    private function normalizeCategoriePermesse(?array $categoriePermesse): array
+    {
+        if (empty($categoriePermesse)) {
+            return [];
+        }
+
+        $service = app(MagazzinoLogicoService::class);
+
+        return collect($categoriePermesse)
+            ->map(fn ($categoriaId) => $service->resolveFromCategoriaId((int) $categoriaId) ?? (int) $categoriaId)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function normalizeCategoriaFiltro($categoriaId): ?int
+    {
+        if ($categoriaId === null || $categoriaId === '') {
+            return null;
+        }
+
+        return app(MagazzinoLogicoService::class)->resolveFromCategoriaId((int) $categoriaId) ?? (int) $categoriaId;
+    }
+
+    private function buildMagazzinoOptions(): array
+    {
+        $service = app(MagazzinoLogicoService::class);
+
+        return CategoriaMerceologica::query()
+            ->orderBy('nome')
+            ->get()
+            ->map(function ($categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+
+                return $magazzinoLogico ? (object) [
+                    'id' => $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                ] : null;
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values()
+            ->all();
+    }
+
     public function calcolaStatistiche()
     {
         if (!$this->sessione) return;
 
-        // Articoli totali da inventariare
+        $categoriePermesse = $this->normalizeCategoriePermesse($this->sessione->categorie_permesse);
+
         $query = Articolo::whereHas('giacenze', function ($q) {
             $q->where('sede_id', $this->sessione->sede_id)
               ->where('quantita_residua', '>', 0);
         });
 
-        if ($this->sessione->categorie_permesse && !empty($this->sessione->categorie_permesse)) {
-            $query->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+        if (!empty($categoriePermesse)) {
+            $query->whereIn('magazzino_logico', $categoriePermesse);
         }
 
         $articoliTotali = $query->count();
-
-        // Articoli scansionati (distinct per articolo)
-        $articoliScansionati = InventarioScansione::where('sessione_id', $this->sessioneId)
-            ->distinct('articolo_id')
-            ->count('articolo_id');
-
-        // Articoli trovati (distinct per articolo)
-        $articoliTrovati = InventarioScansione::where('sessione_id', $this->sessioneId)
-            ->where('azione', 'trovato')
-            ->distinct('articolo_id')
-            ->count('articolo_id');
-
-        // Articoli eliminati (distinct per articolo)
-        $articoliEliminati = InventarioScansione::where('sessione_id', $this->sessioneId)
-            ->where('azione', 'eliminato')
-            ->distinct('articolo_id')
-            ->count('articolo_id');
+        $articoliScansionati = InventarioScansione::where('sessione_id', $this->sessioneId)->distinct('articolo_id')->count('articolo_id');
+        $articoliTrovati = InventarioScansione::where('sessione_id', $this->sessioneId)->where('azione', 'trovato')->distinct('articolo_id')->count('articolo_id');
+        $articoliEliminati = InventarioScansione::where('sessione_id', $this->sessioneId)->where('azione', 'eliminato')->distinct('articolo_id')->count('articolo_id');
 
         $scansioniBase = $this->scansioniBaseQuery();
         $diffExpr = $this->diffExpression();
-        $scansioniConDifferenza = (clone $scansioniBase)
-            ->whereRaw("{$diffExpr} != 0")
-            ->count();
-        $scansioniConEccesso = (clone $scansioniBase)
-            ->whereRaw("{$diffExpr} > 0")
-            ->count();
-        $scansioniConMancanza = (clone $scansioniBase)
-            ->whereRaw("{$diffExpr} < 0")
-            ->count();
+        $scansioniConDifferenza = (clone $scansioniBase)->whereRaw("{$diffExpr} != 0")->count();
+        $scansioniConEccesso = (clone $scansioniBase)->whereRaw("{$diffExpr} > 0")->count();
+        $scansioniConMancanza = (clone $scansioniBase)->whereRaw("{$diffExpr} < 0")->count();
         $scansioniParziali = (clone $scansioniBase)
             ->whereNotNull('inventario_scansioni.quantita_trovata')
             ->whereRaw("COALESCE(inventario_scansioni.quantita_trovata, 0) > 0 AND {$diffExpr} < 0")
             ->count();
 
-        // Articoli non scansionati
         $articoliNonScansionati = $articoliTotali - $articoliScansionati;
-
-        // Progresso
         $progresso = $articoliTotali > 0 ? round(($articoliScansionati / $articoliTotali) * 100, 2) : 0;
 
-        // Debug: Log dei calcoli per verificare
         \Log::info('Statistiche Inventario', [
             'sessione_id' => $this->sessioneId,
             'sede_id' => $this->sessione->sede_id,
-            'categorie_permesse' => $this->sessione->categorie_permesse,
+            'categorie_permesse' => $categoriePermesse,
             'articoli_totali' => $articoliTotali,
             'articoli_scansionati' => $articoliScansionati,
             'articoli_trovati' => $articoliTrovati,
             'articoli_eliminati' => $articoliEliminati,
             'articoli_non_scansionati' => $articoliNonScansionati,
-            'progresso' => $progresso
+            'progresso' => $progresso,
         ]);
 
         $valoreMagazzinoQuery = \App\Models\Giacenza::where('sede_id', $this->sessione->sede_id)
             ->where('quantita_residua', '>', 0);
-        if ($this->sessione->categorie_permesse && !empty($this->sessione->categorie_permesse)) {
-            $valoreMagazzinoQuery->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+        if (!empty($categoriePermesse)) {
+            $valoreMagazzinoQuery->whereIn('magazzino_logico', $categoriePermesse);
         }
         $valoreMagazzino = $valoreMagazzinoQuery->sum(\DB::raw('quantita_residua * costo_unitario'));
 
@@ -178,22 +203,22 @@ class InventarioMonitor extends Component
             'scansioni_parziali' => $scansioniParziali,
             'valore_magazzino' => $valoreMagazzino,
             'progresso' => $progresso,
-            'completato' => $articoliNonScansionati == 0
+            'completato' => $articoliNonScansionati == 0,
         ];
-
-        $categorie = CategoriaMerceologica::orderBy('nome')->get(['id', 'nome'])->keyBy('id');
 
         $baseMagazzini = \App\Models\Giacenza::query()
             ->where('sede_id', $this->sessione->sede_id)
             ->where('quantita_residua', '>', 0)
-            ->selectRaw('categoria_merceologica_id, COUNT(DISTINCT articolo_id) as totali, SUM(quantita_residua * costo_unitario) as valore')
-            ->groupBy('categoria_merceologica_id')
+            ->when(!empty($categoriePermesse), fn ($q) => $q->whereIn('magazzino_logico', $categoriePermesse))
+            ->selectRaw('magazzino_logico, COUNT(DISTINCT articolo_id) as totali, SUM(quantita_residua * costo_unitario) as valore')
+            ->groupBy('magazzino_logico')
             ->get()
-            ->keyBy('categoria_merceologica_id');
+            ->keyBy('magazzino_logico');
 
         $scanMagazzini = InventarioScansione::query()
             ->where('inventario_scansioni.sessione_id', $this->sessioneId)
             ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
+            ->when(!empty($categoriePermesse), fn ($q) => $q->whereIn('articoli.magazzino_logico', $categoriePermesse))
             ->when($this->baseConfronto === 'giacenza', function ($query) {
                 $giacenzeSub = \DB::table('giacenze')
                     ->select('articolo_id', \DB::raw('SUM(quantita_residua) as quantita_sistema'))
@@ -204,7 +229,7 @@ class InventarioMonitor extends Component
                 });
             })
             ->selectRaw("
-                articoli.categoria_merceologica_id as categoria_id,
+                articoli.magazzino_logico as categoria_id,
                 COUNT(DISTINCT inventario_scansioni.articolo_id) as scansionati,
                 SUM(CASE WHEN inventario_scansioni.azione = 'trovato' THEN 1 ELSE 0 END) as trovati,
                 SUM(CASE WHEN inventario_scansioni.azione = 'eliminato' THEN 1 ELSE 0 END) as eliminati,
@@ -213,13 +238,17 @@ class InventarioMonitor extends Component
                 SUM(CASE WHEN {$diffExpr} < 0 THEN 1 ELSE 0 END) as mancanze,
                 SUM(CASE WHEN COALESCE(inventario_scansioni.quantita_trovata, 0) > 0 AND {$diffExpr} < 0 THEN 1 ELSE 0 END) as parziali
             ")
-            ->groupBy('articoli.categoria_merceologica_id')
+            ->groupBy('articoli.magazzino_logico')
             ->get()
             ->keyBy('categoria_id');
 
-        $this->statisticheMagazzini = $categorie->map(function ($categoria) use ($baseMagazzini, $scanMagazzini) {
-            $base = $baseMagazzini->get($categoria->id);
-            $scan = $scanMagazzini->get($categoria->id);
+        $magazzinoIds = !empty($categoriePermesse)
+            ? collect($categoriePermesse)
+            : $baseMagazzini->keys()->merge($scanMagazzini->keys())->filter()->unique()->sort()->values();
+
+        $this->statisticheMagazzini = $magazzinoIds->map(function ($magazzinoId) use ($baseMagazzini, $scanMagazzini) {
+            $base = $baseMagazzini->get($magazzinoId);
+            $scan = $scanMagazzini->get($magazzinoId);
             $totali = (int) ($base?->totali ?? 0);
             $scansionati = (int) ($scan?->scansionati ?? 0);
             $trovati = (int) ($scan?->trovati ?? 0);
@@ -227,8 +256,8 @@ class InventarioMonitor extends Component
             $mancanti = max($totali - $scansionati, 0);
 
             return [
-                'id' => $categoria->id,
-                'nome' => $categoria->nome,
+                'id' => (int) $magazzinoId,
+                'nome' => 'Magazzino ' . $magazzinoId,
                 'totali' => $totali,
                 'scansionati' => $scansionati,
                 'trovati' => $trovati,
@@ -260,44 +289,40 @@ class InventarioMonitor extends Component
     {
         if (!$this->sessione) return;
 
-        // Verifica articoli totali per sede (senza filtri categoria)
+        $categoriePermesse = $this->normalizeCategoriePermesse($this->sessione->categorie_permesse);
+
         $articoliPerSede = Articolo::whereHas('giacenze', function ($q) {
             $q->where('sede_id', $this->sessione->sede_id)
               ->where('quantita_residua', '>', 0);
         })->count();
 
-        // Verifica articoli per categoria
         $articoliPerCategoria = [];
-        if ($this->sessione->categorie_permesse) {
-            foreach ($this->sessione->categorie_permesse as $categoriaId) {
+        if (!empty($categoriePermesse)) {
+            foreach ($categoriePermesse as $categoriaId) {
                 $count = Articolo::whereHas('giacenze', function ($q) {
                     $q->where('sede_id', $this->sessione->sede_id)
                       ->where('quantita_residua', '>', 0);
-                })->where('categoria_merceologica_id', $categoriaId)->count();
-                
-                $categoria = \App\Models\CategoriaMerceologica::find($categoriaId);
-                $articoliPerCategoria[$categoria->nome ?? "ID:$categoriaId"] = $count;
+                })->where('magazzino_logico', $categoriaId)->count();
+
+                $articoliPerCategoria['Magazzino ' . $categoriaId] = $count;
             }
         }
 
-        // Verifica totale con filtri categoria
         $articoliConFiltri = Articolo::whereHas('giacenze', function ($q) {
             $q->where('sede_id', $this->sessione->sede_id)
               ->where('quantita_residua', '>', 0);
         });
-        
-        if ($this->sessione->categorie_permesse) {
-            $articoliConFiltri->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+
+        if (!empty($categoriePermesse)) {
+            $articoliConFiltri->whereIn('magazzino_logico', $categoriePermesse);
         }
         $totaleConFiltri = $articoliConFiltri->count();
 
-        // Verifica scansioni
         $scansioniTotali = InventarioScansione::where('sessione_id', $this->sessioneId)->count();
         $scansioniDistinct = InventarioScansione::where('sessione_id', $this->sessioneId)
             ->distinct('articolo_id')
             ->count('articolo_id');
 
-        // Verifica totale articoli in database (tutte le sedi)
         $totaleArticoliDB = Articolo::count();
         $totaleGiacenze = \App\Models\Giacenza::where('quantita_residua', '>', 0)->count();
 
@@ -305,33 +330,32 @@ class InventarioMonitor extends Component
             'sessione_id' => $this->sessioneId,
             'sede_id' => $this->sessione->sede_id,
             'sede_nome' => $this->sessione->sede->nome,
-            'categorie_permesse' => $this->sessione->categorie_permesse,
+            'categorie_permesse' => $categoriePermesse,
             'articoli_per_sede' => $articoliPerSede,
             'articoli_per_categoria' => $articoliPerCategoria,
             'totale_con_filtri' => $totaleConFiltri,
             'totale_articoli_db' => $totaleArticoliDB,
             'totale_giacenze' => $totaleGiacenze,
             'scansioni_totali' => $scansioniTotali,
-            'scansioni_distinct' => $scansioniDistinct
+            'scansioni_distinct' => $scansioniDistinct,
         ]);
 
-        // Memorizza i risultati per mostrare nel modal
         $this->risultatiVerifica = [
             'sessione_id' => $this->sessioneId,
             'sede_id' => $this->sessione->sede_id,
             'sede_nome' => $this->sessione->sede->nome,
-            'categorie_permesse' => $this->sessione->categorie_permesse,
+            'categorie_permesse' => $categoriePermesse,
             'articoli_per_sede' => $articoliPerSede,
             'articoli_per_categoria' => $articoliPerCategoria,
             'totale_con_filtri' => $totaleConFiltri,
             'totale_articoli_db' => $totaleArticoliDB,
             'totale_giacenze' => $totaleGiacenze,
             'scansioni_totali' => $scansioniTotali,
-            'scansioni_distinct' => $scansioniDistinct
+            'scansioni_distinct' => $scansioniDistinct,
         ];
         
         $this->showModalVerifica = true;
-        session()->flash('info', "✅ Dati verificati! Visualizza i risultati qui sotto.");
+        session()->flash('info', "âœ… Dati verificati! Visualizza i risultati qui sotto.");
     }
 
     public function confrontaConArticoli()
@@ -353,7 +377,7 @@ class InventarioMonitor extends Component
         $articoliCategorie19 = Articolo::whereHas('giacenze', function ($q) {
             $q->where('sede_id', $this->sessione->sede_id)
               ->where('quantita_residua', '>', 0);
-        })->whereIn('categoria_merceologica_id', [1,2,3,4,5,6,7,8,9])->count();
+        })->whereIn('magazzino_logico', [1,2,3,4,5,6,7,8,9])->count();
 
         // Conteggio per tutte le categorie
         $articoliTutteCategorie = Articolo::whereHas('giacenze', function ($q) {
@@ -367,7 +391,7 @@ class InventarioMonitor extends Component
             'sede_nome' => $this->sessione->sede->nome,
             'articoli_pagina_totale' => $articoliPagina,
             'articoli_sede' => $articoliSede,
-            'articoli_categorie_1_9' => $articoliCategorie19,
+            'articoli_magazzini_1_9' => $articoliCategorie19,
             'articoli_tutte_categorie' => $articoliTutteCategorie,
             'categorie_permesse_sessione' => $this->sessione->categorie_permesse
         ]);
@@ -379,7 +403,7 @@ class InventarioMonitor extends Component
             'sede_nome' => $this->sessione->sede->nome,
             'articoli_pagina_totale' => $articoliPagina,
             'articoli_sede' => $articoliSede,
-            'articoli_categorie_1_9' => $articoliCategorie19,
+            'articoli_magazzini_1_9' => $articoliCategorie19,
             'articoli_tutte_categorie' => $articoliTutteCategorie,
             'categorie_permesse_sessione' => $this->sessione->categorie_permesse
         ];
@@ -533,13 +557,13 @@ class InventarioMonitor extends Component
             return;
         }
 
-        $this->azioneCategoriaId = $this->categoriaId ?: null;
+        $this->azioneCategoriaId = $this->normalizeCategoriaFiltro($this->categoriaId);
         $scansioni = InventarioScansione::where('sessione_id', $this->sessioneId)
             ->where('azione', 'trovato')
             ->whereNotNull('quantita_trovata');
         if ($this->azioneCategoriaId) {
             $scansioni->whereHas('articolo', function ($q) {
-                $q->where('categoria_merceologica_id', $this->azioneCategoriaId);
+                $q->where('magazzino_logico', $this->azioneCategoriaId);
             });
         }
         $this->previewAllinea = $scansioni->count();
@@ -580,13 +604,14 @@ class InventarioMonitor extends Component
             return;
         }
 
-        $this->azioneCategoriaId = $this->categoriaId ?: null;
+        $categoriePermesse = $this->normalizeCategoriePermesse($this->sessione->categorie_permesse);
+        $this->azioneCategoriaId = $this->normalizeCategoriaFiltro($this->categoriaId);
         $daAllineareQuery = InventarioScansione::where('sessione_id', $this->sessioneId)
             ->where('azione', 'trovato')
             ->whereNotNull('quantita_trovata');
         if ($this->azioneCategoriaId) {
             $daAllineareQuery->whereHas('articolo', function ($q) {
-                $q->where('categoria_merceologica_id', $this->azioneCategoriaId);
+                $q->where('magazzino_logico', $this->azioneCategoriaId);
             });
         }
         $daAllineare = $daAllineareQuery->count();
@@ -599,10 +624,10 @@ class InventarioMonitor extends Component
             ->select('articolo_id');
         if ($this->azioneCategoriaId) {
             $articoliTrovatiQuery->whereHas('articolo', function ($q) {
-                $q->where('categoria_merceologica_id', $this->azioneCategoriaId);
+                $q->where('magazzino_logico', $this->azioneCategoriaId);
             });
             $articoliEliminatiQuery->whereHas('articolo', function ($q) {
-                $q->where('categoria_merceologica_id', $this->azioneCategoriaId);
+                $q->where('magazzino_logico', $this->azioneCategoriaId);
             });
         }
         $articoliTrovati = $articoliTrovatiQuery->pluck('articolo_id')->toArray();
@@ -612,11 +637,11 @@ class InventarioMonitor extends Component
             $q->where('sede_id', $this->sessione->sede_id)
               ->where('quantita_residua', '>', 0);
         });
-        if ($this->sessione->categorie_permesse) {
-            $query->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+        if (!empty($categoriePermesse)) {
+            $query->whereIn('magazzino_logico', $categoriePermesse);
         }
         if ($this->azioneCategoriaId) {
-            $query->where('categoria_merceologica_id', $this->azioneCategoriaId);
+            $query->where('magazzino_logico', $this->azioneCategoriaId);
         }
         if (!empty($articoliTrovati)) {
             $query->whereNotIn('id', $articoliTrovati);
@@ -643,17 +668,18 @@ class InventarioMonitor extends Component
 
         try {
             $service = app(\App\Services\InventarioService::class);
-            if ($this->azioneCategoriaId) {
-                $categoriaNome = CategoriaMerceologica::find($this->azioneCategoriaId)?->nome;
-                $service->finalizzaCategoria($this->sessioneId, $this->azioneCategoriaId);
+            $azioneCategoriaId = $this->azioneCategoriaId;
+            if ($azioneCategoriaId) {
+                $categoriaNome = 'Magazzino ' . $azioneCategoriaId;
+                $service->finalizzaCategoria($this->sessioneId, $azioneCategoriaId);
                 $this->logEvento('finalizza_categoria', [
-                    'categoria_id' => $this->azioneCategoriaId,
+                    'categoria_id' => $azioneCategoriaId,
                     'base_confronto' => $this->baseConfronto,
                 ]);
                 $this->lastFinalizzaReport = [
                     'sessione_id' => $this->sessioneId,
                     'sede' => $this->sessione->sede->nome ?? '',
-                    'categoria' => $categoriaNome ?? '—',
+                    'categoria' => $categoriaNome,
                     'da_allineare' => $this->previewFinalizza['da_allineare'] ?? 0,
                     'da_rimuovere' => $this->previewFinalizza['da_rimuovere'] ?? 0,
                     'base_confronto' => $this->baseConfronto,
@@ -669,7 +695,7 @@ class InventarioMonitor extends Component
                 $this->lastFinalizzaReport = [
                     'sessione_id' => $this->sessioneId,
                     'sede' => $this->sessione->sede->nome ?? '',
-                    'categoria' => 'Tutte',
+                    'categoria' => 'Tutti i magazzini',
                     'da_allineare' => $this->previewFinalizza['da_allineare'] ?? 0,
                     'da_rimuovere' => $this->previewFinalizza['da_rimuovere'] ?? 0,
                     'base_confronto' => $this->baseConfronto,
@@ -681,7 +707,7 @@ class InventarioMonitor extends Component
             $this->showConfirmFinalizza = false;
             $this->dispatch('close-confirm-modal', type: 'finalizza');
             $this->azioneCategoriaId = null;
-            session()->flash('success', $this->azioneCategoriaId ? 'Inventario magazzino finalizzato.' : 'Inventario finalizzato con successo.');
+            session()->flash('success', $azioneCategoriaId ? 'Inventario magazzino finalizzato.' : 'Inventario finalizzato con successo.');
         } catch (\Exception $e) {
             $this->showConfirmFinalizza = false;
             $this->dispatch('close-confirm-modal', type: 'finalizza');
@@ -706,7 +732,7 @@ class InventarioMonitor extends Component
             $handle = fopen('php://output', 'w');
             fputcsv($handle, ['Sessione', $report['sessione_id']]);
             fputcsv($handle, ['Sede', $report['sede']]);
-            fputcsv($handle, ['Categoria', $report['categoria']]);
+            fputcsv($handle, ['Magazzino', $report['categoria']]);
             fputcsv($handle, ['Tipo chiusura', $report['tipo']]);
             fputcsv($handle, ['Base confronto', $report['base_confronto']]);
             fputcsv($handle, ['Chiusura', $report['chiusura_at']]);
@@ -1095,7 +1121,7 @@ class InventarioMonitor extends Component
             fputcsv($handle, [
                 'Codice',
                 'Descrizione',
-                'Categoria',
+                'Magazzino',
                 'Qta sistema',
                 'Qta trovata',
                 'Diff',
@@ -1157,7 +1183,7 @@ class InventarioMonitor extends Component
             fputcsv($handle, [
                 'Codice',
                 'Descrizione',
-                'Categoria',
+                'Magazzino',
                 'Qta sistema',
                 'Qta trovata',
                 'Diff',
@@ -1167,7 +1193,7 @@ class InventarioMonitor extends Component
 
             $base = $this->buildScansioniAnomaliaQuery($this->bulkTarget)
                 ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-                ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id');
+                ;
 
             if ($this->baseConfronto === 'giacenza') {
                 $giacenzeSub = \DB::table('giacenze')
@@ -1186,7 +1212,7 @@ class InventarioMonitor extends Component
             $base->selectRaw("
                 articoli.codice,
                 articoli.descrizione,
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COALESCE(inventario_scansioni.quantita_trovata, 0) as quantita_trovata,
                 {$diffExpr} as diff,
                 " . ($this->baseConfronto === 'giacenza'
@@ -1275,7 +1301,7 @@ class InventarioMonitor extends Component
             fputcsv($handle, [
                 'Codice',
                 'Descrizione',
-                'Categoria',
+                'Magazzino',
                 'Qta sistema',
             ]);
 
@@ -1287,11 +1313,11 @@ class InventarioMonitor extends Component
                 });
 
             if ($this->sessione->categorie_permesse && !empty($this->sessione->categorie_permesse)) {
-                $query->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+                $query->whereIn('magazzino_logico', $this->normalizeCategoriePermesse($this->sessione->categorie_permesse));
             }
 
             if ($this->categoriaId) {
-                $query->where('categoria_merceologica_id', $this->categoriaId);
+                $query->where('magazzino_logico', $this->normalizeCategoriaFiltro($this->categoriaId));
             }
 
             $scansionati = InventarioScansione::where('sessione_id', $this->sessioneId)
@@ -1342,7 +1368,7 @@ class InventarioMonitor extends Component
             fputcsv($handle, [
                 'Codice',
                 'Descrizione',
-                'Categoria',
+                'Magazzino',
                 'Qta sistema',
                 'Qta trovata',
                 'Diff',
@@ -1352,7 +1378,7 @@ class InventarioMonitor extends Component
 
             $base = $this->scansioniBaseQuery()
                 ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-                ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id');
+                ;
 
             if ($this->baseConfronto === 'giacenza') {
                 $giacenzeSub = \DB::table('giacenze')
@@ -1371,7 +1397,7 @@ class InventarioMonitor extends Component
             $base->selectRaw("
                 articoli.codice,
                 articoli.descrizione,
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COALESCE(inventario_scansioni.quantita_trovata, 0) as quantita_trovata,
                 {$diffExpr} as diff,
                 " . ($this->baseConfronto === 'giacenza'
@@ -1402,7 +1428,7 @@ class InventarioMonitor extends Component
             fputcsv($handle, [
                 'Codice',
                 'Descrizione',
-                'Categoria',
+                'Magazzino',
                 'Qta sistema',
             ]);
 
@@ -1414,7 +1440,7 @@ class InventarioMonitor extends Component
                 });
 
             if ($this->sessione->categorie_permesse && !empty($this->sessione->categorie_permesse)) {
-                $query->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+                $query->whereIn('magazzino_logico', $this->normalizeCategoriePermesse($this->sessione->categorie_permesse));
             }
 
             $scansionati = InventarioScansione::where('sessione_id', $this->sessioneId)
@@ -1510,7 +1536,7 @@ class InventarioMonitor extends Component
 
         return $base
             ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id')
+            
             ->leftJoinSub($giacenzeSub, 'giacenze_costo', function ($join) {
                 $join->on('inventario_scansioni.articolo_id', '=', 'giacenze_costo.articolo_id');
             })
@@ -1518,7 +1544,7 @@ class InventarioMonitor extends Component
                 inventario_scansioni.articolo_id,
                 articoli.codice,
                 articoli.descrizione,
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COALESCE(inventario_scansioni.quantita_trovata, 0) as quantita_trovata,
                 {$diffExpr} as diff,
                 COALESCE(giacenze_costo.costo_unitario, 0) as costo_unitario
@@ -1537,7 +1563,7 @@ class InventarioMonitor extends Component
 
         $base = $this->scansioniBaseQuery()
             ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id');
+            ;
 
         $giacenzeSub = \DB::table('giacenze')
             ->select(
@@ -1555,7 +1581,7 @@ class InventarioMonitor extends Component
 
         return $base
             ->selectRaw("
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COUNT(*) as righe,
                 SUM(CASE WHEN {$diffExpr} > 0 THEN 1 ELSE 0 END) as eccedenze,
                 SUM(CASE WHEN {$diffExpr} < 0 THEN 1 ELSE 0 END) as mancanze,
@@ -1563,7 +1589,7 @@ class InventarioMonitor extends Component
                 {$valoreDiffExpr} as valore_diff
             ")
             ->whereRaw("{$diffExpr} != 0")
-            ->groupBy('cm.nome')
+            ->groupBy('articoli.magazzino_logico')
             ->orderByRaw("ABS({$valoreDiffExpr}) DESC")
             ->limit(30)
             ->get();
@@ -1620,7 +1646,7 @@ class InventarioMonitor extends Component
         $diffExpr = $this->diffExpression();
 
         $base->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id');
+            ;
 
         $giacenzeSub = \DB::table('giacenze')
             ->select(
@@ -1636,14 +1662,14 @@ class InventarioMonitor extends Component
 
         return $base
             ->selectRaw("
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COUNT(*) as scansioni,
                 SUM(CASE WHEN inventario_scansioni.azione = 'trovato' THEN 1 ELSE 0 END) as trovati,
                 SUM(CASE WHEN inventario_scansioni.azione = 'eliminato' THEN 1 ELSE 0 END) as eliminati,
                 SUM({$diffExpr}) as diff_totale,
                 {$valoreDiffExpr} as valore_diff
             ")
-            ->groupBy('cm.nome')
+            ->groupBy('articoli.magazzino_logico')
             ->orderByRaw("ABS({$valoreDiffExpr}) DESC")
             ->limit(30)
             ->get();
@@ -1659,11 +1685,11 @@ class InventarioMonitor extends Component
         $diffExpr = $this->diffExpression();
 
         $base->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id');
+            ;
 
         return $base
             ->selectRaw("
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 SUM(CASE WHEN ABS({$diffExpr}) >= ? THEN 1 ELSE 0 END) as critiche,
                 SUM(CASE WHEN ABS({$diffExpr}) >= ? AND ABS({$diffExpr}) < ? THEN 1 ELSE 0 END) as medie,
                 SUM(CASE WHEN ABS({$diffExpr}) > 0 AND ABS({$diffExpr}) < ? THEN 1 ELSE 0 END) as basse,
@@ -1675,7 +1701,7 @@ class InventarioMonitor extends Component
                 (int) $this->heatmapDiffMedium,
             ])
             ->whereRaw("{$diffExpr} != 0")
-            ->groupBy('cm.nome')
+            ->groupBy('articoli.magazzino_logico')
             ->orderByRaw('critiche DESC, medie DESC, basse DESC')
             ->limit(30)
             ->get();
@@ -1700,7 +1726,7 @@ class InventarioMonitor extends Component
 
         return $base
             ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id')
+            
             ->leftJoinSub($giacenzeSub, 'giacenze_costo', function ($join) {
                 $join->on('inventario_scansioni.articolo_id', '=', 'giacenze_costo.articolo_id');
             })
@@ -1708,7 +1734,7 @@ class InventarioMonitor extends Component
                 inventario_scansioni.articolo_id,
                 articoli.codice,
                 articoli.descrizione,
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COALESCE(inventario_scansioni.quantita_trovata, 0) as quantita_trovata,
                 {$diffExpr} as diff,
                 COALESCE(giacenze_costo.costo_unitario, 0) as costo_unitario,
@@ -1739,7 +1765,7 @@ class InventarioMonitor extends Component
 
         return $base
             ->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-            ->leftJoin('categorie_merceologiche as cm', 'articoli.categoria_merceologica_id', '=', 'cm.id')
+            
             ->leftJoinSub($giacenzeSub, 'giacenze_costo', function ($join) {
                 $join->on('inventario_scansioni.articolo_id', '=', 'giacenze_costo.articolo_id');
             })
@@ -1747,7 +1773,7 @@ class InventarioMonitor extends Component
                 inventario_scansioni.articolo_id,
                 articoli.codice,
                 articoli.descrizione,
-                cm.nome as categoria,
+                CONCAT('Magazzino ', articoli.magazzino_logico) as categoria,
                 COALESCE(inventario_scansioni.quantita_trovata, 0) as quantita_trovata,
                 {$diffExpr} as diff,
                 COALESCE(giacenze_costo.costo_unitario, 0) as costo_unitario,
@@ -1804,11 +1830,11 @@ class InventarioMonitor extends Component
         }
 
         if ($this->sessione->categorie_permesse && !empty($this->sessione->categorie_permesse)) {
-            $query->whereIn('categoria_merceologica_id', $this->sessione->categorie_permesse);
+            $query->whereIn('magazzino_logico', $this->normalizeCategoriePermesse($this->sessione->categorie_permesse));
         }
 
         if ($this->categoriaId) {
-            $query->where('categoria_merceologica_id', $this->categoriaId);
+            $query->where('magazzino_logico', $this->normalizeCategoriaFiltro($this->categoriaId));
         }
 
         switch ($this->statoArticolo) {
@@ -1888,7 +1914,7 @@ class InventarioMonitor extends Component
 
         if ($this->categoriaId) {
             $base->join('articoli', 'inventario_scansioni.articolo_id', '=', 'articoli.id')
-                ->where('articoli.categoria_merceologica_id', $this->categoriaId);
+                ->where('articoli.magazzino_logico', $this->normalizeCategoriaFiltro($this->categoriaId));
         }
 
         $giacenzeSub = \DB::table('giacenze')

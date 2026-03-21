@@ -147,7 +147,7 @@
                     </div>
 
                     <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Categoria</label>
+                        <label class="form-label small fw-semibold">Magazzino</label>
                         <select class="form-select form-select-sm" wire:model.live="categoriaFilter">
                             <option value="">Tutte</option>
                             @foreach($categorie as $categoria)
@@ -235,7 +235,7 @@
                                 </th>
                                 <th>Fornitore</th>
                                 <th>Sede</th>
-                                <th>Categoria</th>
+                                <th>Magazzino</th>
                                 <th>Art.</th>
                                 <th>Pz.</th>
                                 <th>Stato</th>
@@ -278,7 +278,7 @@
                                         <small class="text-muted">{{ $doc->sede->nome ?? '-' }}</small>
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ $doc->categoria->nome ?? '-' }}</small>
+                                        <small class="text-muted">{{ $doc->magazzino_logico ? 'Magazzino ' . $doc->magazzino_logico : '-' }}</small>
                                     </td>
                                     <td>
                                         @if($doc->numero_articoli > 0)

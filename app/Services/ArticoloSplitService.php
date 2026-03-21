@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class ArticoloSplitService
 {
+    public function __construct(
+        private readonly MagazzinoLogicoService $magazzinoLogicoService
+    ) {
+    }
+
     public function splitArticolo(Articolo $articolo, int $quantita): Articolo
     {
         if ($quantita <= 0) {
@@ -47,11 +52,16 @@ class ArticoloSplitService
             $figlio->ultimo_testo_vetrina = null;
             $figlio->conto_deposito_corrente_id = null;
             $figlio->quantita_in_deposito = 0;
+            $figlio->magazzino_logico = $articolo->magazzino_logico
+                ?? $this->magazzinoLogicoService->resolveFromCategoriaId($articolo->categoria_merceologica_id);
             $figlio->save();
 
             Giacenza::create([
                 'articolo_id' => $figlio->id,
                 'categoria_merceologica_id' => $giacenza->categoria_merceologica_id,
+                'magazzino_logico' => $giacenza->magazzino_logico
+                    ?? $figlio->magazzino_logico
+                    ?? $this->magazzinoLogicoService->resolveFromCategoriaId($giacenza->categoria_merceologica_id),
                 'sede_id' => $giacenza->sede_id,
                 'ubicazione_id' => $giacenza->ubicazione_id,
                 'quantita' => $quantita,

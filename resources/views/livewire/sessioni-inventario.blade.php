@@ -62,7 +62,7 @@
                                             <strong>{{ $sessione->nome }}</strong>
                                             @if($sessione->note)
                                                 <br><small class="text-muted">{{ Str::limit($sessione->note, 50) }}</small>
-                                            @endif
+                                            
                                         </td>
                                         <td>{{ $sessione->sede->nome }}</td>
                                         <td>{{ $sessione->utente->name }}</td>
@@ -87,7 +87,7 @@
                                                     Trovati: {{ $sessione->articoli_trovati }}<br>
                                                     Eliminati: {{ $sessione->articoli_eliminati }}
                                                 </small>
-                                            @endif
+                                            
                                         </td>
                                         <td>
                                             <div class="btn-group" role="group">
@@ -125,7 +125,7 @@
                                                         <iconify-icon icon="solar:document-text-bold-duotone"></iconify-icon>
                                                         Report
                                                     </a>
-                                                @endif
+                                                
                                             </div>
                                         </td>
                                     </tr>
@@ -177,7 +177,7 @@
                             
                             <div class="row mt-3">
                                 <div class="col-12">
-                                    <label class="form-label">Categorie da Inventariare</label>
+                                    <label class="form-label">Magazzini da Inventariare</label>
                                     <div class="row">
                                         @foreach($categorie as $categoria)
                                             <div class="col-md-4">
@@ -188,6 +188,7 @@
                                                            id="categoria_{{ $categoria->id }}">
                                                     <label class="form-check-label" for="categoria_{{ $categoria->id }}">
                                                         {{ $categoria->nome }}
+
                                                     </label>
                                                 </div>
                                             </div>
@@ -217,7 +218,7 @@
             </div>
         </div>
         <div class="modal-backdrop fade show"></div>
-    @endif
+    
 
     <!-- Modal Dettagli Sessione -->
     @if($showModalDettagli && $sessioneSelezionata)
@@ -265,7 +266,7 @@
                                             <td><strong>Data Fine:</strong></td>
                                             <td>{{ $sessioneSelezionata->data_fine->format('d/m/Y H:i:s') }}</td>
                                         </tr>
-                                    @endif
+                                    
                                 </table>
                             </div>
                             <div class="col-md-6">
@@ -298,23 +299,24 @@
                         <!-- Categorie Selezionate -->
                         <div class="row mt-4">
                             <div class="col-12">
-                                <h6>Categorie da Inventariare</h6>
-                                @if($sessioneSelezionata->categorie_permesse && count($sessioneSelezionata->categorie_permesse) > 0)
-                                    <div class="row">
-                                        @foreach($sessioneSelezionata->categorie_permesse as $categoriaId)
-                                            @php
-                                                $categoria = \App\Models\CategoriaMerceologica::find($categoriaId);
-                                            @endphp
-                                            @if($categoria)
-                                                <div class="col-md-4">
-                                                    <span class="badge bg-primary">{{ $categoria->nome }}</span>
-                                                </div>
-                                            @endif
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <p class="text-muted">Tutte le categorie</p>
-                                @endif
+                                <h6>Magazzini da Inventariare</h6>
+@if($sessioneSelezionata->categorie_permesse && count($sessioneSelezionata->categorie_permesse) > 0)
+    <div class="row">
+        @foreach($sessioneSelezionata->categorie_permesse as $categoriaId)
+            @php
+                $magazzinoLogico = app(\App\Services\MagazzinoLogicoService::class)->resolveFromCategoriaId((int) $categoriaId) ?? (int) $categoriaId;
+            @endphp
+            <div class="col-md-4">
+                <span class="badge bg-primary">{{ 'Magazzino ' . $magazzinoLogico }}</span>
+            </div>
+        @endforeach
+    </div>
+@else
+    <p class="text-muted">Tutti i magazzini</p>
+@endif
+
+                                
+                                
                             </div>
                         </div>
 
@@ -326,7 +328,7 @@
                                     <p class="text-muted">{{ $sessioneSelezionata->note }}</p>
                                 </div>
                             </div>
-                        @endif
+                        
                     </div>
                     <div class="modal-footer">
                         <button type="button" wire:click="chiudiModalDettagli" class="btn btn-secondary">Chiudi</button>
@@ -343,11 +345,11 @@
                                 <iconify-icon icon="solar:scanner-bold-duotone"></iconify-icon>
                                 Scanner
                             </a>
-                        @endif
+                        
                     </div>
                 </div>
             </div>
         </div>
         <div class="modal-backdrop fade show"></div>
-    @endif
+    
 </div>

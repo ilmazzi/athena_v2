@@ -36,6 +36,7 @@ class Ddt extends Model
         'ocr_document_id',
         'sede_id',
         'categoria_id',
+        'magazzino_logico',
         'quantita_totale',
         'numero_articoli',
     ];
@@ -44,6 +45,7 @@ class Ddt extends Model
         'data_documento' => 'date',
         'data_carico' => 'datetime',
         'anno' => 'integer',
+        'magazzino_logico' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -147,4 +149,3 @@ class Ddt extends Model
             });
     }
 }
-

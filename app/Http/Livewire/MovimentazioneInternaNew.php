@@ -11,6 +11,7 @@ use App\Models\GiacenzaSede;
 use App\Models\CategoriaMerceologica;
 use App\Services\MovimentazioneService;
 use App\Services\ArticoloSplitService;
+use App\Services\MagazzinoLogicoService;
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
 use Illuminate\Support\Facades\DB;
 
@@ -99,6 +100,10 @@ class MovimentazioneInternaNew extends Component
                 ->first();
             $this->sedeDestinazioneId = $destinazione?->id;
         }
+
+        if ($this->categoriaId && !$this->getCategorieProperty()->contains('id', (int) $this->categoriaId)) {
+            $this->categoriaId = null;
+        }
     }
 
     public function updatingSearch()
@@ -135,10 +140,30 @@ class MovimentazioneInternaNew extends Component
         if (!$this->sedeOrigineId) {
             return collect();
         }
-        
-        return CategoriaMerceologica::where('sede_id', $this->sedeOrigineId)
+
+        $service = app(MagazzinoLogicoService::class);
+
+        return CategoriaMerceologica::withoutGlobalScopes()
+            ->where('sede_id', $this->sedeOrigineId)
             ->orderBy('nome')
-            ->get();
+            ->get()
+            ->map(function (CategoriaMerceologica $categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+                if (!$magazzinoLogico) {
+                    return null;
+                }
+
+                return (object) [
+                    'id' => $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'categoria_locale_id' => $categoria->id,
+                    'categoria_locale_codice' => $categoria->codice,
+                ];
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
     }
     
     public function getArticoliDisponibiliProperty()
@@ -164,7 +189,7 @@ class MovimentazioneInternaNew extends Component
             ->whereNull('conto_deposito_corrente_id');
             
         if ($this->categoriaId) {
-            $query->where('categoria_merceologica_id', $this->categoriaId);
+            $query->where('magazzino_logico', $this->categoriaId);
         }
         
         if ($this->search) {
@@ -223,7 +248,7 @@ class MovimentazioneInternaNew extends Component
                 'max_quantita' => $isPf ? min(1, $quantitaDisponibile) : $quantitaDisponibile,
                 'codice' => $articolo->codice,
                 'descrizione' => $articolo->descrizione,
-                'categoria' => $articolo->categoriaMerceologica->nome ?? 'N/A',
+                'categoria' => $this->labelMagazzinoLogico($articolo->magazzino_logico),
                 'in_vetrina' => $articolo->isInVetrina(),
                 'warning_vetrina' => $articolo->isInVetrina() ? "Articolo in vetrina - sarà rimosso automaticamente" : null,
                 'is_pf' => $isPf,
@@ -353,6 +378,7 @@ class MovimentazioneInternaNew extends Component
                         $articolo->update([
                             'sede_id' => $this->sedeDestinazioneId,
                             'categoria_merceologica_id' => $destCategoriaResult,
+                            'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($destCategoriaResult),
                         ]);
                         $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
                         $pf->update(['magazzino_id' => $destCategoriaResult]);
@@ -422,7 +448,12 @@ class MovimentazioneInternaNew extends Component
                     }
                     
                     // Sposta l'articolo nella nuova sede
-                    $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
+                    $categoriaDestinazioneId = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo);
+                    $articolo->update([
+                        'sede_id' => $this->sedeDestinazioneId,
+                        'categoria_merceologica_id' => $categoriaDestinazioneId,
+                        'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaDestinazioneId),
+                    ]);
                     $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
                 }
                 
@@ -663,6 +694,7 @@ class MovimentazioneInternaNew extends Component
             }
             $giacenza->update([
                 'sede_id' => $sedeId,
+                'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaId),
                 'quantita' => $quantita,
                 'quantita_residua' => $quantita,
                 'ultimo_movimento_at' => now(),
@@ -673,6 +705,7 @@ class MovimentazioneInternaNew extends Component
         Giacenza::create([
             'articolo_id' => $articoloId,
             'categoria_merceologica_id' => $categoriaId,
+            'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaId),
             'sede_id' => $sedeId,
             'quantita' => $quantita,
             'quantita_iniziale' => $quantita,
@@ -700,6 +733,24 @@ class MovimentazioneInternaNew extends Component
                 ['quantita' => (int) $giacenza->quantita, 'quantita_residua' => (int) $giacenza->quantita_residua]
             );
         }
+    }
+
+    private function resolveMagazzinoLogicoForCategoria(?int $categoriaId): ?int
+    {
+        if (!$categoriaId) {
+            return null;
+        }
+
+        return app(MagazzinoLogicoService::class)->resolveFromCategoriaId($categoriaId);
+    }
+
+    private function labelMagazzinoLogico(?int $magazzinoLogico): string
+    {
+        if (!$magazzinoLogico) {
+            return 'N/D';
+        }
+
+        return 'Magazzino ' . $magazzinoLogico;
     }
     
     public function getTotaleSelezionati(): int

@@ -18,6 +18,11 @@ use Illuminate\Support\Facades\DB;
  */
 class CodiceService
 {
+    public function __construct(
+        private readonly MagazzinoLogicoService $magazzinoLogicoService,
+    ) {
+    }
+
     /**
      * Query base per generazione codici:
      * - senza global scope sede utente
@@ -105,28 +110,7 @@ class CodiceService
 
     private function resolveMagazzinoCode(int $magazzinoId): int
     {
-        $categoria = $this->categorieQuery()->find($magazzinoId);
-
-        if (!$categoria) {
-            return $magazzinoId;
-        }
-
-        $codice = trim((string) $categoria->codice);
-        $nome = trim((string) $categoria->nome);
-
-        if ($codice !== '' && ctype_digit($codice)) {
-            return (int) $codice;
-        }
-
-        if ($codice !== '' && preg_match('/(?:MAG|MAGAZZINO)\s*([0-9]+)/i', $codice, $matches)) {
-            return (int) $matches[1];
-        }
-
-        if ($nome !== '' && preg_match('/MAGAZZINO\s*([0-9]+)/i', $nome, $matches)) {
-            return (int) $matches[1];
-        }
-
-        return $magazzinoId;
+        return $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoId) ?? $magazzinoId;
     }
     
     /**

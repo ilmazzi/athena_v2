@@ -1,4 +1,4 @@
-<div @if($autoRefresh) wire:poll.15s @endif>
+﻿<div @if($autoRefresh) wire:poll.15s @endif>
     @if (session()->has('info'))
         <div class="alert alert-info alert-dismissible fade show" role="alert">
             <iconify-icon icon="solar:info-circle-bold-duotone"></iconify-icon>
@@ -87,7 +87,7 @@
         @if($lastFinalizzaReport)
             <div class="alert alert-success small">
                 <div class="fw-semibold">Chiusura completata</div>
-                <div>Allineati: {{ $lastFinalizzaReport['da_allineare'] }} · Rimossi: {{ $lastFinalizzaReport['da_rimuovere'] }}</div>
+                <div>Allineati: {{ $lastFinalizzaReport['da_allineare'] }} Â· Rimossi: {{ $lastFinalizzaReport['da_rimuovere'] }}</div>
                 <div class="mt-2">
                     <button wire:click="exportFinalizzaReport" class="btn btn-dark btn-sm">
                         Esporta report chiusura
@@ -132,7 +132,7 @@
                     <li>Non scansionati: individua cosa manca ancora da contare.</li>
                     <li>Progresso: misura la percentuale completata della sessione.</li>
                     <li>Valore magazzino: vedi il valore economico stimato per sede.</li>
-                    <li>Per magazzino: confronta stato e differenze per ogni categoria.</li>
+                    <li>Per magazzino: confronta stato e differenze per ogni magazzino.</li>
                 </ul>
             </div>
             <div class="table-responsive">
@@ -172,13 +172,13 @@
                         </tr>
                         <tr>
                             <td>Valore magazzino</td>
-                            <td class="text-end fw-semibold">€ {{ number_format($statistiche['valore_magazzino'], 2, ',', '.') }}</td>
-                            <td class="text-muted">—</td>
+                            <td class="text-end fw-semibold">â‚¬ {{ number_format($statistiche['valore_magazzino'], 2, ',', '.') }}</td>
+                            <td class="text-muted">â€”</td>
                         </tr>
                         <tr>
                             <td>Completamento</td>
                             <td class="text-end fw-semibold">{{ $statistiche['progresso'] }}%</td>
-                            <td class="text-muted">—</td>
+                            <td class="text-muted">â€”</td>
                         </tr>
                     </tbody>
                 </table>
@@ -213,7 +213,7 @@
                                 <td class="text-end">{{ $magazzino['mancanti'] }}</td>
                                 <td class="text-end">{{ $magazzino['eccedenze'] }}</td>
                                 <td class="text-end">{{ $magazzino['parziali'] }}</td>
-                                <td class="text-end">€ {{ number_format($magazzino['valore'], 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($magazzino['valore'], 2, ',', '.') }}</td>
                                 <td>
                                     <div class="d-flex gap-2">
                                         <button class="btn btn-link p-0 text-decoration-none" wire:click="setCategoria({{ $magazzino['id'] }})">
@@ -239,11 +239,11 @@
                 <div class="fw-semibold mb-1">Cosa puoi fare qui</div>
                 <ul class="mb-0">
                     <li>Target: scegli il tipo di anomalia (incongruenze, eccedenze, parziali, mancanze).</li>
-                    <li>Categoria: limita l'analisi a una sola categoria merceologica.</li>
+                    <li>Magazzino: limita l'analisi a un solo magazzino.</li>
                     <li>Regola: definisci come correggere le righe filtrate.</li>
                     <li>Diff min/max e Valore min/max: restringi il campo alle anomalie importanti.</li>
-                    <li>Soglie criticita: definiscono quando una differenza è bassa, media o alta.</li>
-                    <li>Heatmap: conta quante anomalie critiche ci sono per categoria.</li>
+                    <li>Soglie criticita: definiscono quando una differenza Ã¨ bassa, media o alta.</li>
+                    <li>Heatmap: conta quante anomalie critiche ci sono per magazzino.</li>
                     <li>Esempio: diff +12 con soglia alta 10 = criticita alta.</li>
                     <li>Applica regola: corregge in massa SOLO le righe filtrate.</li>
                     <li>Top anomalie / Report / Heatmap: analisi rapide e priorita di intervento.</li>
@@ -260,9 +260,9 @@
                     </select>
                 </div>
                 <div>
-                    <label class="form-label small text-muted">Categoria</label>
+                    <label class="form-label small text-muted">Magazzino</label>
                     <select wire:model.live="categoriaId" class="form-select form-select-sm">
-                        <option value="">Tutte</option>
+                        <option value="">Tutti i magazzini</option>
                         @foreach($categorie as $categoria)
                             <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
                         @endforeach
@@ -281,25 +281,25 @@
                 </div>
                 <div>
                     <label class="form-label small text-muted">Diff max</label>
-                    <input type="number" min="0" class="form-control form-control-sm" wire:model.live="bulkDiffMax" placeholder="∞">
+                    <input type="number" min="0" class="form-control form-control-sm" wire:model.live="bulkDiffMax" placeholder="âˆž">
                 </div>
                 <div>
-                    <label class="form-label small text-muted">Valore min (€)</label>
+                    <label class="form-label small text-muted">Valore min (â‚¬)</label>
                     <input type="number" step="0.01" min="0" class="form-control form-control-sm" wire:model.live="bulkValoreMin" placeholder="0">
                 </div>
                 <div>
-                    <label class="form-label small text-muted">Valore max (€)</label>
-                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" wire:model.live="bulkValoreMax" placeholder="∞">
+                    <label class="form-label small text-muted">Valore max (â‚¬)</label>
+                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" wire:model.live="bulkValoreMax" placeholder="âˆž">
                 </div>
                 <div>
-                    <label class="form-label small text-muted" title="Soglia per le anomalie più critiche in heatmap">
-                        Criticità alta (diff)
+                    <label class="form-label small text-muted" title="Soglia per le anomalie piÃ¹ critiche in heatmap">
+                        CriticitÃ  alta (diff)
                     </label>
                     <input type="number" min="1" class="form-control form-control-sm" wire:model.live="heatmapDiffHigh">
                 </div>
                 <div>
                     <label class="form-label small text-muted" title="Soglia per le anomalie medie in heatmap">
-                        Criticità media (diff)
+                        CriticitÃ  media (diff)
                     </label>
                     <input type="number" min="1" class="form-control form-control-sm" wire:model.live="heatmapDiffMedium">
                 </div>
@@ -307,8 +307,8 @@
                 <button wire:click="exportAnomalieCsv" class="btn btn-dark btn-sm">Esporta anomalie</button>
             </div>
             <div class="small text-muted mb-3">
-                Soglie heatmap: diff &lt; media = bassa, diff ≥ media = media, diff ≥ alta = alta.
-                Esempio: media 3 e alta 10 → diff 2 = bassa, diff 5 = media, diff 12 = alta.
+                Soglie heatmap: diff &lt; media = bassa, diff â‰¥ media = media, diff â‰¥ alta = alta.
+                Esempio: media 3 e alta 10 â†’ diff 2 = bassa, diff 5 = media, diff 12 = alta.
             </div>
 
             <div class="table-responsive">
@@ -347,7 +347,7 @@
                         <tr>
                             <th>Codice</th>
                             <th>Descrizione</th>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Q.ta trovata</th>
                             <th class="text-end">Diff</th>
                             <th class="text-end">Valore</th>
@@ -364,7 +364,7 @@
                                 <td>{{ $item->categoria ?? '-' }}</td>
                                 <td class="text-end">{{ $item->quantita_trovata }}</td>
                                 <td class="text-end">{{ $item->diff > 0 ? '+' : '' }}{{ $item->diff }}</td>
-                                <td class="text-end">€ {{ number_format($valoreDiff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($valoreDiff, 2, ',', '.') }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -376,11 +376,11 @@
             </div>
 
             <div class="table-responsive mt-4">
-                <div class="text-uppercase text-muted small mb-2">Report per categoria</div>
+                <div class="text-uppercase text-muted small mb-2">Report per magazzino</div>
                 <table class="table table-sm align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Righe</th>
                             <th class="text-end">Eccedenze</th>
                             <th class="text-end">Mancanze</th>
@@ -391,12 +391,12 @@
                     <tbody class="small">
                         @forelse($reportAnomalie as $row)
                             <tr>
-                                <td>{{ $row->categoria ?? 'Senza categoria' }}</td>
+                                <td>{{ $row->categoria ?? 'Senza magazzino' }}</td>
                                 <td class="text-end">{{ $row->righe }}</td>
                                 <td class="text-end">{{ $row->eccedenze }}</td>
                                 <td class="text-end">{{ $row->mancanze }}</td>
                                 <td class="text-end">{{ $row->diff_totale }}</td>
-                                <td class="text-end">€ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -408,11 +408,11 @@
             </div>
 
             <div class="table-responsive mt-4">
-                <div class="text-uppercase text-muted small mb-2">Heatmap criticità per categoria</div>
+                <div class="text-uppercase text-muted small mb-2">Heatmap criticitÃ  per magazzino</div>
                 <table class="table table-sm align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Critiche</th>
                             <th class="text-end">Medie</th>
                             <th class="text-end">Basse</th>
@@ -422,7 +422,7 @@
                     <tbody class="small">
                         @forelse($heatmapAnomalie as $row)
                             <tr>
-                                <td>{{ $row->categoria ?? 'Senza categoria' }}</td>
+                                <td>{{ $row->categoria ?? 'Senza magazzino' }}</td>
                                 <td class="text-end">{{ $row->critiche }}</td>
                                 <td class="text-end">{{ $row->medie }}</td>
                                 <td class="text-end">{{ $row->basse }}</td>
@@ -438,13 +438,13 @@
             </div>
 
             <div class="table-responsive mt-4">
-                <div class="text-uppercase text-muted small mb-2">Priorità assolute (valore economico)</div>
+                <div class="text-uppercase text-muted small mb-2">PrioritÃ  assolute (valore economico)</div>
                 <table class="table table-sm align-middle">
                     <thead class="table-light">
                         <tr>
                             <th>Codice</th>
                             <th>Descrizione</th>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Q.ta trovata</th>
                             <th class="text-end">Diff</th>
                             <th class="text-end">Valore diff</th>
@@ -458,7 +458,7 @@
                                 <td>{{ $item->categoria ?? '-' }}</td>
                                 <td class="text-end">{{ $item->quantita_trovata }}</td>
                                 <td class="text-end">{{ $item->diff > 0 ? '+' : '' }}{{ $item->diff }}</td>
-                                <td class="text-end">€ {{ number_format($item->valore_diff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($item->valore_diff, 2, ',', '.') }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -476,7 +476,7 @@
                         <tr>
                             <th>Codice</th>
                             <th>Descrizione</th>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Diff</th>
                             <th class="text-end">Valore diff</th>
                             <th>Azione</th>
@@ -490,7 +490,7 @@
                                 <td>{{ $item->descrizione }}</td>
                                 <td>{{ $item->categoria ?? '-' }}</td>
                                 <td class="text-end">{{ $item->diff > 0 ? '+' : '' }}{{ $item->diff }}</td>
-                                <td class="text-end">€ {{ number_format($item->valore_diff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($item->valore_diff, 2, ',', '.') }}</td>
                                 <td>
                                     @php
                                         $actionKey = $item->diff > 0 ? 'sistema' : (($item->quantita_trovata ?? 0) > 0 ? 'sistema' : 'zero');
@@ -503,7 +503,7 @@
                                     @endphp
                                     <span class="badge text-bg-light">{{ $actionLabel }}</span>
                                     <div class="small text-muted mt-1">
-                                        {{ $reasonLabel }} · differenza {{ $item->diff > 0 ? '+' : '' }}{{ $item->diff }}
+                                        {{ $reasonLabel }} Â· differenza {{ $item->diff > 0 ? '+' : '' }}{{ $item->diff }}
                                     </div>
                                 </td>
                                 <td class="text-end">
@@ -527,7 +527,7 @@
             <div class="alert alert-light border small text-muted">
                 <div class="fw-semibold mb-1">Cosa puoi fare qui</div>
                 <ul class="mb-0">
-                    <li>Filtra per categoria e stato per lavorare su un sottoinsieme preciso.</li>
+                    <li>Filtra per magazzino e stato per lavorare su un sottoinsieme preciso.</li>
                     <li>Controllo coerenza inventario: verifica che numeri e scansioni siano allineati.</li>
                     <li>Confronto inventario vs giacenze: confronta totali della sessione con le giacenze reali.</li>
                     <li>Inventaria filtrati: segna come trovati tutti gli articoli attualmente filtrati.</li>
@@ -548,9 +548,9 @@
             @endif
             <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
                 <div>
-                    <label class="form-label small text-muted">Categoria</label>
+                    <label class="form-label small text-muted">Magazzino</label>
                     <select wire:model.live="categoriaId" class="form-select form-select-sm">
-                        <option value="">Tutte le categorie</option>
+                        <option value="">Tutti i magazzini</option>
                         @foreach($categorie as $categoria)
                             <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
                         @endforeach
@@ -598,7 +598,7 @@
                         <tr>
                             <th>Codice</th>
                             <th>Descrizione</th>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Q.ta sistema</th>
                             <th class="text-end">Q.ta trovata</th>
                             <th class="text-end">Diff.</th>
@@ -626,7 +626,7 @@
                             <tr>
                                 <td>{{ $articolo->codice }}</td>
                                 <td>{{ $articolo->descrizione }}</td>
-                                <td>{{ $articolo->categoriaMerceologica->nome ?? '-' }}</td>
+                                <td>{{ 'Magazzino ' . ($articolo->magazzino_logico ?? '-') }}</td>
                                 <td class="text-end">{{ $quantitaSistema ?? '-' }}</td>
                                 <td class="text-end">{{ $quantitaTrovata ?? '-' }}</td>
                                 <td class="text-end">
@@ -676,7 +676,7 @@
                 <ul class="mb-0">
                     <li>Totali periodo: riepilogo complessivo delle scansioni e delle differenze.</li>
                     <li>Andamento giornaliero: vedi progressi e criticita giorno per giorno.</li>
-                    <li>Andamento per categoria: capisci dove si concentra la differenza economica.</li>
+                    <li>Andamento per magazzino: capisci dove si concentra la differenza economica.</li>
                 </ul>
             </div>
             @php
@@ -701,12 +701,12 @@
                     </thead>
                     <tbody class="small">
                         <tr>
-                            <td>—</td>
+                            <td>â€”</td>
                             <td class="text-end">{{ $totScansioni }}</td>
                             <td class="text-end">{{ $totTrovati }}</td>
                             <td class="text-end">{{ $totEliminati }}</td>
                             <td class="text-end">{{ $totDiff }}</td>
-                            <td class="text-end">€ {{ number_format($totValore, 2, ',', '.') }}</td>
+                            <td class="text-end">â‚¬ {{ number_format($totValore, 2, ',', '.') }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -732,7 +732,7 @@
                                 <td class="text-end">{{ $row->trovati }}</td>
                                 <td class="text-end">{{ $row->eliminati }}</td>
                                 <td class="text-end">{{ $row->diff_totale }}</td>
-                                <td class="text-end">€ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -744,11 +744,11 @@
             </div>
 
             <div class="table-responsive mt-4">
-                <div class="text-uppercase text-muted small mb-2">Andamento per categoria</div>
+                <div class="text-uppercase text-muted small mb-2">Andamento per magazzino</div>
                 <table class="table table-sm align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>Categoria</th>
+                            <th>Magazzino</th>
                             <th class="text-end">Scansioni</th>
                             <th class="text-end">Trovati</th>
                             <th class="text-end">Eliminati</th>
@@ -759,12 +759,12 @@
                     <tbody class="small">
                         @forelse($kpiPerCategoria as $row)
                             <tr>
-                                <td>{{ $row->categoria ?? 'Senza categoria' }}</td>
+                                <td>{{ $row->categoria ?? 'Senza magazzino' }}</td>
                                 <td class="text-end">{{ $row->scansioni }}</td>
                                 <td class="text-end">{{ $row->trovati }}</td>
                                 <td class="text-end">{{ $row->eliminati }}</td>
                                 <td class="text-end">{{ $row->diff_totale }}</td>
-                                <td class="text-end">€ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
+                                <td class="text-end">â‚¬ {{ number_format($row->valore_diff, 2, ',', '.') }}</td>
                             </tr>
                         @empty
                             <tr>
@@ -808,7 +808,7 @@
                                     @if($evento->articolo)
                                         {{ $evento->articolo->codice }} - {{ $evento->articolo->descrizione }}
                                     @else
-                                        —
+                                        â€”
                                     @endif
                                 </td>
                                 <td>{{ $evento->utente->name ?? '-' }}</td>
@@ -816,7 +816,7 @@
                                     @if(!empty($evento->payload))
                                         {{ json_encode($evento->payload) }}
                                     @else
-                                        —
+                                        â€”
                                     @endif
                                 </td>
                             </tr>
@@ -882,7 +882,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2">Stai per aggiornare le quantità di magazzino usando le quantità trovate.</p>
+                    <p class="mb-2">Stai per aggiornare le quantitÃ  di magazzino usando le quantitÃ  trovate.</p>
                     <ul class="small text-muted mb-0">
                         <li>Righe da allineare: <strong>{{ $previewAllinea }}</strong></li>
                         <li>Magazzino: <strong>{{ $sessione->sede->nome ?? '' }}</strong></li>
@@ -904,7 +904,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-2">Questa operazione allinea le quantità e rimuove gli articoli mancanti.</p>
+                    <p class="mb-2">Questa operazione allinea le quantitÃ  e rimuove gli articoli mancanti.</p>
                     <ul class="small text-muted mb-0">
                         <li>Righe da allineare: <strong>{{ $previewFinalizza['da_allineare'] }}</strong></li>
                         <li>Articoli da rimuovere: <strong>{{ $previewFinalizza['da_rimuovere'] }}</strong></li>
@@ -940,11 +940,11 @@
                     <ul class="small text-muted mb-0">
                         <li>Target: <strong>{{ $bulkTarget }}</strong></li>
                         <li>Regola: <strong>{{ $bulkRule }}</strong></li>
-                        <li>Categoria: <strong>{{ $categoriaId ?: 'Tutte' }}</strong></li>
-                        <li>Diff min: <strong>{{ $bulkDiffMin === null || $bulkDiffMin === '' ? '—' : $bulkDiffMin }}</strong></li>
-                        <li>Diff max: <strong>{{ $bulkDiffMax === null || $bulkDiffMax === '' ? '—' : $bulkDiffMax }}</strong></li>
-                        <li>Valore min: <strong>{{ $bulkValoreMin === null || $bulkValoreMin === '' ? '—' : $bulkValoreMin }}</strong></li>
-                        <li>Valore max: <strong>{{ $bulkValoreMax === null || $bulkValoreMax === '' ? '—' : $bulkValoreMax }}</strong></li>
+                        <li>Magazzino: <strong>{{ $categoriaId ?: 'Tutti i magazzini' }}</strong></li>
+                        <li>Diff min: <strong>{{ $bulkDiffMin === null || $bulkDiffMin === '' ? 'â€”' : $bulkDiffMin }}</strong></li>
+                        <li>Diff max: <strong>{{ $bulkDiffMax === null || $bulkDiffMax === '' ? 'â€”' : $bulkDiffMax }}</strong></li>
+                        <li>Valore min: <strong>{{ $bulkValoreMin === null || $bulkValoreMin === '' ? 'â€”' : $bulkValoreMin }}</strong></li>
+                        <li>Valore max: <strong>{{ $bulkValoreMax === null || $bulkValoreMax === '' ? 'â€”' : $bulkValoreMax }}</strong></li>
                         <li>Righe coinvolte: <strong>{{ $bulkPreviewCount }}</strong></li>
                         <li>Base confronto: <strong>{{ $baseConfronto }}</strong></li>
                     </ul>
@@ -984,16 +984,16 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Modifica quantità</h5>
+                    <h5 class="modal-title">Modifica quantitÃ </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" wire:click="closeEditArticolo"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Quantità trovata</label>
+                        <label class="form-label">QuantitÃ  trovata</label>
                         <input type="number" min="0" class="form-control" wire:model.defer="editingQuantitaTrovata">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Quantità sistema (giacenza)</label>
+                        <label class="form-label">QuantitÃ  sistema (giacenza)</label>
                         <input type="number" min="0" class="form-control" wire:model.defer="editingQuantitaSistema">
                     </div>
                     <p class="small text-muted mb-0">
@@ -1008,3 +1008,4 @@
         </div>
     </div>
 </div>
+

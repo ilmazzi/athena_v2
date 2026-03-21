@@ -11,16 +11,45 @@ use App\Models\Sede;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\MagazzinoLogicoService;
+
 
 class InventarioService
 {
+
+    private function normalizeCategoriePermesse(?array $categoriePermesse): ?array
+{
+    if (empty($categoriePermesse)) {
+        return null;
+    }
+
+    $service = app(MagazzinoLogicoService::class);
+
+    return collect($categoriePermesse)
+        ->map(fn ($categoriaId) => $service->resolveFromCategoriaId((int) $categoriaId) ?? (int) $categoriaId)
+        ->filter()
+        ->unique()
+        ->values()
+        ->all();
+}
+
+private function normalizeCategoriaFiltro(?int $categoriaId): ?int
+{
+    if (!$categoriaId) {
+        return null;
+    }
+
+    return app(MagazzinoLogicoService::class)->resolveFromCategoriaId((int) $categoriaId) ?? (int) $categoriaId;
+}
+
     /**
      * Crea una nuova sessione di inventario
      */
     public function creaSessione(string $nome, int $sedeId, array $categoriePermesse = null, int $utenteId = null): InventarioSessione
     {
         $utenteId = $utenteId ?? auth()->id();
-        
+        $categoriePermesse = $this->normalizeCategoriePermesse($categoriePermesse);
+    
         $sessione = InventarioSessione::create([
             'nome' => $nome,
             'sede_id' => $sedeId,
@@ -30,16 +59,17 @@ class InventarioService
             'utente_id' => $utenteId,
             'articoli_totali' => $this->contaArticoliDaInventariare($sedeId, $categoriePermesse)
         ]);
-        
+    
         Log::info("Sessione inventario creata", [
             'sessione_id' => $sessione->id,
             'nome' => $nome,
             'sede_id' => $sedeId,
             'utente_id' => $utenteId
         ]);
-        
+    
         return $sessione;
     }
+    
 
     /**
      * Conta gli articoli da inventariare per sede e categorie
@@ -50,13 +80,15 @@ class InventarioService
             $q->where('sede_id', $sedeId)
               ->where('quantita_residua', '>', 0);
         });
-        
+    
+        $categoriePermesse = $this->normalizeCategoriePermesse($categoriePermesse);
         if ($categoriePermesse) {
-            $query->whereIn('categoria_merceologica_id', $categoriePermesse);
+            $query->whereIn('magazzino_logico', $categoriePermesse);
         }
-        
+    
         return $query->count();
     }
+    
 
     /**
      * Registra una scansione di articolo
@@ -127,10 +159,12 @@ class InventarioService
             ->where('azione', 'eliminato');
         if ($categoriaId) {
             $articoliTrovatiQuery->whereHas('articolo', function ($q) use ($categoriaId) {
-                $q->where('categoria_merceologica_id', $categoriaId);
+                $q->where('magazzino_logico', $categoriaId);
+
             });
             $articoliEliminatiQuery->whereHas('articolo', function ($q) use ($categoriaId) {
-                $q->where('categoria_merceologica_id', $categoriaId);
+                $q->where('magazzino_logico', $categoriaId);
+
             });
         }
         $articoliTrovati = $articoliTrovatiQuery->pluck('articolo_id')->toArray();
@@ -143,10 +177,12 @@ class InventarioService
         });
         
         if ($sessione->categorie_permesse) {
-            $query->whereIn('categoria_merceologica_id', $sessione->categorie_permesse);
+            $query->whereIn('magazzino_logico', $this->normalizeCategoriePermesse($sessione->categorie_permesse));
+
         }
         if ($categoriaId) {
-            $query->where('categoria_merceologica_id', $categoriaId);
+            $query->where('magazzino_logico', $categoriaId);
+
         }
         
         $articoliDaEliminare = $query

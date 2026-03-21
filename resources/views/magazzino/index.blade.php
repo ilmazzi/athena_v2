@@ -187,7 +187,7 @@
                                     </td>
                                     <td>
                                         <div class="hstack gap-3 flex-wrap">
-                                            <a href="{{ route('articoli.index', ['magazzinoFilter' => $magazzino->id]) }}" 
+                                            <a href="{{ route('articoli.index', ['magazzinoFilter' => preg_match('/MAG(\d+)/', (string) ($magazzino->codice ?? ''), $match) ? (int) $match[1] : $magazzino->id]) }}" 
                                                class="link-primary fs-15">
                                                 <i class="bx bx-package"></i> Articoli
                                             </a>

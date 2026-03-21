@@ -7,6 +7,7 @@ use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
 use App\Models\FornitorePrezzo;
 use App\Models\Sede;
+use App\Services\MagazzinoLogicoService;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Facades\Auth;
@@ -90,6 +91,7 @@ class ArticoliTable extends Component
         'descrizione' => '',
         'descrizione_estesa' => '',
         'categoria_merceologica_id' => '',
+        'magazzino_logico' => '',
         'materiale' => '',
         'colore' => '',
         'peso_lordo' => '',
@@ -196,12 +198,7 @@ class ArticoliTable extends Component
 
     public function selezionaTuttiMagazzini()
     {
-        $magazziniQuery = CategoriaMerceologica::query();
-        $userSedeId = auth()->user()?->sede_id;
-        if ($userSedeId) {
-            $magazziniQuery->where('sede_id', $userSedeId);
-        }
-        $this->magazziniSelezionati = $magazziniQuery->pluck('id')->toArray();
+        $this->magazziniSelezionati = $this->getMagazziniFilterOptions()->pluck('id')->toArray();
         $this->resetPage();
     }
 
@@ -733,6 +730,7 @@ class ArticoliTable extends Component
                 'descrizione' => $articolo->descrizione,
                 'descrizione_estesa' => $articolo->descrizione_estesa,
                 'categoria_merceologica_id' => $articolo->categoria_merceologica_id,
+                'magazzino_logico' => $articolo->magazzino_logico,
                 'materiale' => $articolo->materiale,
                 'colore' => $articolo->colore,
                 'peso_lordo' => $articolo->peso_lordo,
@@ -987,7 +985,7 @@ class ArticoliTable extends Component
         $this->validate([
             'modifica.descrizione' => 'required|string|max:255',
             'modifica.descrizione_estesa' => 'nullable|string',
-            'modifica.categoria_merceologica_id' => 'required|exists:categorie_merceologiche,id',
+            'modifica.magazzino_logico' => 'required|integer|min:1',
             'modifica.materiale' => 'nullable|string|max:100',
             'modifica.colore' => 'nullable|string|max:100',
             'modifica.peso_lordo' => 'nullable',
@@ -1009,6 +1007,17 @@ class ArticoliTable extends Component
 
         try {
             $articolo = Articolo::findOrFail($this->articoloDaModificare->id);
+
+            $magazzinoLogico = (int) ($this->modifica['magazzino_logico'] ?? 0);
+            $categoriaLocaleId = app(MagazzinoLogicoService::class)->findCategoriaIdForSede(
+                (int) $articolo->sede_id,
+                $magazzinoLogico
+            );
+
+            if (!$categoriaLocaleId) {
+                session()->flash('error', "Magazzino {$magazzinoLogico} non disponibile per la sede dell'articolo.");
+                return;
+            }
 
             $prezzoAcquisto = $this->normalizePrezzo($this->modifica['prezzo_acquisto'] ?? null);
             $prezzoFornitore = $this->normalizePrezzo($this->modifica['prezzo_fornitore'] ?? null);
@@ -1054,7 +1063,8 @@ class ArticoliTable extends Component
             $articolo->update([
                 'descrizione' => $this->modifica['descrizione'],
                 'descrizione_estesa' => $this->modifica['descrizione_estesa'] ?: null,
-                'categoria_merceologica_id' => $this->modifica['categoria_merceologica_id'],
+                'categoria_merceologica_id' => $categoriaLocaleId,
+                'magazzino_logico' => $magazzinoLogico,
                 'materiale' => $this->modifica['materiale'] ?: null,
                 'colore' => $this->modifica['colore'] ?: null,
                 'peso_lordo' => $pesoLordo,
@@ -1525,33 +1535,71 @@ class ArticoliTable extends Component
         if (empty($magazziniIds)) {
             return;
         }
+        
+        $query->whereIn('articoli.magazzino_logico', $magazziniIds);
+    }
 
-        $cdIds = CategoriaMerceologica::whereIn('id', $magazziniIds)
-            ->where('codice', 'like', 'CD-%')
-            ->pluck('id')
-            ->toArray();
-        $nonCdIds = array_values(array_diff($magazziniIds, $cdIds));
+    private function getMagazziniFilterOptions()
+    {
+        $userSedeId = auth()->user()?->sede_id;
+        $service = app(MagazzinoLogicoService::class);
 
-        if (!empty($cdIds) && empty($nonCdIds)) {
-            $query->whereIn('articoli.categoria_merceologica_id', $cdIds)
-                ->where('articoli.quantita_in_deposito', '>', 0)
-                ->whereNotNull('articoli.conto_deposito_corrente_id');
-            return;
-        }
+        $categorie = CategoriaMerceologica::query()
+            ->with('sede')
+            ->where('attivo', true)
+            ->when($userSedeId, fn ($q) => $q->where('sede_id', $userSedeId))
+            ->orderBy('sede_id')
+            ->orderBy('nome')
+            ->get();
 
-        if (!empty($cdIds) && !empty($nonCdIds)) {
-            $query->where(function ($q) use ($cdIds, $nonCdIds) {
-                $q->whereIn('articoli.categoria_merceologica_id', $nonCdIds)
-                    ->orWhere(function ($q2) use ($cdIds) {
-                        $q2->whereIn('articoli.categoria_merceologica_id', $cdIds)
-                            ->where('articoli.quantita_in_deposito', '>', 0)
-                            ->whereNotNull('articoli.conto_deposito_corrente_id');
-                    });
-            });
-            return;
-        }
+        return $categorie
+            ->map(function (CategoriaMerceologica $categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+                if (!$magazzinoLogico) {
+                    return null;
+                }
 
-        $query->whereIn('articoli.categoria_merceologica_id', $nonCdIds);
+                return (object) [
+                    'id' => (int) $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                ];
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
+    }
+
+    private function getMagazziniGroupedBySede()
+    {
+        $userSedeId = auth()->user()?->sede_id;
+        $service = app(MagazzinoLogicoService::class);
+
+        $categorie = CategoriaMerceologica::query()
+            ->with('sede')
+            ->where('attivo', true)
+            ->when($userSedeId, fn ($q) => $q->where('sede_id', $userSedeId))
+            ->get()
+            ->map(function (CategoriaMerceologica $categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+                if (!$magazzinoLogico) {
+                    return null;
+                }
+
+                return (object) [
+                    'id' => (int) $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'sede_id' => $categoria->sede_id,
+                    'sede_nome' => $categoria->sede->nome ?? ('Sede ' . $categoria->sede_id),
+                    'codice_locale' => $categoria->codice,
+                ];
+            })
+            ->filter();
+
+        return $categorie
+            ->groupBy('sede_nome')
+            ->map(fn ($items) => $items->sortBy('id')->values())
+            ->sortKeys();
     }
 
     public function render()
@@ -1781,16 +1829,8 @@ class ArticoliTable extends Component
         }
 
         // Opzioni per i filtri - TUTTE le categorie attive con count articoli
-        $magazziniQuery = CategoriaMerceologica::where('attivo', true)
-            ->orderBy('id');
-        $userSedeId = auth()->user()?->sede_id;
-        if ($userSedeId) {
-            $magazziniQuery->where('sede_id', $userSedeId);
-        }
-        if (!$this->isSearchActive()) {
-            $magazziniQuery->withCount('articoli');
-        }
-        $magazzini = $magazziniQuery->get();
+        $magazzini = $this->getMagazziniFilterOptions();
+        $magazziniGruppati = $this->getMagazziniGroupedBySede();
         
         // Opzioni per filtri avanzati
         $fornitori = Fornitore::where('attivo', true)
@@ -1813,6 +1853,8 @@ class ArticoliTable extends Component
         // Sedi per filtro (ex-ubicazioni)
         $sedi = Sede::orderBy('nome')->get();
 
-        return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'fornitori', 'marche', 'sedi'));
+        return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));
     }
 }
+
+

@@ -268,7 +268,7 @@
                                 @disabled(empty($sedeId))>
                             <option value="">Seleziona...</option>
                             @foreach($categorie as $categoria)
-                                <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
+                                <option value="{{ $categoria['id'] }}">{{ $categoria['label'] }}</option>
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -276,7 +276,7 @@
                             @if(empty($sedeId))
                                 Seleziona prima la sede.
                             @else
-                                Mostra solo i magazzini della sede selezionata.
+                                Mostra i magazzini globali disponibili per la sede selezionata.
                             @endif
                         </div>
                     </div>
@@ -409,7 +409,7 @@
                                         @disabled(empty($sedeId))>
                                     <option value="">Seleziona...</option>
                                     @foreach($categorie as $categoria)
-                                        <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
+                                        <option value="{{ $categoria['id'] }}">{{ $categoria['label'] }}</option>
                                     @endforeach
                                 </select>
                             </td>

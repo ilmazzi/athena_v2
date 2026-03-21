@@ -23,7 +23,9 @@ class Movimentazione extends Model
     protected $fillable = [
         'numero_documento',
         'magazzino_partenza_id',
+        'magazzino_logico_partenza',
         'magazzino_destinazione_id',
+        'magazzino_logico_destinazione',
         'data_movimentazione',
         'data_prevista',
         'stato',
@@ -41,6 +43,8 @@ class Movimentazione extends Model
     
     protected $casts = [
         'data_movimentazione' => 'date',
+        'magazzino_logico_partenza' => 'integer',
+        'magazzino_logico_destinazione' => 'integer',
         'data_prevista' => 'date',
         'confermata_at' => 'datetime',
         'completata_at' => 'datetime',
@@ -157,4 +161,3 @@ class Movimentazione extends Model
         return $this->stato === 'completata';
     }
 }
-

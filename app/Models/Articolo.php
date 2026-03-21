@@ -58,6 +58,7 @@ class Articolo extends Model
         'descrizione',
         'descrizione_estesa',
         'categoria_merceologica_id',
+        'magazzino_logico',
         'sede_id',
         'prodotto_finito_id',
         'articolo_padre_id',
@@ -106,6 +107,7 @@ class Articolo extends Model
         'inventariato' => 'boolean',
         'visibile_catalogo' => 'boolean',
         'split_index' => 'integer',
+        'magazzino_logico' => 'integer',
         'foto_aggiuntive' => 'array',
         'caratteristiche' => 'array',
         'modello' => 'string',
@@ -745,4 +747,3 @@ class Articolo extends Model
         return $this->getStatoVO()->getBadgeClass();
     }
 }
-

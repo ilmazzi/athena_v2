@@ -23,6 +23,7 @@ class MovimentazioneService
 {
     public function __construct(
         private readonly GiacenzaService $giacenzaService,
+        private readonly MagazzinoLogicoService $magazzinoLogicoService,
     ) {
     }
     
@@ -100,7 +101,9 @@ class MovimentazioneService
     ): Movimentazione {
         return Movimentazione::create([
             'magazzino_partenza_id' => $magazzinoOrigineId,
+            'magazzino_logico_partenza' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoOrigineId),
             'magazzino_destinazione_id' => $magazzinoDestinazioneId,
+            'magazzino_logico_destinazione' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
             'data_movimentazione' => $dataMovimentazione,
             'note' => $note,
             'trasporto_mezzo' => $trasportoMezzo,
@@ -248,4 +251,3 @@ class MovimentazioneService
         ];
     }
 }
-

@@ -112,20 +112,21 @@
                                     </button>
                                 </div>
                                 <hr class="my-2">
-                                @foreach($magazzini as $magazzino)
-                                    <div class="form-check py-1">
-                                        <input type="checkbox" 
-                                               class="form-check-input" 
-                                               id="magazzino_{{ $magazzino->id }}"
-                                               wire:change="toggleMagazzino({{ $magazzino->id }})"
-                                               @if(in_array($magazzino->id, $magazziniSelezionati)) checked @endif>
-                                        <label class="form-check-label w-100" for="magazzino_{{ $magazzino->id }}">
-                                            {{ $magazzino->id }} - {{ $magazzino->nome }}
-                                            @if(isset($magazzino->articoli_count))
-                                                <small class="text-muted">({{ $magazzino->articoli_count }})</small>
-                                            @endif
-                                        </label>
-                                    </div>
+                                @foreach($magazziniGruppati as $sedeNome => $magazziniSede)
+                                    <div class="small fw-semibold text-uppercase text-muted mt-2 mb-1">{{ $sedeNome }}</div>
+                                    @foreach($magazziniSede as $magazzino)
+                                        <div class="form-check py-1 ps-2">
+                                            <input type="checkbox" 
+                                                   class="form-check-input" 
+                                                   id="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}"
+                                                   wire:change="toggleMagazzino({{ $magazzino->id }})"
+                                                   @if(in_array($magazzino->id, $magazziniSelezionati)) checked @endif>
+                                            <label class="form-check-label w-100" for="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}">
+                                                {{ $magazzino->nome }}
+                                                <span class="text-muted small">({{ $magazzino->codice_locale }})</span>
+                                            </label>
+                                        </div>
+                                    @endforeach
                                 @endforeach
                             </div>
                         </div>
@@ -486,11 +487,9 @@
                         @if($magazzinoFilter)
                             @php
                                 $magazzinoSelezionato = $magazzini->firstWhere('id', $magazzinoFilter);
-                                $codiceMagazzino = $magazzinoSelezionato->codice ?? '';
-                                $nomeMagazzino = $magazzinoSelezionato->nome ?? 'Magazzino Sconosciuto';
-                                $numeroMagazzino = (int) str_replace('MAG', '', $codiceMagazzino);
+                                $nomeMagazzino = $magazzinoSelezionato->nome ?? ('Magazzino ' . $magazzinoFilter);
                             @endphp
-                            Articoli - {{ $numeroMagazzino }} - {{ $nomeMagazzino }}
+                            Articoli - {{ $nomeMagazzino }}
                         @else
                             Articoli Magazzino
                         @endif
@@ -567,11 +566,9 @@
                             $iconaCategoria = ['icon' => 'lucide:package', 'color' => 'text-secondary', 'title' => 'Tutti']; // default
                             
                             if($this->magazzinoFilter) {
-                                $categoriaAttuale = \App\Models\CategoriaMerceologica::find($this->magazzinoFilter);
-                                if($categoriaAttuale) {
-                                    $iconaCategoria = $iconeCategorie[$categoriaAttuale->id] ?? $iconaCategoria;
-                                    $isOrologioCategory = in_array($categoriaAttuale->id, [1, 2, 3, 4]); // Sveglie, Orologi Acciaio, Oro, Cinturini
-                                }
+                                $magazzinoLogicoAttuale = (int) $this->magazzinoFilter;
+                                $iconaCategoria = $iconeCategorie[$magazzinoLogicoAttuale] ?? $iconaCategoria;
+                                $isOrologioCategory = in_array($magazzinoLogicoAttuale, [1, 2, 3, 4]); // Sveglie, Orologi Acciaio, Oro, Cinturini
                             } elseif($articoli->count() > 0) {
                                 $primoArticolo = $articoli->first();
                                 if($primoArticolo->categoriaMerceologica) {
@@ -689,8 +686,8 @@
                                             if($this->magazzinoFilter) {
                                                 $iconaArticolo = $iconaCategoria;
                                             } else {
-                                                // Nessun filtro: usa l'icona specifica dell'articolo
-                                                $iconaArticolo = $iconeCategorie[$articolo->categoria_merceologica_id] ?? ['icon' => 'lucide:help-circle', 'color' => 'text-secondary', 'title' => 'Sconosciuto'];
+                                                // Nessun filtro: usa l'icona specifica del magazzino logico dell'articolo
+                                                $iconaArticolo = $iconeCategorie[$articolo->magazzino_logico] ?? ['icon' => 'lucide:help-circle', 'color' => 'text-secondary', 'title' => 'Sconosciuto'];
                                             }
                                         @endphp
                                         <div class="d-flex align-items-center justify-content-center">
@@ -1520,14 +1517,14 @@
                                 <textarea class="form-control" rows="2" wire:model.defer="modifica.descrizione_estesa"></textarea>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Categoria</label>
-                                <select class="form-select" wire:model.defer="modifica.categoria_merceologica_id">
-                                    <option value="">Seleziona categoria</option>
+                                <label class="form-label">Magazzino</label>
+                                <select class="form-select" wire:model.defer="modifica.magazzino_logico">
+                                    <option value="">Seleziona magazzino</option>
                                     @foreach($magazzini as $magazzino)
-                                        <option value="{{ $magazzino->id }}">{{ $magazzino->id }} - {{ $magazzino->nome }}</option>
+                                        <option value="{{ $magazzino->id }}">{{ $magazzino->nome }}</option>
                                     @endforeach
                                 </select>
-                                @error('modifica.categoria_merceologica_id')
+                                @error('modifica.magazzino_logico')
                                     <div class="text-danger small mt-1">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -1947,3 +1944,6 @@
     @endpush
 @endonce
 </div>
+
+
+

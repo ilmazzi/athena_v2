@@ -10,6 +10,7 @@ use App\Models\Movimentazione;
 use App\Models\CategoriaMerceologica;
 use App\Services\CodiceService;
 use App\Services\GiacenzaService;
+use App\Services\MagazzinoLogicoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -23,13 +24,16 @@ class ProdottoFinitoService
 {
     protected CodiceService $codiceService;
     protected GiacenzaService $giacenzaService;
+    protected MagazzinoLogicoService $magazzinoLogicoService;
     
     public function __construct(
         CodiceService $codiceService,
-        GiacenzaService $giacenzaService
+        GiacenzaService $giacenzaService,
+        MagazzinoLogicoService $magazzinoLogicoService
     ) {
         $this->codiceService = $codiceService;
         $this->giacenzaService = $giacenzaService;
+        $this->magazzinoLogicoService = $magazzinoLogicoService;
     }
     
     /**
@@ -116,6 +120,7 @@ class ProdottoFinitoService
                 'codice' => $codiceArticolo->toString(),
                 'descrizione' => $prodottoFinito->descrizione,
                 'categoria_merceologica_id' => $categoriaId,
+                'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($categoriaId),
                 'sede_id' => $sedeId,
                 'prodotto_finito_id' => $prodottoFinito->id,
                 'tipo_carico' => 'produzione_interna',
@@ -134,6 +139,8 @@ class ProdottoFinitoService
             
             Giacenza::create([
                 'articolo_id' => $articoloFinale->id,
+                'categoria_merceologica_id' => $categoriaId,
+                'magazzino_logico' => $articoloFinale->magazzino_logico,
                 'sede_id' => $sedeId,
                 'quantita' => 1,
                 'quantita_residua' => 1,
@@ -183,6 +190,7 @@ class ProdottoFinitoService
                 'codice' => $codiceFinale,
                 'descrizione' => $prodottoFinito->descrizione,
                 'categoria_merceologica_id' => $prodottoFinito->magazzino_id,
+                'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($prodottoFinito->magazzino_id),
                 'sede_id' => $prodottoFinito->componentiArticoli->first()->articolo->sede_id ?? 1,
                 'prodotto_finito_id' => $prodottoFinito->id,
                 'tipo_carico' => 'produzione_interna',
@@ -202,6 +210,8 @@ class ProdottoFinitoService
             // Crea giacenza per articolo finale
             Giacenza::create([
                 'articolo_id' => $articoloFinale->id,
+                'categoria_merceologica_id' => $prodottoFinito->magazzino_id,
+                'magazzino_logico' => $articoloFinale->magazzino_logico,
                 'sede_id' => $articoloFinale->sede_id,
                 'quantita' => 1,
                 'quantita_residua' => 1,
@@ -608,4 +618,3 @@ class ProdottoFinitoService
         return $numeroDocumento;
     }
 }
-

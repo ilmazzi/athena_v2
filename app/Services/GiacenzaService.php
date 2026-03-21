@@ -18,6 +18,11 @@ use Illuminate\Support\Facades\DB;
  */
 class GiacenzaService
 {
+    public function __construct(
+        private readonly MagazzinoLogicoService $magazzinoLogicoService,
+    ) {
+    }
+
     /**
      * Crea giacenza per articolo (1:1)
      * 
@@ -46,6 +51,7 @@ class GiacenzaService
             return Giacenza::create([
                 'articolo_id' => $articoloId,
                 'categoria_merceologica_id' => $magazzinoId,
+                'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoId),
                 'quantita' => $quantita,
                 'scaffale' => $scaffale,
                 'ultimo_movimento_at' => now(),
@@ -177,6 +183,11 @@ class GiacenzaService
             
             if ($giacenzaDestinazione) {
                 $giacenzaDestinazione->incrementa($quantita);
+                if (!$giacenzaDestinazione->magazzino_logico) {
+                    $giacenzaDestinazione->update([
+                        'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
+                    ]);
+                }
             } else {
                 $giacenzaDestinazione = $this->creaGiacenza(
                     $articoloId,
@@ -186,7 +197,8 @@ class GiacenzaService
             }
             
             Articolo::find($articoloId)->update([
-                'categoria_merceologica_id' => $magazzinoDestinazioneId
+                'categoria_merceologica_id' => $magazzinoDestinazioneId,
+                'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
             ]);
             
             return $giacenzaDestinazione;
@@ -214,4 +226,3 @@ class GiacenzaService
         ];
     }
 }
-

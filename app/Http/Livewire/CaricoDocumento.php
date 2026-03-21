@@ -14,6 +14,7 @@ use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
 use App\Models\Stampante;
 use App\Services\EtichettaService;
+use App\Services\MagazzinoLogicoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -67,11 +68,11 @@ class CaricoDocumento extends Component
             'numeroDocumento' => 'required|string|max:50',
             'dataDocumento' => 'required|date',
             'sedeId' => 'required|exists:sedi,id',
-            'categoriaId' => 'nullable|exists:categorie_merceologiche,id',
+            'categoriaId' => 'nullable|integer|min:1',
             'articoli.*.codice' => 'required|string|max:50',
             'articoli.*.quantita' => 'required|integer|min:1',
             'articoli.*.caratura' => 'nullable|string|max:50',
-            'articoli.*.categoria_id' => 'required|exists:categorie_merceologiche,id',
+            'articoli.*.categoria_id' => 'required|integer|min:1',
             'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
             'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
             'articoli.*.prezzo_etichetta' => 'nullable|string|max:50',
@@ -187,8 +188,10 @@ class CaricoDocumento extends Component
                         ? number_format((float) $prezzoBaseEtichettaNormalizzato, 2, ',', '')
                         : ''
                 );
-            $this->articoli[$index]['categoria_id'] = $articolo['categoria_id']
-                ?? $this->categoriaId;
+            $categoriaEstratta = $articolo['categoria_id'] ?? null;
+            $this->articoli[$index]['categoria_id'] = $categoriaEstratta
+                ? $this->resolveMagazzinoLogicoForCategoria($categoriaEstratta)
+                : $this->categoriaId;
             $this->articoli[$index]['numero_seriale'] = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
             $this->articoli[$index]['ean'] = trim((string) ($articolo['ean'] ?? ''));
         }
@@ -313,6 +316,12 @@ class CaricoDocumento extends Component
             $numeroArticoli = 0;
             $quantitaTotale = 0;
             $anno = date('Y', strtotime($this->dataDocumento));
+            $magazzinoLogicoDocumento = $this->resolveMagazzinoLogicoForCategoria($this->categoriaId);
+            $categoriaDocumentoId = $this->resolveCategoriaLocaleId($this->sedeId, $this->categoriaId);
+
+            if (!$categoriaDocumentoId) {
+                throw new \Exception('Il magazzino selezionato non è disponibile per la sede indicata.');
+            }
             
             // ⚠️ CONTROLLO DUPLICATI: Verifica se esiste già un documento con stesso numero, anno e fornitore
             if ($this->tipoDocumento === 'ddt') {
@@ -331,7 +340,8 @@ class CaricoDocumento extends Component
                     'data_documento' => $this->dataDocumento,
                     'fornitore_id' => $this->fornitoreId,
                     'sede_id' => $this->sedeId,
-                    'categoria_id' => $this->categoriaId,
+                    'categoria_id' => $categoriaDocumentoId,
+                    'magazzino_logico' => $magazzinoLogicoDocumento,
                     'tipo_carico' => 'ocr',
                     'ocr_document_id' => $this->ocrDocumentId,
                     'stato' => 'caricato',
@@ -358,7 +368,8 @@ class CaricoDocumento extends Component
                     'data_documento' => $this->dataDocumento,
                     'fornitore_id' => $this->fornitoreId,
                     'sede_id' => $this->sedeId,
-                    'categoria_id' => $this->categoriaId,
+                    'categoria_id' => $categoriaDocumentoId,
+                    'magazzino_logico' => $magazzinoLogicoDocumento,
                     'tipo_carico' => 'ocr',
                     'ocr_document_id' => $this->ocrDocumentId,
                     'partita_iva' => $this->partitaIva,
@@ -386,7 +397,12 @@ class CaricoDocumento extends Component
                 if ($prezzoUnitario !== null && (!$prezzoTotale || $prezzoTotale <= 0)) {
                     $prezzoTotale = $prezzoUnitario * ($articolo['quantita'] ?? 1);
                 }
-                $articoloCategoriaId = $articolo['categoria_id'] ?? $this->categoriaId;
+                $magazzinoLogico = (int) ($articolo['categoria_id'] ?? $this->categoriaId);
+                $articoloCategoriaId = $this->resolveCategoriaLocaleId($this->sedeId, $magazzinoLogico);
+
+                if (!$articoloCategoriaId) {
+                    throw new \Exception("Magazzino {$magazzinoLogico} non disponibile per la sede selezionata.");
+                }
 
                 $this->assertSerialIsAvailable($numeroSeriale);
 
@@ -397,6 +413,7 @@ class CaricoDocumento extends Component
                     'codice' => $codiceVO->toString(),
                     'descrizione' => $articolo['descrizione'] ?? '',
                     'categoria_merceologica_id' => $articoloCategoriaId,
+                    'magazzino_logico' => $magazzinoLogico,
                     'sede_id' => $this->sedeId,
                     'fornitore_id' => $this->fornitoreId ?: null,
                     'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
@@ -456,6 +473,8 @@ class CaricoDocumento extends Component
 
                 Giacenza::create([
                     'articolo_id' => $articoloId,
+                    'categoria_merceologica_id' => $articoloCategoriaId,
+                    'magazzino_logico' => $magazzinoLogico,
                     'sede_id' => $this->sedeId,
                     'quantita' => $articolo['quantita'],
                     'quantita_residua' => $articolo['quantita'],
@@ -837,11 +856,56 @@ class CaricoDocumento extends Component
             return;
         }
 
-        $categorieQuery = CategoriaMerceologica::query()
+        $categorie = CategoriaMerceologica::query()
             ->where('attivo', true)
             ->where('sede_id', $this->sedeId)
-            ->orderBy('nome');
+            ->orderBy('nome')
+            ->get();
 
-        $this->categorie = $categorieQuery->get();
+        $service = app(MagazzinoLogicoService::class);
+
+        $this->categorie = $categorie
+            ->map(function (CategoriaMerceologica $categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+                if (!$magazzinoLogico) {
+                    return null;
+                }
+
+                return [
+                    'id' => $magazzinoLogico,
+                    'label' => "Magazzino {$magazzinoLogico}",
+                    'categoria_locale_id' => $categoria->id,
+                    'categoria_locale_codice' => $categoria->codice,
+                    'categoria_locale_nome' => $categoria->nome,
+                ];
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
+    }
+
+    private function resolveMagazzinoLogicoForCategoria($categoriaId): ?int
+    {
+        if (empty($categoriaId)) {
+            return null;
+        }
+
+        $categoriaId = (int) $categoriaId;
+
+        if (collect($this->categorie)->contains('id', $categoriaId)) {
+            return $categoriaId;
+        }
+
+        return app(MagazzinoLogicoService::class)->resolveFromCategoriaId($categoriaId);
+    }
+
+    private function resolveCategoriaLocaleId($sedeId, $magazzinoLogico): ?int
+    {
+        if (empty($sedeId) || empty($magazzinoLogico)) {
+            return null;
+        }
+
+        return app(MagazzinoLogicoService::class)->findCategoriaIdForSede((int) $sedeId, (int) $magazzinoLogico);
     }
 }

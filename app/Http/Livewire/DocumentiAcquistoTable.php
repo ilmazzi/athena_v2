@@ -9,6 +9,7 @@ use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
 use App\Models\Stampante;
 use App\Models\CaricoDettaglio;
+use App\Services\MagazzinoLogicoService;
 use App\Services\EtichettaService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -480,8 +481,8 @@ class DocumentiAcquistoTable extends Component
         }
         
         if ($this->categoriaFilter) {
-            $ddtQuery->where('categoria_merceologica_id', $this->categoriaFilter);
-            $fattureQuery->where('categoria_merceologica_id', $this->categoriaFilter);
+            $ddtQuery->where('magazzino_logico', (int) $this->categoriaFilter);
+            $fattureQuery->where('magazzino_logico', (int) $this->categoriaFilter);
         }
         
         if ($this->statoFilter) {
@@ -608,9 +609,22 @@ class DocumentiAcquistoTable extends Component
             ->orderBy('ragione_sociale')
             ->get(['id', 'ragione_sociale']);
         
+        $service = app(MagazzinoLogicoService::class);
         $categorie = CategoriaMerceologica::where('attivo', true)
             ->orderBy('nome')
-            ->get(['id', 'nome', 'codice']);
+            ->get(['id', 'nome', 'codice'])
+            ->map(function ($categoria) use ($service) {
+                $magazzinoLogico = $service->resolveFromCategoria($categoria);
+
+                return $magazzinoLogico ? (object) [
+                    'id' => $magazzinoLogico,
+                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                ] : null;
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('id')
+            ->values();
         
         $sedi = Sede::orderBy('nome')->get(['id', 'nome']);
 

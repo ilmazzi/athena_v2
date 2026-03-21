@@ -37,6 +37,7 @@ class Fattura extends Model
         'ocr_document_id',
         'sede_id',
         'categoria_id',
+        'magazzino_logico',
         'partita_iva',
         'quantita_totale',
         'numero_articoli',
@@ -46,6 +47,7 @@ class Fattura extends Model
         'data_documento' => 'date',
         'data_carico' => 'datetime',
         'anno' => 'integer',
+        'magazzino_logico' => 'integer',
         'totale' => 'decimal:2',
         'imponibile' => 'decimal:2',
         'iva' => 'decimal:2',
@@ -152,4 +154,3 @@ class Fattura extends Model
             });
     }
 }
-

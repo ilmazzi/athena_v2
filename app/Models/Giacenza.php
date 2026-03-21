@@ -27,6 +27,7 @@ class Giacenza extends Model
     protected $fillable = [
         'articolo_id',
         'categoria_merceologica_id',
+        'magazzino_logico',
         'sede_id',          // Sede fisica giacenza
         'ubicazione_id',
         'quantita',
@@ -47,6 +48,7 @@ class Giacenza extends Model
     
     protected $casts = [
         'quantita' => 'integer',
+        'magazzino_logico' => 'integer',
         'quantita_iniziale' => 'integer',
         'quantita_residua' => 'integer',
         'quantita_deposito' => 'integer',
@@ -202,4 +204,3 @@ class Giacenza extends Model
         return $query->where('scaffale', $scaffale);
     }
 }
-

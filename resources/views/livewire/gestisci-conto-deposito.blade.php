@@ -346,7 +346,11 @@
                                                                         <tr>
                                                                             <td><span class="fw-bold text-primary">{{ $componente['articolo']->codice }}</span></td>
                                                                             <td>{{ Str::limit($componente['articolo']->descrizione, 30) }}</td>
-                                                                            <td><span class="badge bg-light-info text-info">{{ $componente['articolo']->categoriaMerceologica->nome ?? 'N/A' }}</span></td>
+                                                                            <td>
+                                                                                <span class="badge bg-light-info text-info">
+                                                                                    {{ $componente['articolo']->magazzino_logico ? 'Magazzino ' . $componente['articolo']->magazzino_logico : 'N/A' }}
+                                                                                </span>
+                                                                            </td>
                                                                             <td class="text-center">{{ $componente['quantita'] }}</td>
                                                                             <td class="text-end">€{{ number_format($componente['costo_unitario'], 2, ',', '.') }}</td>
                                                                             <td class="text-end">€{{ number_format($componente['costo_totale'], 2, ',', '.') }}</td>
@@ -703,7 +707,7 @@
                                                                             <td>{{ Str::limit($componente['articolo']->descrizione, 30) }}</td>
                                                                             <td>
                                                                                 <span class="badge bg-light-info text-info">
-                                                                                    {{ $componente['articolo']->categoriaMerceologica->nome ?? 'N/A' }}
+                                                                                    {{ $componente['articolo']->magazzino_logico ? 'Magazzino ' . $componente['articolo']->magazzino_logico : 'N/A' }}
                                                                                 </span>
                                                                             </td>
                                                                             <td class="text-center">{{ $componente['quantita'] }}</td>
@@ -853,7 +857,7 @@
                                             </td>
                                             <td>
                                                 <span class="badge bg-light-info text-info">
-                                                    {{ $articolo->categoriaMerceologica->nome ?? 'N/A' }}
+                                                    {{ $articolo->magazzino_logico ? 'Magazzino ' . $articolo->magazzino_logico : 'N/A' }}
                                                 </span>
                                             </td>
                                             <td>{{ $articolo->getQuantitaDisponibilePerMovimentazione() }}</td>
