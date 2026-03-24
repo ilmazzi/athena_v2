@@ -131,6 +131,8 @@ class ArticoliTable extends Component
 
     // Cache statistiche per evitare ricalcoli costosi durante la ricerca
     public $statsCache = null;
+    public bool $loadArticoliFilterOptions = false;
+    public bool $loadPrezziFornitoreOptions = false;
 
     private function isSearchActive(): bool
     {
@@ -346,6 +348,16 @@ class ArticoliTable extends Component
     public function updatedPerPage()
     {
         $this->resetPage();
+    }
+
+    public function openArticoliFilters(): void
+    {
+        $this->loadArticoliFilterOptions = true;
+    }
+
+    public function openPrezziFornitoreCanvas(): void
+    {
+        $this->loadPrezziFornitoreOptions = true;
     }
     
     public function sortBy($field)
@@ -1850,13 +1862,22 @@ class ArticoliTable extends Component
         $magazziniGruppati = $this->getMagazziniGroupedBySede();
         
         // Opzioni per filtri avanzati
-        $fornitori = Fornitore::where('attivo', true)
-            ->orderBy('ragione_sociale')
-            ->get(['id', 'ragione_sociale']);
+        $shouldLoadFornitori = $this->loadArticoliFilterOptions
+            || $this->loadPrezziFornitoreOptions
+            || !empty($this->fornitoreFilter)
+            || !empty($this->prezziFornitoreId)
+            || $this->prezziPreviewLoaded;
+
+        $fornitori = collect();
+        if ($shouldLoadFornitori) {
+            $fornitori = Fornitore::where('attivo', true)
+                ->orderBy('ragione_sociale')
+                ->get(['id', 'ragione_sociale']);
+        }
         
         // Marche estratte da JSON caratteristiche
         $marche = collect();
-        if (!$this->isSearchActive()) {
+        if ($this->loadArticoliFilterOptions && !$this->isSearchActive()) {
             $marche = DB::table('articoli')
                 ->whereNotNull('caratteristiche')
                 ->whereRaw("JSON_EXTRACT(caratteristiche, '$.marca') IS NOT NULL")
@@ -1895,6 +1916,8 @@ class ArticoliTable extends Component
             'magazzini_selezionati' => count($this->magazziniSelezionati),
             'fornitori_count' => $fornitori->count(),
             'marche_count' => $marche->count(),
+            'load_articoli_filter_options' => $this->loadArticoliFilterOptions,
+            'load_prezzi_filter_options' => $this->loadPrezziFornitoreOptions,
         ]);
 
         return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));

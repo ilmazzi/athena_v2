@@ -148,6 +148,7 @@
                     <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
+                                wire:click="openArticoliFilters"
                                 data-bs-toggle="offcanvas"
                                 data-bs-target="#articoliFiltersCanvas"
                                 aria-controls="articoliFiltersCanvas">
@@ -159,6 +160,7 @@
                         </button>
                         <button class="btn btn-sm btn-outline-secondary"
                                 type="button"
+                                wire:click="openPrezziFornitoreCanvas"
                                 data-bs-toggle="offcanvas"
                                 data-bs-target="#prezziFornitoreCanvas"
                                 aria-controls="prezziFornitoreCanvas">
