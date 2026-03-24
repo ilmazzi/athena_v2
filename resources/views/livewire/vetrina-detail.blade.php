@@ -1,5 +1,5 @@
-<div>
-    <!-- Header -->
+<div class="vetrina-detail">
+    {{-- Header --}}
     <div class="row">
         <div class="col-12">
             <div class="page-title-box d-flex align-items-center justify-content-between">
@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <!-- Flash Messages -->
+    {{-- Flash Messages --}}
     @if (session()->has('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <iconify-icon icon="solar:check-circle-bold" class="me-2"></iconify-icon>
@@ -47,7 +47,7 @@
         </div>
     @endif
 
-    <!-- Statistiche Vetrina -->
+    {{-- Statistiche Vetrina --}}
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card">
@@ -251,7 +251,7 @@
                 </table>
             </div>
 
-            <!-- Paginazione -->
+            {{-- Paginazione --}}
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <div class="text-muted small">
                     Mostrando {{ $articoliInVetrina->firstItem() ?? 0 }} - {{ $articoliInVetrina->lastItem() ?? 0 }} 
@@ -262,11 +262,12 @@
         </div>
     </div>
 
-    <!-- Modal Aggiunta Articolo -->
+    {{-- Modal Aggiunta Articolo --}}
     @if($showAddModal)
-        <div class="modal fade show" style="display: block;" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
+        <div class="vetrina-detail__modal-layer">
+            <div class="modal fade show" style="display: block;" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
                             <iconify-icon icon="solar:add-circle-bold-duotone" class="me-2"></iconify-icon>
@@ -291,7 +292,7 @@
                         </div>
 
                         @if($addMode === 'interno' && !$selectedArticolo)
-                            <!-- Selezione Articolo -->
+                            {{-- Selezione Articolo --}}
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Cerca e Seleziona Articolo</label>
                                 <input type="text" 
@@ -348,7 +349,7 @@
                                 </table>
                             </div>
                         @elseif($addMode === 'interno')
-                            <!-- Form Dettagli Vetrina -->
+                            {{-- Form Dettagli Vetrina --}}
                             <div class="alert alert-info">
                                 <strong>Articolo Selezionato:</strong> {{ $selectedArticolo->codice ?? '' }} - {{ $selectedArticolo->descrizione ?? '' }}
                                 @if($selectedArticoloVetrina && $selectedArticoloVetrina->vetrina_id !== $vetrina->id)
@@ -667,15 +668,16 @@
                     </div>
                 </div>
             </div>
+            <div class="modal-backdrop fade show"></div>
         </div>
-        <div class="modal-backdrop fade show"></div>
     @endif
 
-    <!-- Modal Spostamento Articolo -->
+    {{-- Modal Spostamento Articolo --}}
     @if($showMoveModal && $articoloToMove)
-        <div class="modal fade show" style="display: block;" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
+        <div class="vetrina-detail__modal-layer">
+            <div class="modal fade show" style="display: block;" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
                             <iconify-icon icon="solar:transfer-horizontal-bold-duotone" class="me-2"></iconify-icon>
@@ -714,26 +716,26 @@
                     </div>
                 </div>
             </div>
+            <div class="modal-backdrop fade show"></div>
         </div>
-        <div class="modal-backdrop fade show"></div>
     @endif
-</div>
 
-@once
-    <div class="modal fade" id="vetrinaFotoModal" tabindex="-1" aria-labelledby="vetrinaFotoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="vetrinaFotoModalLabel">Foto articolo in vetrina</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <img id="vetrinaFotoModalImg" src="" alt="" class="img-fluid rounded">
+    @once
+        <div class="modal fade" id="vetrinaFotoModal" tabindex="-1" aria-labelledby="vetrinaFotoModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="vetrinaFotoModalLabel">Foto articolo in vetrina</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img id="vetrinaFotoModalImg" src="" alt="" class="img-fluid rounded">
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-@endonce
+    @endonce
+</div>
 
 @push('scripts')
     <script>
