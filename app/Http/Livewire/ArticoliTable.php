@@ -1189,39 +1189,7 @@ class ArticoliTable extends Component
         $query = Articolo::query();
 
         // Applica tutti i filtri (stessa logica del render)
-        $search = trim((string) $this->search);
-        if ($search !== '') {
-            $searchTerm = '%' . $search . '%';
-            $query->where(function($q) use ($searchTerm, $search) {
-                // Ricerca veloce su campi principali
-                $q->where('articoli.codice', 'like', $searchTerm)
-                  ->orWhere('articoli.codice_base', 'like', $searchTerm)
-                  ->orWhere('articoli.descrizione', 'like', $searchTerm);
-
-                // Ricerca estesa solo se il termine e' abbastanza lungo
-                if (mb_strlen($search) >= 3) {
-                    $q->orWhere('articoli.descrizione_estesa', 'like', $searchTerm)
-                      ->orWhere('articoli.numero_documento_carico', 'like', $searchTerm)
-                      ->orWhere('articoli.materiale', 'like', $searchTerm)
-                      ->orWhere('articoli.colore', 'like', $searchTerm)
-                      ->orWhere('articoli.numero_seriale', 'like', $searchTerm)
-                      ->orWhere('articoli.ean', 'like', $searchTerm)
-                      ->orWhere('articoli.modello', 'like', $searchTerm)
-                      ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
-                      ->orWhereHas('caricoDettagli', function($subQ) use ($searchTerm) {
-                          $subQ->where('referenza_fornitore', 'like', $searchTerm);
-                      })
-                      ->orWhereRaw("JSON_EXTRACT(articoli.caratteristiche, '$.marca') LIKE ?", [$searchTerm])
-                      ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
-                          $subQ->where('nome', 'like', $searchTerm)
-                               ->orWhere('codice', 'like', $searchTerm);
-                      })
-                      ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
-                          $subQ->where('ragione_sociale', 'like', $searchTerm);
-                      });
-                }
-            });
-        }
+        $this->applySearchFilter($query, true);
 
         if (!empty($this->magazziniSelezionati)) {
             $this->applyMagazzinoFilter($query, $this->magazziniSelezionati);
@@ -1340,6 +1308,87 @@ class ArticoliTable extends Component
         }
 
         return $query;
+    }
+
+    private function applySearchFilter($query, bool $qualifiedColumns = false): void
+    {
+        $search = trim((string) $this->search);
+        if ($search === '') {
+            return;
+        }
+
+        $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
+        $codiceBaseColumn = $qualifiedColumns ? 'articoli.codice_base' : 'codice_base';
+        $descrizioneColumn = $qualifiedColumns ? 'articoli.descrizione' : 'descrizione';
+
+        if ($this->looksLikeCodiceSearch($search)) {
+            $normalizedCode = ltrim($search, '-');
+
+            $query->where(function ($q) use ($codiceColumn, $codiceBaseColumn, $search, $normalizedCode) {
+                $q->where($codiceColumn, $search)
+                    ->orWhere($codiceBaseColumn, $search)
+                    ->orWhere($codiceBaseColumn, 'like', $search . '%');
+
+                if ($normalizedCode !== $search) {
+                    $q->orWhere($codiceBaseColumn, $normalizedCode);
+                }
+
+                if (!str_contains($search, '-')) {
+                    $q->orWhere($codiceColumn, 'like', '%-' . $normalizedCode);
+                }
+            });
+
+            return;
+        }
+
+        $searchTerm = '%' . $search . '%';
+        $query->where(function ($q) use ($qualifiedColumns, $codiceColumn, $codiceBaseColumn, $descrizioneColumn, $searchTerm, $search) {
+            $q->where($codiceColumn, 'like', $searchTerm)
+                ->orWhere($codiceBaseColumn, 'like', $searchTerm)
+                ->orWhere($descrizioneColumn, 'like', $searchTerm);
+
+            if (mb_strlen($search) < 3) {
+                return;
+            }
+
+            $descrizioneEstesaColumn = $qualifiedColumns ? 'articoli.descrizione_estesa' : 'descrizione_estesa';
+            $numeroDocumentoColumn = $qualifiedColumns ? 'articoli.numero_documento_carico' : 'numero_documento_carico';
+            $materialeColumn = $qualifiedColumns ? 'articoli.materiale' : 'materiale';
+            $coloreColumn = $qualifiedColumns ? 'articoli.colore' : 'colore';
+            $serialeColumn = $qualifiedColumns ? 'articoli.numero_seriale' : 'numero_seriale';
+            $eanColumn = $qualifiedColumns ? 'articoli.ean' : 'ean';
+            $modelloColumn = $qualifiedColumns ? 'articoli.modello' : 'modello';
+            $caratteristicheColumn = $qualifiedColumns ? 'articoli.caratteristiche' : 'caratteristiche';
+
+            $q->orWhere($descrizioneEstesaColumn, 'like', $searchTerm)
+                ->orWhere($numeroDocumentoColumn, 'like', $searchTerm)
+                ->orWhere($materialeColumn, 'like', $searchTerm)
+                ->orWhere($coloreColumn, 'like', $searchTerm)
+                ->orWhere($serialeColumn, 'like', $searchTerm)
+                ->orWhere($eanColumn, 'like', $searchTerm)
+                ->orWhere($modelloColumn, 'like', $searchTerm)
+                ->orWhereRaw("JSON_EXTRACT({$caratteristicheColumn}, '$.referenza') LIKE ?", [$searchTerm])
+                ->orWhereHas('caricoDettagli', function ($subQ) use ($searchTerm) {
+                    $subQ->where('referenza_fornitore', 'like', $searchTerm);
+                })
+                ->orWhereRaw("JSON_EXTRACT({$caratteristicheColumn}, '$.marca') LIKE ?", [$searchTerm])
+                ->orWhereHas('categoriaMerceologica', function ($subQ) use ($searchTerm) {
+                    $subQ->where('nome', 'like', $searchTerm)
+                        ->orWhere('codice', 'like', $searchTerm);
+                })
+                ->orWhereHas('ddtDettaglio.ddt.fornitore', function ($subQ) use ($searchTerm) {
+                    $subQ->where('ragione_sociale', 'like', $searchTerm);
+                });
+        });
+    }
+
+    private function looksLikeCodiceSearch(string $search): bool
+    {
+        if (str_contains($search, ' ')) {
+            return false;
+        }
+
+        return preg_match('/^\d[\d\-]*$/', $search) === 1;
     }
 
     /**
@@ -1622,37 +1671,7 @@ class ArticoliTable extends Component
         $query = Articolo::with($relations);
 
         // Applica filtri
-        $search = trim((string) $this->search);
-        if ($search !== '') {
-            $searchTerm = '%' . $search . '%';
-            $query->where(function($q) use ($searchTerm, $search) {
-                $q->where('codice', 'like', $searchTerm)
-                  ->orWhere('codice_base', 'like', $searchTerm)
-                  ->orWhere('descrizione', 'like', $searchTerm);
-
-                if (mb_strlen($search) >= 3) {
-                    $q->orWhere('descrizione_estesa', 'like', $searchTerm)
-                      ->orWhere('numero_documento_carico', 'like', $searchTerm)
-                      ->orWhere('materiale', 'like', $searchTerm)
-                      ->orWhere('colore', 'like', $searchTerm)
-                      ->orWhere('numero_seriale', 'like', $searchTerm)
-                      ->orWhere('ean', 'like', $searchTerm)
-                      ->orWhere('modello', 'like', $searchTerm)
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.referenza') LIKE ?", [$searchTerm])
-                      ->orWhereHas('caricoDettagli', function($subQ) use ($searchTerm) {
-                          $subQ->where('referenza_fornitore', 'like', $searchTerm);
-                      })
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') LIKE ?", [$searchTerm])
-                      ->orWhereHas('categoriaMerceologica', function($subQ) use ($searchTerm) {
-                          $subQ->where('nome', 'like', $searchTerm)
-                               ->orWhere('codice', 'like', $searchTerm);
-                      })
-                      ->orWhereHas('ddtDettaglio.ddt.fornitore', function($subQ) use ($searchTerm) {
-                          $subQ->where('ragione_sociale', 'like', $searchTerm);
-                      });
-                }
-            });
-        }
+        $this->applySearchFilter($query);
 
         // Filtro per categorie (singolo o multiplo)
         if (!empty($this->magazziniSelezionati)) {
