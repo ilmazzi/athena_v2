@@ -12,6 +12,7 @@ use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Attributes\Layout;
@@ -1391,6 +1392,28 @@ class ArticoliTable extends Component
         return preg_match('/^\d[\d\-]*$/', $search) === 1;
     }
 
+    private function shouldTracePerformance(): bool
+    {
+        return filter_var(env('ARTICOLI_TRACE_ENABLED', false), FILTER_VALIDATE_BOOL);
+    }
+
+    private function logPerformanceTrace(string $event, array $context = []): void
+    {
+        if (!$this->shouldTracePerformance()) {
+            return;
+        }
+
+        Log::info('ArticoliTable trace', array_merge([
+            'event' => $event,
+            'component' => static::class,
+            'search' => $this->search,
+            'page' => $this->getPage(),
+            'per_page' => $this->perPage,
+            'sort_field' => $this->sortField,
+            'sort_direction' => $this->sortDirection,
+        ], $context));
+    }
+
     /**
      * Calcola il valore totale degli articoli filtrati
      */
@@ -1653,6 +1676,7 @@ class ArticoliTable extends Component
 
     public function render()
     {
+        $renderStartedAt = microtime(true);
         $relations = [
             'categoria',
             'sede',
@@ -1808,12 +1832,21 @@ class ArticoliTable extends Component
             $query->orderBy($this->sortField, $this->sortDirection);
         }
 
+        $paginateStartedAt = microtime(true);
         $articoli = $query->paginate($this->perPage);
+        $paginateDurationMs = (int) round((microtime(true) - $paginateStartedAt) * 1000);
+        $this->logPerformanceTrace('paginate_completed', [
+            'duration_ms' => $paginateDurationMs,
+            'total' => $articoli->total(),
+            'count' => $articoli->count(),
+        ]);
 
         // Statistiche DINAMICHE basate sui filtri applicati
         // Statistiche dinamiche: evita ricalcoli pesanti durante la ricerca
         $stats = $this->statsCache;
+        $statsDurationMs = 0;
         if (!$this->isSearchActive()) {
+            $statsStartedAt = microtime(true);
             $baseQuery = $this->getFilteredQuery();
             $stats = [
                 'totali' => $baseQuery->count(),
@@ -1835,6 +1868,11 @@ class ArticoliTable extends Component
                 'valore_totale' => $this->calcolaValoreTotale($baseQuery),
             ];
             $this->statsCache = $stats;
+            $statsDurationMs = (int) round((microtime(true) - $statsStartedAt) * 1000);
+            $this->logPerformanceTrace('stats_computed', [
+                'duration_ms' => $statsDurationMs,
+                'totali' => $stats['totali'] ?? null,
+            ]);
         } elseif ($stats === null) {
             $stats = [
                 'totali' => $articoli->total(),
@@ -1871,6 +1909,33 @@ class ArticoliTable extends Component
         
         // Sedi per filtro (ex-ubicazioni)
         $sedi = Sede::orderBy('nome')->get();
+
+        $renderDurationMs = (int) round((microtime(true) - $renderStartedAt) * 1000);
+        $this->logPerformanceTrace('render_completed', [
+            'duration_ms' => $renderDurationMs,
+            'paginate_duration_ms' => $paginateDurationMs,
+            'stats_duration_ms' => $statsDurationMs,
+            'filters_count' => count(array_filter([
+                $this->search,
+                $this->magazzinoFilter,
+                $this->statoFilter,
+                $this->fornitoreFilter,
+                $this->marcaFilter,
+                $this->ubicazioneFilter,
+                $this->giacenzaFilter,
+                $this->giacenza,
+                $this->statoArticoloFilter,
+                $this->prezzoMin,
+                $this->prezzoMax,
+                $this->dataDocumentoFrom,
+                $this->dataDocumentoTo,
+                $this->fotoFilter,
+                $this->inDepositoFilter,
+            ], fn ($value) => $value !== '' && $value !== false && $value !== [] && $value !== null)),
+            'magazzini_selezionati' => count($this->magazziniSelezionati),
+            'fornitori_count' => $fornitori->count(),
+            'marche_count' => $marche->count(),
+        ]);
 
         return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));
     }
