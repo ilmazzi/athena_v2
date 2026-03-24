@@ -265,8 +265,9 @@
     {{-- Modal Aggiunta Articolo --}}
     @if($showAddModal)
         <div class="vetrina-detail__modal-layer">
-            <div class="modal fade show" style="display: block;" tabindex="-1">
-                <div class="modal-dialog modal-lg">
+            <div class="modal fade show d-block" style="z-index: 1055;" tabindex="-1" role="dialog" aria-modal="true">
+                <div class="modal-backdrop fade show" style="z-index: 1040; pointer-events: none;"></div>
+                <div class="modal-dialog modal-lg modal-dialog-centered" style="z-index: 1056;">
                     <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
@@ -668,15 +669,15 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-backdrop fade show"></div>
         </div>
     @endif
 
     {{-- Modal Spostamento Articolo --}}
     @if($showMoveModal && $articoloToMove)
         <div class="vetrina-detail__modal-layer">
-            <div class="modal fade show" style="display: block;" tabindex="-1">
-                <div class="modal-dialog">
+            <div class="modal fade show d-block" style="z-index: 1055;" tabindex="-1" role="dialog" aria-modal="true">
+                <div class="modal-backdrop fade show" style="z-index: 1040; pointer-events: none;"></div>
+                <div class="modal-dialog modal-dialog-centered" style="z-index: 1056;">
                     <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
@@ -716,7 +717,6 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-backdrop fade show"></div>
         </div>
     @endif
 
