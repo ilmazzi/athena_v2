@@ -1841,49 +1841,9 @@ class ArticoliTable extends Component
             'count' => $articoli->count(),
         ]);
 
-        // Statistiche DINAMICHE basate sui filtri applicati
-        // Statistiche dinamiche: evita ricalcoli pesanti durante la ricerca
-        $stats = $this->statsCache;
+        // Le statistiche non sono utilizzate nella view articoli: evitiamo calcoli costosi.
+        $stats = [];
         $statsDurationMs = 0;
-        if (!$this->isSearchActive()) {
-            $statsStartedAt = microtime(true);
-            $baseQuery = $this->getFilteredQuery();
-            $stats = [
-                'totali' => $baseQuery->count(),
-                'con_giacenza' => (clone $baseQuery)
-                    ->whereHas('giacenze', function($q) {
-                        $q->where('quantita_residua', '>', 0);
-                    })->count(),
-                'giacenza_zero' => (clone $baseQuery)
-                    ->whereHas('giacenze', function($q) {
-                        $q->where('quantita_residua', '=', 0);
-                    })->count(),
-                'giacenza_negativa' => (clone $baseQuery)
-                    ->whereHas('giacenze', function($q) {
-                        $q->where('quantita_residua', '<', 0);
-                    })->count(),
-                'senza_giacenze' => (clone $baseQuery)
-                    ->whereDoesntHave('giacenze')->count(),
-                'in_vetrina' => (clone $baseQuery)->where('in_vetrina', true)->count(),
-                'valore_totale' => $this->calcolaValoreTotale($baseQuery),
-            ];
-            $this->statsCache = $stats;
-            $statsDurationMs = (int) round((microtime(true) - $statsStartedAt) * 1000);
-            $this->logPerformanceTrace('stats_computed', [
-                'duration_ms' => $statsDurationMs,
-                'totali' => $stats['totali'] ?? null,
-            ]);
-        } elseif ($stats === null) {
-            $stats = [
-                'totali' => $articoli->total(),
-                'con_giacenza' => 0,
-                'giacenza_zero' => 0,
-                'giacenza_negativa' => 0,
-                'senza_giacenze' => 0,
-                'in_vetrina' => 0,
-                'valore_totale' => 0,
-            ];
-        }
 
         // Opzioni per i filtri - TUTTE le categorie attive con count articoli
         $magazzini = $this->getMagazziniFilterOptions();
