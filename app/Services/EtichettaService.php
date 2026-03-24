@@ -7,9 +7,13 @@ use App\Models\Stampante;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Socket;
 
 class EtichettaService
 {
+    private const PRINTER_CONNECT_TIMEOUT_MS = 2000;
+    private const PRINTER_IO_TIMEOUT_MS = 2000;
+
     /**
      * Genera il codice ZPL per un'etichetta
      */
@@ -522,26 +526,69 @@ class EtichettaService
      */
     public function inviaAllaStampante(string $ip, int $port, string $zpl): bool
     {
+        $startedAt = microtime(true);
+
         try {
             $zpl = $this->normalizePrinterEncoding($zpl);
-
-            $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-            if (!$socket) {
-                throw new \Exception('Impossibile creare il socket');
-            }
-
-            $connected = socket_connect($socket, $ip, $port);
-            if (!$connected) {
-                throw new \Exception('Impossibile connettersi alla stampante');
-            }
+            $socket = $this->createPrinterSocket($ip, $port);
 
             $sent = socket_write($socket, $zpl, strlen($zpl));
             socket_close($socket);
 
+            $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+            if ($elapsedMs > 500) {
+                Log::warning('Invio etichetta lento', [
+                    'ip' => $ip,
+                    'port' => $port,
+                    'elapsed_ms' => $elapsedMs,
+                    'payload_length' => strlen($zpl),
+                ]);
+            }
+
             return $sent !== false;
         } catch (\Exception $e) {
-            Log::error('Errore stampa etichetta: ' . $e->getMessage());
+            $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
+            Log::error('Errore stampa etichetta: ' . $e->getMessage(), [
+                'ip' => $ip,
+                'port' => $port,
+                'elapsed_ms' => $elapsedMs,
+            ]);
             return false;
+        }
+    }
+
+    private function createPrinterSocket(string $ip, int $port): Socket
+    {
+        $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+        if (!$socket) {
+            throw new \Exception('Impossibile creare il socket');
+        }
+
+        $this->applySocketTimeouts($socket);
+
+        $connected = @socket_connect($socket, $ip, $port);
+        if (!$connected) {
+            $message = socket_strerror(socket_last_error($socket));
+            socket_close($socket);
+
+            throw new \Exception("Impossibile connettersi alla stampante ({$message})");
+        }
+
+        return $socket;
+    }
+
+    private function applySocketTimeouts(Socket $socket): void
+    {
+        $timeout = [
+            'sec' => intdiv(self::PRINTER_IO_TIMEOUT_MS, 1000),
+            'usec' => (self::PRINTER_IO_TIMEOUT_MS % 1000) * 1000,
+        ];
+
+        @socket_set_option($socket, SOL_SOCKET, SO_SNDTIMEO, $timeout);
+        @socket_set_option($socket, SOL_SOCKET, SO_RCVTIMEO, $timeout);
+
+        if (defined('TCP_SYNCNT')) {
+            @socket_set_option($socket, SOL_TCP, TCP_SYNCNT, 1);
         }
     }
 
@@ -600,4 +647,3 @@ class EtichettaService
         );
     }
 }
-

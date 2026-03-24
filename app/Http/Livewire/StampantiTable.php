@@ -5,6 +5,7 @@ namespace App\Http\Livewire;
 use App\Models\Stampante;
 use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
+use App\Services\EtichettaService;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -140,19 +141,11 @@ class StampantiTable extends Component
         try {
             // Test con etichetta di prova
             $testZpl = '^XA^FO50,50^A0N,30,30^FDTEST CONNECTION^FS^XZ';
-            
-            $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-            if (!$socket) {
-                throw new \Exception('Impossibile creare il socket');
-            }
-
-            $connected = socket_connect($socket, $stampante->ip_address, $stampante->port);
-            if (!$connected) {
-                throw new \Exception('Impossibile connettersi alla stampante');
-            }
-
-            $sent = socket_write($socket, $testZpl, strlen($testZpl));
-            socket_close($socket);
+            $sent = app(EtichettaService::class)->inviaAllaStampante(
+                $stampante->ip_address,
+                (int) $stampante->port,
+                $testZpl
+            );
 
             if ($sent !== false) {
                 session()->flash('success', 'Test connessione riuscito!');
