@@ -291,15 +291,15 @@
                         <div class="col-md-3">
                             <label class="form-label small text-muted mb-1">Totale Fattura Calcolato</label>
                             <input type="text"
-                                   value="{{ $importoTotaleCalcolato !== null ? number_format($importoTotaleCalcolato, 2, ',', '.') : '' }}"
+                                   value="{{ $this->importoTotaleCalcolato !== null ? number_format($this->importoTotaleCalcolato, 2, ',', '.') : '' }}"
                                    class="form-control form-control-sm text-end"
                                    placeholder="0,00"
                                    readonly>
                             @if($importoTotaleEstratto !== null)
                                 <div class="form-text">
                                     OCR: {{ is_numeric($importoTotaleEstratto) ? number_format((float) $importoTotaleEstratto, 2, ',', '.') : $importoTotaleEstratto }}
-                                    @if($importoTotaleScostamento !== null && abs($importoTotaleScostamento) > 0.009)
-                                        <span class="text-warning">| Scostamento: {{ number_format($importoTotaleScostamento, 2, ',', '.') }}</span>
+                                    @if($this->importoTotaleScostamento !== null && abs($this->importoTotaleScostamento) > 0.009)
+                                        <span class="text-warning">| Scostamento: {{ number_format($this->importoTotaleScostamento, 2, ',', '.') }}</span>
                                     @endif
                                 </div>
                             @else
@@ -594,4 +594,5 @@
         });
     </script>
 @endpush
+
 
