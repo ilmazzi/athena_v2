@@ -196,6 +196,10 @@ class CaricoDocumento extends Component
             $this->articoli[$index]['numero_seriale'] = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
             $this->articoli[$index]['ean'] = trim((string) ($articolo['ean'] ?? ''));
         }
+        foreach (array_keys($this->articoli) as $index) {
+            $this->syncTotaleRiga($index);
+        }
+        $this->importoTotale = $this->getImportoTotaleCalcolatoProperty() ?? $this->normalizePrice($this->importoTotaleEstratto);
     }
 
     /**
@@ -217,6 +221,46 @@ class CaricoDocumento extends Component
             'esiste' => false,
             'categoria_id' => $this->categoriaId,
         ];
+    }
+
+
+    public function updatedArticoli($value, $name): void
+    {
+        $segments = explode('.', (string) $name);
+        $index = isset($segments[0]) ? (int) $segments[0] : null;
+        $field = $segments[1] ?? null;
+
+        if ($index === null || !isset($this->articoli[$index])) {
+            return;
+        }
+
+        if (in_array($field, ['quantita', 'prezzo_unitario'], true)) {
+            $this->syncTotaleRiga($index);
+            $this->importoTotale = $this->getImportoTotaleCalcolatoProperty();
+        }
+    }
+
+    public function calcolaTotaleRiga(array $articolo): ?float
+    {
+        $quantita = max(1, (int) ($articolo['quantita'] ?? 1));
+        $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
+        if ($prezzoUnitario !== null) {
+            return round($prezzoUnitario * $quantita, 2);
+        }
+
+        return $this->normalizePrice($articolo['prezzo_totale'] ?? null);
+    }
+
+    protected function syncTotaleRiga(int $index): void
+    {
+        if (!isset($this->articoli[$index])) {
+            return;
+        }
+
+        $totale = $this->calcolaTotaleRiga($this->articoli[$index]);
+        $this->articoli[$index]['prezzo_totale'] = $totale !== null
+            ? number_format($totale, 2, ',', '')
+            : null;
     }
 
     public function updatedCategoriaId()

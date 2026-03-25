@@ -427,7 +427,7 @@
                                 </select>
                             </td>
                             <td>
-                                <input type="number" wire:model.defer="articoli.{{ $index }}.quantita"
+                                <input type="number" wire:model.live.debounce.300ms="articoli.{{ $index }}.quantita"
                                        class="form-control form-control-sm text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
                                        min="1">
                             </td>
@@ -436,14 +436,14 @@
                                        class="form-control form-control-sm" placeholder="ct">
                             </td>
                             <td>
-                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_unitario"
+                                <input type="text" wire:model.live.debounce.300ms="articoli.{{ $index }}.prezzo_unitario"
                                        class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
                                        placeholder="0,00">
                             </td>
                             <td>
-                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_totale"
+                                <input type="text" value="{{ ($totaleRiga = $this->calcolaTotaleRiga($articolo)) !== null ? number_format($totaleRiga, 2, ',', '.') : '' }}"
                                        class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
-                                       placeholder="0,00">
+                                       placeholder="0,00" readonly>
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
@@ -594,5 +594,6 @@
         });
     </script>
 @endpush
+
 
 
