@@ -654,6 +654,13 @@ class OcrService
                 $parsedFrom = 'pdf';
             }
 
+            if ($shouldLogDodo && empty($parsed) && $pdfText) {
+                $pdfCandidateLines = array_values(array_filter(array_map('trim', preg_split('/\R/', $pdfText)), static fn ($line) => $line !== '' ));
+                $pdfCandidateLines = array_values(array_filter($pdfCandidateLines, static fn ($line) => preg_match('/\b(?:DCC|DMC|DGM|DFC)[A-Z0-9]*\b/i', $line) || preg_match('/\b(?:STYLE|ITEM|GROSS\s+AMOUNT|INVOICE\s+NUMBER)\b/i', $line)));
+                Log::info('OCR DODO debug: pdf candidate lines', [
+                    'lines' => array_slice($pdfCandidateLines, 0, 25),
+                ]);
+            }
             if ($shouldLogDodo) {
                 Log::info('OCR DODO debug: fallback parse', [
                     'from' => $parsedFrom,
