@@ -9,6 +9,7 @@ use App\Services\Ocr\DocumentProfileDetector;
 use App\Services\Ocr\OcrParserRegistry;
 use App\Services\Ocr\OcrParsingContext;
 use App\Services\Ocr\Parsers\BeringArticoliParser;
+use App\Services\Ocr\Parsers\DodoArticoliParser;
 use App\Services\Ocr\Parsers\IdandiArticoliParser;
 use App\Services\Ocr\Parsers\MarcoBicegoArticoliParser;
 use App\Services\Ocr\Parsers\PomellatoDdtArticoliParser;
@@ -46,6 +47,7 @@ class OcrService
             new PomellatoDdtArticoliParser(),
             new SwatchGroupArticoliParser(),
             new TudorArticoliParser(),
+            new DodoArticoliParser(),
             new IdandiArticoliParser(),
             new BeringArticoliParser(),
             new MarcoBicegoArticoliParser(),
@@ -584,6 +586,20 @@ class OcrService
 
         if ($parser) {
             $parsed = $parser->parse($text, new OcrParsingContext($this, $profile, $this->currentPdfPath));
+            if (!empty($parsed)) {
+                return $parsed;
+            }
+        }
+
+        if ($this->shouldTryDodoFallback($text)) {
+            $parsed = $this->parseDodoProfileArticoli($text);
+            if (empty($parsed) && $this->currentPdfPath) {
+                $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+                if ($pdfText) {
+                    $parsed = $this->parseDodoProfileArticoli($pdfText);
+                }
+            }
+
             if (!empty($parsed)) {
                 return $parsed;
             }
@@ -1252,6 +1268,22 @@ class OcrService
             || preg_match('/\d{4}\/VE\/\d+/', $text);
     }
 
+
+    protected function shouldTryDodoFallback(string $text): bool
+    {
+        if (!preg_match('/\bDODO\b/i', $text)) {
+            return false;
+        }
+
+        if (!preg_match('/\bSTYLE\b/i', $text) || !preg_match('/\bITEM\b/i', $text)) {
+            return false;
+        }
+
+        return preg_match('/\bGROSS\s+AMOUNT\b/i', $text)
+            || preg_match('/\bINVOICE\s+NUMBER\b/i', $text)
+            || preg_match('/^[A-Z]{3}\d{4}\s+[A-Z0-9]{3,}\s+[A-Z0-9]{3,}\s+[A-Z0-9]{1,4}\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+$/mi', $text);
+    }
+
     protected function shouldTryTudorFallback(string $text): bool
     {
         if (!preg_match('/LISTA\s+ANALITICA/i', $text)) {
@@ -1314,6 +1346,71 @@ class OcrService
                 'prezzo_unitario' => $prezzoUnitario,
                 'prezzo_totale' => $prezzoTotale,
             ];
+        }
+
+        return array_values($articoli);
+    }
+
+
+    public function parseDodoProfileArticoli(string $text): array
+    {
+        $articoli = [];
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text)), static fn ($line) => $line !== ''));
+        $count = count($lines);
+
+        $rowStartPattern = '/^([A-Z]{3}\d{4})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{1,4})\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)$/i';
+        $pricePattern = '/^([\d\.,]+)\s+([\d\.,]+)\s+(\d{1,2})\s*%$/';
+        $controlPattern = '/^(DOCUMENT\b|ADDRESSEE\b|INCOTERMS\b|ORD\.\s*NO\b|ORDER\s+NOTES\b|FO\b|MADE\s+IN:|TOTAL\b|SUMMARY\b|VAT\s+SUMMARY\b|EXPIRING\s+DATES\b)/i';
+
+        for ($i = 0; $i < $count; $i++) {
+            $line = $lines[$i];
+            if (!preg_match($rowStartPattern, $line, $m)) {
+                continue;
+            }
+
+            $style = strtoupper(trim($m[1]));
+            $item = strtoupper(trim($m[2]));
+            $colour = strtoupper(trim($m[3]));
+            $measure = strtoupper(trim($m[4]));
+            $caratura = str_replace(',', '.', trim($m[9]));
+            $quantita = (int) max(1, round((float) str_replace(',', '.', trim($m[10]))));
+
+            $j = $i + 1;
+            while ($j < $count && preg_match('/^(NR|PZ|PC)$/i', $lines[$j])) {
+                $j++;
+            }
+
+            $prezzoUnitario = null;
+            $prezzoTotale = null;
+            if ($j < $count && preg_match($pricePattern, $lines[$j], $priceMatch)) {
+                $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
+                $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
+                $j++;
+            }
+
+            $descrizioneParts = [];
+            while ($j < $count) {
+                $next = trim($lines[$j]);
+                if ($next === '' || preg_match($controlPattern, $next) || preg_match($rowStartPattern, $next)) {
+                    break;
+                }
+                $descrizioneParts[] = $next;
+                $j++;
+            }
+
+            $codice = implode('-', array_filter([$style, $item, $colour, $measure], static fn ($value) => $value !== '' && $value !== '0'));
+            $descrizione = trim(implode(' ', $descrizioneParts));
+
+            $articoli[$codice] = [
+                'codice' => $codice,
+                'descrizione' => $descrizione !== '' ? $descrizione : 'Articolo DODO',
+                'quantita' => $quantita,
+                'caratura' => $caratura !== '0.0000' ? $caratura : null,
+                'prezzo_unitario' => $prezzoUnitario,
+                'prezzo_totale' => $prezzoTotale,
+            ];
+
+            $i = max($i, $j - 1);
         }
 
         return array_values($articoli);

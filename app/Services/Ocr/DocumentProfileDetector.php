@@ -69,6 +69,19 @@ class DocumentProfileDetector
             return new DocumentProfile('marco_bicego', $tipoDocumento, 'marco_bicego', ['keyword' => 'MARCO BICEGO']);
         }
 
+        if (
+            str_contains($normalized, 'DODO')
+            && str_contains($normalized, 'STYLE')
+            && str_contains($normalized, 'ITEM')
+            && (
+                str_contains($normalized, 'GROSS AMOUNT')
+                || str_contains($normalized, 'INVOICE NUMBER')
+                || preg_match('/^[A-Z]{3}\d{4}\s+[A-Z0-9]{3,}\s+[A-Z0-9]{3,}\s+[A-Z0-9]{1,4}\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+\s+[\d\.,]+$/m', $normalized)
+            )
+        ) {
+            return new DocumentProfile('dodo', $tipoDocumento, 'dodo', ['keyword' => 'DODO']);
+        }
+
         return new DocumentProfile(
             $tipoDocumento === 'fattura' ? 'generic_fattura' : 'generic_ddt',
             $tipoDocumento,
