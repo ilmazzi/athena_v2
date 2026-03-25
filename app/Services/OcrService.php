@@ -1420,16 +1420,34 @@ class OcrService
     public function parseDodoProfileArticoli(string $text): array
     {
         $articoli = [];
-        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text)), static fn ($line) => $line !== ''));
-        $count = count($lines);
+        $rawLines = array_values(array_filter(array_map('trim', preg_split('/\R/', $text)), static fn ($line) => $line !== ''));
+        $count = count($rawLines);
 
-        $rowStartPattern = '/^([A-Z]{3}\d{4})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{1,4})\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)$/i';
-        $pricePattern = '/^([\d\.,]+)\s+([\d\.,]+)\s+(\d{1,2})\s*%$/';
-        $controlPattern = '/^(DOCUMENT\b|ADDRESSEE\b|INCOTERMS\b|ORD\.\s*NO\b|ORDER\s+NOTES\b|FO\b|MADE\s+IN:|TOTAL\b|SUMMARY\b|VAT\s+SUMMARY\b|EXPIRING\s+DATES\b)/i';
+        $rowStartPattern = '/^[A-Z]{3}\d{4}\b/i';
+        $fullRowPattern = '/^([A-Z]{3}\d{4})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{3,})\s+([A-Z0-9]{1,4})\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+([\d\.,]+)\s+(\d{1,2})\s*%$/i';
+        $controlPattern = '/^(DOCUMENT\b|ADDRESSEE\b|INCOTERMS\b|ORD\.\s*NO\b|ORDER\s+NOTES\b|FO\b|MADE\s+IN:?|TOTAL\b|SUMMARY\b|VAT\s+SUMMARY\b|EXPIRING\s+DATES\b|DATE\s+INVOICE\s+NUMBER\b|STYLE\s+ITEM\b|AG\s+925\/1000)/i';
 
         for ($i = 0; $i < $count; $i++) {
-            $line = $lines[$i];
-            if (!preg_match($rowStartPattern, $line, $m)) {
+            $line = preg_replace('/\s+/', ' ', trim($rawLines[$i]));
+            if ($line === '' || preg_match($controlPattern, $line) || !preg_match($rowStartPattern, $line)) {
+                continue;
+            }
+
+            $rowLine = $line;
+            $j = $i;
+            while (!preg_match('/\d{1,2}\s*%$/', $rowLine) && ($j + 1) < $count) {
+                $nextCandidate = preg_replace('/\s+/', ' ', trim($rawLines[$j + 1]));
+                if ($nextCandidate === '' || preg_match($controlPattern, $nextCandidate)) {
+                    break;
+                }
+                if ($j + 1 > $i + 3) {
+                    break;
+                }
+                $rowLine .= ' ' . $nextCandidate;
+                $j++;
+            }
+
+            if (!preg_match($fullRowPattern, $rowLine, $m)) {
                 continue;
             }
 
@@ -1439,28 +1457,22 @@ class OcrService
             $measure = strtoupper(trim($m[4]));
             $caratura = str_replace(',', '.', trim($m[9]));
             $quantita = (int) max(1, round((float) str_replace(',', '.', trim($m[10]))));
-
-            $j = $i + 1;
-            while ($j < $count && preg_match('/^(NR|PZ|PC)$/i', $lines[$j])) {
-                $j++;
-            }
-
-            $prezzoUnitario = null;
-            $prezzoTotale = null;
-            if ($j < $count && preg_match($pricePattern, $lines[$j], $priceMatch)) {
-                $prezzoUnitario = $this->parsePriceToFloat($priceMatch[1]);
-                $prezzoTotale = $this->parsePriceToFloat($priceMatch[2]);
-                $j++;
-            }
+            $prezzoUnitario = $this->parsePriceToFloat($m[11]);
+            $prezzoTotale = $this->parsePriceToFloat($m[12]);
 
             $descrizioneParts = [];
-            while ($j < $count) {
-                $next = trim($lines[$j]);
+            $k = $j + 1;
+            while ($k < $count) {
+                $next = preg_replace('/\s+/', ' ', trim($rawLines[$k]));
                 if ($next === '' || preg_match($controlPattern, $next) || preg_match($rowStartPattern, $next)) {
                     break;
                 }
+                if (preg_match('/^(NR|PZ|PC)$/i', $next)) {
+                    $k++;
+                    continue;
+                }
                 $descrizioneParts[] = $next;
-                $j++;
+                $k++;
             }
 
             $codice = implode('-', array_filter([$style, $item, $colour, $measure], static fn ($value) => $value !== '' && $value !== '0'));
@@ -1475,7 +1487,7 @@ class OcrService
                 'prezzo_totale' => $prezzoTotale,
             ];
 
-            $i = max($i, $j - 1);
+            $i = max($i, $k - 1);
         }
 
         return array_values($articoli);
