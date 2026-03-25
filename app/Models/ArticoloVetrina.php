@@ -6,6 +6,7 @@ use App\Models\Articolo;
 use App\Models\CategoriaMerceologica;
 use App\Models\ProdottoFinito;
 use App\Models\Sede;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -174,5 +175,26 @@ class ArticoloVetrina extends Model
         }
         return (string) $this->prezzo_vetrina;
     }
-}
+    public function getGiorniInVetrinaAttribute(): ?int
+    {
+        if (!$this->data_inserimento) {
+            return null;
+        }
 
+        try {
+            $dataInserimento = $this->data_inserimento instanceof Carbon
+                ? $this->data_inserimento->copy()->startOfDay()
+                : Carbon::parse($this->data_inserimento)->startOfDay();
+
+            $giorni = $dataInserimento->diffInDays(now()->startOfDay());
+
+            if ($giorni < 0 || $giorni > 36500) {
+                return null;
+            }
+
+            return $giorni;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+}

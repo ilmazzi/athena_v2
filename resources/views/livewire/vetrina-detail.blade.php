@@ -218,10 +218,13 @@
                                 </td>
                                 <td>{{ $articoloVetrina->ripiano ?: '-' }}</td>
                                 <td>
-                                    @php
-                                        $giorni = \Carbon\Carbon::parse($articoloVetrina->data_inserimento)->diffInDays(now());
-                                    @endphp
-                                    <span class="badge bg-light-info text-info">{{ $giorni }} gg</span>
+                                    @if($articoloVetrina->giorni_in_vetrina !== null)
+                                        <span class="badge bg-primary text-white px-2 py-1" title="Giorni trascorsi in vetrina">
+                                            {{ $articoloVetrina->giorni_in_vetrina }} gg
+                                        </span>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
