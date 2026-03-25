@@ -225,6 +225,11 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
+                                        <button class="btn btn-light btn-sm"
+                                                wire:click="openEditModal({{ $articoloVetrina->id }})"
+                                                title="Modifica articolo in vetrina">
+                                            <i class="bx bx-pencil text-primary"></i>
+                                        </button>
                                         <button class="btn btn-light btn-sm" 
                                                 wire:click="openMoveModal({{ $articoloVetrina->id }})"
                                                 title="Sposta in altra vetrina">
@@ -666,6 +671,264 @@
                                 Aggiungi Articolo NC
                             </button>
                         @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal Modifica Articolo --}}
+    @if($showEditModal && $editingArticoloVetrina)
+        <div class="vetrina-detail__modal-layer">
+            <div class="modal fade show d-block" style="z-index: 1055;" tabindex="-1" role="dialog" aria-modal="true">
+                <div class="modal-backdrop fade show" style="z-index: 1040; pointer-events: none;"></div>
+                <div class="modal-dialog modal-lg modal-dialog-centered" style="z-index: 1056;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <iconify-icon icon="solar:pen-bold-duotone" class="me-2"></iconify-icon>
+                                Modifica Articolo in Vetrina
+                            </h5>
+                            <button type="button" wire:click="closeEditModal" class="btn-close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <strong>Articolo:</strong> {{ $editingArticoloVetrina->codice_display }} - {{ $editingArticoloVetrina->descrizione_display }}
+                                @if($editingArticoloVetrina->is_esterno)
+                                    <span class="badge bg-light-warning text-warning ms-2">NC</span>
+                                @elseif($editingArticoloVetrina->is_prodotto_finito)
+                                    <span class="badge bg-light-info text-info ms-2">PF</span>
+                                @endif
+                            </div>
+
+                            <form wire:submit.prevent="updateArticoloVetrina">
+                                @if($editingArticoloVetrina->is_esterno)
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Descrizione *</label>
+                                                <input type="text"
+                                                       class="form-control @error('edit_descrizione_esterno') is-invalid @enderror"
+                                                       wire:model="edit_descrizione_esterno">
+                                                @error('edit_descrizione_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Categoria</label>
+                                                <select class="form-select @error('edit_categoria_merceologica_id_esterno') is-invalid @enderror"
+                                                        wire:model="edit_categoria_merceologica_id_esterno">
+                                                    <option value="">Seleziona...</option>
+                                                    @foreach($categorieDisponibili as $categoria)
+                                                        <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
+                                                    @endforeach
+                                                </select>
+                                                @error('edit_categoria_merceologica_id_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Sede</label>
+                                                <select class="form-select @error('edit_sede_id_esterno') is-invalid @enderror"
+                                                        wire:model="edit_sede_id_esterno">
+                                                    <option value="">Seleziona...</option>
+                                                    @foreach($sediDisponibili as $sede)
+                                                        <option value="{{ $sede->id }}">{{ $sede->nome }}</option>
+                                                    @endforeach
+                                                </select>
+                                                @error('edit_sede_id_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Materiale</label>
+                                                <input type="text"
+                                                       class="form-control @error('edit_materiale_esterno') is-invalid @enderror"
+                                                       wire:model="edit_materiale_esterno">
+                                                @error('edit_materiale_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Titolo</label>
+                                                <input type="text"
+                                                       class="form-control @error('edit_titolo_esterno') is-invalid @enderror"
+                                                       wire:model="edit_titolo_esterno">
+                                                @error('edit_titolo_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Caratura</label>
+                                                <input type="text"
+                                                       class="form-control @error('edit_caratura_esterno') is-invalid @enderror"
+                                                       wire:model="edit_caratura_esterno">
+                                                @error('edit_caratura_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Colore</label>
+                                                <input type="text"
+                                                       class="form-control @error('edit_colore_esterno') is-invalid @enderror"
+                                                       wire:model="edit_colore_esterno">
+                                                @error('edit_colore_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Peso Lordo (g)</label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       class="form-control @error('edit_peso_lordo_esterno') is-invalid @enderror"
+                                                       wire:model="edit_peso_lordo_esterno">
+                                                @error('edit_peso_lordo_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Peso Netto (g)</label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       class="form-control @error('edit_peso_netto_esterno') is-invalid @enderror"
+                                                       wire:model="edit_peso_netto_esterno">
+                                                @error('edit_peso_netto_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Prezzo Acquisto</label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       class="form-control @error('edit_prezzo_acquisto_esterno') is-invalid @enderror"
+                                                       wire:model="edit_prezzo_acquisto_esterno">
+                                                @error('edit_prezzo_acquisto_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Prezzo Fornitore</label>
+                                                <input type="number"
+                                                       step="0.01"
+                                                       class="form-control @error('edit_prezzo_fornitore_esterno') is-invalid @enderror"
+                                                       wire:model="edit_prezzo_fornitore_esterno">
+                                                @error('edit_prezzo_fornitore_esterno')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Foto Principale (URL o path)</label>
+                                        <input type="text"
+                                               class="form-control @error('edit_foto_principale_esterno') is-invalid @enderror"
+                                               wire:model="edit_foto_principale_esterno">
+                                        @error('edit_foto_principale_esterno')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Note</label>
+                                        <textarea class="form-control @error('edit_note_esterno') is-invalid @enderror"
+                                                  wire:model="edit_note_esterno"
+                                                  rows="2"></textarea>
+                                        @error('edit_note_esterno')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+
+                                    <hr class="my-3">
+                                @endif
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Prezzo Vetrina *</label>
+                                            <input type="text"
+                                                   class="form-control @error('edit_prezzo_vetrina') is-invalid @enderror"
+                                                   wire:model="edit_prezzo_vetrina">
+                                            @error('edit_prezzo_vetrina')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Posizione</label>
+                                            <input type="number"
+                                                   min="0"
+                                                   class="form-control @error('edit_posizione') is-invalid @enderror"
+                                                   wire:model="edit_posizione">
+                                            @error('edit_posizione')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label fw-semibold">Ripiano</label>
+                                            <input type="text"
+                                                   class="form-control @error('edit_ripiano') is-invalid @enderror"
+                                                   wire:model="edit_ripiano">
+                                            @error('edit_ripiano')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-0">
+                                    <label class="form-label fw-semibold">Testo Vetrina *</label>
+                                    <textarea class="form-control @error('edit_testo_vetrina') is-invalid @enderror"
+                                              wire:model="edit_testo_vetrina"
+                                              rows="3"></textarea>
+                                    @error('edit_testo_vetrina')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" wire:click="closeEditModal">
+                                <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                                Annulla
+                            </button>
+                            <button type="button" class="btn btn-primary" wire:click="updateArticoloVetrina">
+                                <iconify-icon icon="solar:diskette-bold" class="me-1"></iconify-icon>
+                                Salva Modifiche
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

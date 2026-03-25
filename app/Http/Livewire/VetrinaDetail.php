@@ -48,6 +48,29 @@ class VetrinaDetail extends Component
     public $articoloToMove = null;
     public $targetVetrinaId = '';
 
+    // Modal modifica articolo
+    public $showEditModal = false;
+    public $editingArticoloVetrina = null;
+    public $edit_articolo_vetrina_id = null;
+    public $edit_tipo_articolo = 'interno';
+    public $edit_prezzo_vetrina = '';
+    public $edit_testo_vetrina = '';
+    public $edit_posizione = '';
+    public $edit_ripiano = '';
+    public $edit_descrizione_esterno = '';
+    public $edit_categoria_merceologica_id_esterno = '';
+    public $edit_sede_id_esterno = '';
+    public $edit_foto_principale_esterno = '';
+    public $edit_materiale_esterno = '';
+    public $edit_titolo_esterno = '';
+    public $edit_caratura_esterno = '';
+    public $edit_colore_esterno = '';
+    public $edit_peso_lordo_esterno = '';
+    public $edit_peso_netto_esterno = '';
+    public $edit_prezzo_acquisto_esterno = '';
+    public $edit_prezzo_fornitore_esterno = '';
+    public $edit_note_esterno = '';
+
     protected $queryString = [
         'search' => ['except' => ''],
     ];
@@ -308,6 +331,69 @@ class VetrinaDetail extends Component
         }
     }
 
+    public function openEditModal($articoloVetrinaId)
+    {
+        $articoloVetrina = ArticoloVetrina::with(['articolo', 'prodottoFinito', 'categoriaMerceologica', 'sede'])
+            ->where('vetrina_id', $this->vetrina->id)
+            ->whereNull('data_rimozione')
+            ->findOrFail($articoloVetrinaId);
+
+        $this->editingArticoloVetrina = $articoloVetrina;
+        $this->fillEditForm($articoloVetrina);
+        $this->resetValidation();
+        $this->showEditModal = true;
+    }
+
+    public function updateArticoloVetrina()
+    {
+        $this->validate($this->getEditRules());
+
+        try {
+            $articoloVetrina = ArticoloVetrina::with('articolo')
+                ->where('vetrina_id', $this->vetrina->id)
+                ->whereNull('data_rimozione')
+                ->findOrFail($this->edit_articolo_vetrina_id);
+
+            $payload = [
+                'prezzo_vetrina' => $this->edit_prezzo_vetrina,
+                'testo_vetrina' => $this->edit_testo_vetrina,
+                'posizione' => $this->edit_posizione === '' ? null : (int) $this->edit_posizione,
+                'ripiano' => $this->edit_ripiano ?: null,
+            ];
+
+            if ($articoloVetrina->is_esterno) {
+                $payload = array_merge($payload, [
+                    'descrizione_esterno' => $this->edit_descrizione_esterno,
+                    'categoria_merceologica_id' => $this->edit_categoria_merceologica_id_esterno ?: null,
+                    'sede_id' => $this->edit_sede_id_esterno ?: null,
+                    'foto_principale_esterno' => $this->edit_foto_principale_esterno ?: null,
+                    'materiale_esterno' => $this->edit_materiale_esterno ?: null,
+                    'titolo_esterno' => $this->edit_titolo_esterno ?: null,
+                    'caratura_esterno' => $this->edit_caratura_esterno ?: null,
+                    'colore_esterno' => $this->edit_colore_esterno ?: null,
+                    'peso_lordo_esterno' => $this->normalizeNumericInput($this->edit_peso_lordo_esterno),
+                    'peso_netto_esterno' => $this->normalizeNumericInput($this->edit_peso_netto_esterno),
+                    'prezzo_acquisto_esterno' => $this->normalizeNumericInput($this->edit_prezzo_acquisto_esterno),
+                    'prezzo_fornitore_esterno' => $this->normalizeNumericInput($this->edit_prezzo_fornitore_esterno),
+                    'note_esterno' => $this->edit_note_esterno ?: null,
+                ]);
+            }
+
+            $articoloVetrina->update($payload);
+
+            if ($articoloVetrina->articolo) {
+                $articoloVetrina->articolo->update([
+                    'ultimo_testo_vetrina' => $this->edit_testo_vetrina,
+                ]);
+            }
+
+            session()->flash('success', 'Articolo in vetrina aggiornato');
+            $this->closeEditModal();
+        } catch (\Exception $e) {
+            session()->flash('error', 'Errore durante l\'aggiornamento: ' . $e->getMessage());
+        }
+    }
+
     public function closeAddModal()
     {
         $this->showAddModal = false;
@@ -319,6 +405,13 @@ class VetrinaDetail extends Component
         $this->showMoveModal = false;
         $this->articoloToMove = null;
         $this->targetVetrinaId = '';
+    }
+
+    public function closeEditModal()
+    {
+        $this->showEditModal = false;
+        $this->editingArticoloVetrina = null;
+        $this->resetEditForm();
     }
 
     private function resetAddForm()
@@ -342,6 +435,55 @@ class VetrinaDetail extends Component
         $this->prezzo_fornitore_esterno = '';
         $this->note_esterno = '';
         $this->resetErrorBag();
+    }
+
+    private function resetEditForm(): void
+    {
+        $this->edit_articolo_vetrina_id = null;
+        $this->edit_tipo_articolo = 'interno';
+        $this->edit_prezzo_vetrina = '';
+        $this->edit_testo_vetrina = '';
+        $this->edit_posizione = '';
+        $this->edit_ripiano = '';
+        $this->edit_descrizione_esterno = '';
+        $this->edit_categoria_merceologica_id_esterno = '';
+        $this->edit_sede_id_esterno = '';
+        $this->edit_foto_principale_esterno = '';
+        $this->edit_materiale_esterno = '';
+        $this->edit_titolo_esterno = '';
+        $this->edit_caratura_esterno = '';
+        $this->edit_colore_esterno = '';
+        $this->edit_peso_lordo_esterno = '';
+        $this->edit_peso_netto_esterno = '';
+        $this->edit_prezzo_acquisto_esterno = '';
+        $this->edit_prezzo_fornitore_esterno = '';
+        $this->edit_note_esterno = '';
+        $this->resetErrorBag();
+    }
+
+    private function fillEditForm(ArticoloVetrina $articoloVetrina): void
+    {
+        $this->resetEditForm();
+
+        $this->edit_articolo_vetrina_id = $articoloVetrina->id;
+        $this->edit_tipo_articolo = $articoloVetrina->tipo_articolo ?? 'interno';
+        $this->edit_prezzo_vetrina = (string) ($articoloVetrina->prezzo_vetrina ?? '');
+        $this->edit_testo_vetrina = (string) ($articoloVetrina->testo_vetrina ?? '');
+        $this->edit_posizione = $articoloVetrina->posizione ?? '';
+        $this->edit_ripiano = (string) ($articoloVetrina->ripiano ?? '');
+        $this->edit_descrizione_esterno = (string) ($articoloVetrina->descrizione_esterno ?? '');
+        $this->edit_categoria_merceologica_id_esterno = $articoloVetrina->categoria_merceologica_id ?? '';
+        $this->edit_sede_id_esterno = $articoloVetrina->sede_id ?? '';
+        $this->edit_foto_principale_esterno = (string) ($articoloVetrina->foto_principale_esterno ?? '');
+        $this->edit_materiale_esterno = (string) ($articoloVetrina->materiale_esterno ?? '');
+        $this->edit_titolo_esterno = (string) ($articoloVetrina->titolo_esterno ?? '');
+        $this->edit_caratura_esterno = (string) ($articoloVetrina->caratura_esterno ?? '');
+        $this->edit_colore_esterno = (string) ($articoloVetrina->colore_esterno ?? '');
+        $this->edit_peso_lordo_esterno = $articoloVetrina->peso_lordo_esterno !== null ? (string) $articoloVetrina->peso_lordo_esterno : '';
+        $this->edit_peso_netto_esterno = $articoloVetrina->peso_netto_esterno !== null ? (string) $articoloVetrina->peso_netto_esterno : '';
+        $this->edit_prezzo_acquisto_esterno = $articoloVetrina->prezzo_acquisto_esterno !== null ? (string) $articoloVetrina->prezzo_acquisto_esterno : '';
+        $this->edit_prezzo_fornitore_esterno = $articoloVetrina->prezzo_fornitore_esterno !== null ? (string) $articoloVetrina->prezzo_fornitore_esterno : '';
+        $this->edit_note_esterno = (string) ($articoloVetrina->note_esterno ?? '');
     }
 
     private function getAddRules(): array
@@ -375,6 +517,37 @@ class VetrinaDetail extends Component
             'posizione' => 'nullable|integer|min:0',
             'ripiano' => 'nullable|string|max:50',
         ];
+    }
+
+    private function getEditRules(): array
+    {
+        $baseRules = [
+            'edit_articolo_vetrina_id' => 'required|exists:articoli_vetrine,id',
+            'edit_prezzo_vetrina' => 'required|string|max:50',
+            'edit_testo_vetrina' => 'required|string|max:500',
+            'edit_posizione' => 'nullable|integer|min:0',
+            'edit_ripiano' => 'nullable|string|max:50',
+        ];
+
+        if ($this->edit_tipo_articolo !== 'esterno') {
+            return $baseRules;
+        }
+
+        return array_merge($baseRules, [
+            'edit_descrizione_esterno' => 'required|string|max:255',
+            'edit_categoria_merceologica_id_esterno' => 'nullable|exists:categorie_merceologiche,id',
+            'edit_sede_id_esterno' => 'nullable|exists:sedi,id',
+            'edit_foto_principale_esterno' => 'nullable|string|max:255',
+            'edit_materiale_esterno' => 'nullable|string|max:100',
+            'edit_titolo_esterno' => 'nullable|string|max:50',
+            'edit_caratura_esterno' => 'nullable|string|max:50',
+            'edit_colore_esterno' => 'nullable|string|max:50',
+            'edit_peso_lordo_esterno' => 'nullable|numeric|min:0',
+            'edit_peso_netto_esterno' => 'nullable|numeric|min:0',
+            'edit_prezzo_acquisto_esterno' => 'nullable|numeric|min:0',
+            'edit_prezzo_fornitore_esterno' => 'nullable|numeric|min:0',
+            'edit_note_esterno' => 'nullable|string|max:1000',
+        ]);
     }
 
     public function updateOrdine(array $orderedIds): void
