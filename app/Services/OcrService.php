@@ -41,17 +41,9 @@ class OcrService
         ?OcrParserRegistry $parserRegistry = null,
     ) {
         $this->profileDetector = $profileDetector ?? new DocumentProfileDetector();
-        $this->parserRegistry = $parserRegistry ?? new OcrParserRegistry([
-            new RolexArticoliParser(),
-            new PomellatoFatturaArticoliParser(),
-            new PomellatoDdtArticoliParser(),
-            new SwatchGroupArticoliParser(),
-            new TudorArticoliParser(),
-            new DodoArticoliParser(),
-            new IdandiArticoliParser(),
-            new BeringArticoliParser(),
-            new MarcoBicegoArticoliParser(),
-        ]);
+        $this->parserRegistry = ($parserRegistry && !$parserRegistry->isEmpty())
+            ? $parserRegistry
+            : $this->buildDefaultParserRegistry();
     }
     /**
      * Processa un PDF caricato
@@ -235,6 +227,20 @@ class OcrService
         return null;
     }
 
+    protected function buildDefaultParserRegistry(): OcrParserRegistry
+    {
+        return new OcrParserRegistry([
+            new RolexArticoliParser(),
+            new PomellatoFatturaArticoliParser(),
+            new PomellatoDdtArticoliParser(),
+            new SwatchGroupArticoliParser(),
+            new TudorArticoliParser(),
+            new DodoArticoliParser(),
+            new IdandiArticoliParser(),
+            new BeringArticoliParser(),
+            new MarcoBicegoArticoliParser(),
+        ]);
+    }
     /**
      * Estrai testo da immagini con Tesseract
      */
@@ -3112,3 +3118,4 @@ class OcrService
         $fornitore->update(['partita_iva' => $normalized]);
     }
 }
+

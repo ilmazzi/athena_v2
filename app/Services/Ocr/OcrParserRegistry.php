@@ -23,4 +23,15 @@ class OcrParserRegistry
 
         return null;
     }
+
+    public function isEmpty(): bool
+    {
+        foreach ($this->parsers as $parser) {
+            return false;
+        }
+
+        return true;
+    }
 }
+
+
