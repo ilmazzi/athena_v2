@@ -593,9 +593,32 @@ class OcrService
         }
 
         $isTudorProfile = $profile->is('tudor') || ($pdfProfile?->is('tudor') ?? false);
+        $shouldLogDodo = $profile->is('dodo')
+            || ($pdfProfile?->is('dodo') ?? false)
+            || str_contains(Str::upper($text), 'DODO')
+            || ($pdfText ? str_contains(Str::upper($pdfText), 'DODO') : false);
+
+        if ($shouldLogDodo) {
+            Log::info('OCR DODO debug: detection', [
+                'ocr_profile' => $profile->key,
+                'pdf_profile' => $pdfProfile?->key,
+                'ocr_parser' => $parser ? get_class($parser) : null,
+                'pdf_parser' => isset($pdfParser) ? get_class($pdfParser) : null,
+                'pdf_text_available' => !empty($pdfText),
+                'pdf_text_length' => $pdfText ? strlen($pdfText) : 0,
+                'ocr_should_try_dodo' => $this->shouldTryDodoFallback($text),
+                'pdf_should_try_dodo' => $pdfText ? $this->shouldTryDodoFallback($pdfText) : false,
+            ]);
+        }
 
         if ($parser) {
             $parsed = $parser->parse($text, new OcrParsingContext($this, $profile, $this->currentPdfPath));
+            if ($shouldLogDodo) {
+                Log::info('OCR DODO debug: registry OCR parse', [
+                    'profile' => $profile->key,
+                    'count' => count($parsed),
+                ]);
+            }
             if (!empty($parsed)) {
                 return $parsed;
             }
@@ -605,6 +628,12 @@ class OcrService
             $pdfParser = $this->parserRegistry->resolve($pdfProfile);
             if ($pdfParser) {
                 $parsed = $pdfParser->parse($pdfText, new OcrParsingContext($this, $pdfProfile, $this->currentPdfPath));
+                if ($shouldLogDodo) {
+                    Log::info('OCR DODO debug: registry PDF parse', [
+                        'profile' => $pdfProfile->key,
+                        'count' => count($parsed),
+                    ]);
+                }
                 if (!empty($parsed)) {
                     return $parsed;
                 }
@@ -613,8 +642,17 @@ class OcrService
 
         if ($this->shouldTryDodoFallback($text) || ($pdfText && $this->shouldTryDodoFallback($pdfText))) {
             $parsed = $this->parseDodoProfileArticoli($text);
+            $parsedFrom = 'ocr';
             if (empty($parsed) && $pdfText) {
                 $parsed = $this->parseDodoProfileArticoli($pdfText);
+                $parsedFrom = 'pdf';
+            }
+
+            if ($shouldLogDodo) {
+                Log::info('OCR DODO debug: fallback parse', [
+                    'from' => $parsedFrom,
+                    'count' => count($parsed),
+                ]);
             }
 
             if (!empty($parsed)) {
