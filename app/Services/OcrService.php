@@ -582,7 +582,17 @@ class OcrService
         $skipLineIndexes = [];
         $profile = $this->currentProfile ?? $this->profileDetector->detect($text, 'ddt');
         $parser = $this->parserRegistry->resolve($profile);
-        $isTudorProfile = $profile->is('tudor');
+        $pdfText = null;
+        $pdfProfile = null;
+
+        if ($this->currentPdfPath) {
+            $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
+            if ($pdfText) {
+                $pdfProfile = $this->profileDetector->detect($pdfText, 'ddt');
+            }
+        }
+
+        $isTudorProfile = $profile->is('tudor') || ($pdfProfile?->is('tudor') ?? false);
 
         if ($parser) {
             $parsed = $parser->parse($text, new OcrParsingContext($this, $profile, $this->currentPdfPath));
@@ -591,13 +601,20 @@ class OcrService
             }
         }
 
-        if ($this->shouldTryDodoFallback($text)) {
-            $parsed = $this->parseDodoProfileArticoli($text);
-            if (empty($parsed) && $this->currentPdfPath) {
-                $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
-                if ($pdfText) {
-                    $parsed = $this->parseDodoProfileArticoli($pdfText);
+        if ($pdfText && $pdfProfile) {
+            $pdfParser = $this->parserRegistry->resolve($pdfProfile);
+            if ($pdfParser) {
+                $parsed = $pdfParser->parse($pdfText, new OcrParsingContext($this, $pdfProfile, $this->currentPdfPath));
+                if (!empty($parsed)) {
+                    return $parsed;
                 }
+            }
+        }
+
+        if ($this->shouldTryDodoFallback($text) || ($pdfText && $this->shouldTryDodoFallback($pdfText))) {
+            $parsed = $this->parseDodoProfileArticoli($text);
+            if (empty($parsed) && $pdfText) {
+                $parsed = $this->parseDodoProfileArticoli($pdfText);
             }
 
             if (!empty($parsed)) {
@@ -605,13 +622,10 @@ class OcrService
             }
         }
 
-        if ($this->shouldTryTudorFallback($text)) {
+        if ($this->shouldTryTudorFallback($text) || ($pdfText && $this->shouldTryTudorFallback($pdfText))) {
             $parsed = $this->parseTudorProfileArticoli($text);
-            if (empty($parsed) && $this->currentPdfPath) {
-                $pdfText = $this->extractTextFromPdf($this->currentPdfPath);
-                if ($pdfText) {
-                    $parsed = $this->parseTudorProfileArticoli($pdfText);
-                }
+            if (empty($parsed) && $pdfText) {
+                $parsed = $this->parseTudorProfileArticoli($pdfText);
             }
 
             if (!empty($parsed)) {
