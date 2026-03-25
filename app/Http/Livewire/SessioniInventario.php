@@ -42,7 +42,7 @@ class SessioniInventario extends Component
     
                 return $magazzinoLogico ? (object) [
                     'id' => $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                 ] : null;
             })
             ->filter()

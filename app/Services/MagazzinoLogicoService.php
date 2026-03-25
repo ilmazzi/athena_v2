@@ -65,4 +65,31 @@ class MagazzinoLogicoService
 
         return null;
     }
+
+    public function getLabelForCategoria(?CategoriaMerceologica $categoria): ?string
+    {
+        $magazzinoLogico = $this->resolveFromCategoria($categoria);
+        if (!$magazzinoLogico) {
+            return null;
+        }
+
+        $nome = trim((string) ($categoria->nome ?? ''));
+        if ($nome !== '' && !preg_match('/^MAGAZZINO\s*[0-9]+$/i', $nome)) {
+            return $nome . ' (Magazzino ' . $magazzinoLogico . ')';
+        }
+
+        return 'Magazzino ' . $magazzinoLogico;
+    }
+
+    public function getLabelForMagazzinoLogico(int $magazzinoLogico, ?int $sedeId = null): string
+    {
+        $categoria = CategoriaMerceologica::query()
+            ->withoutGlobalScopes()
+            ->withTrashed()
+            ->when($sedeId, fn ($query) => $query->where('sede_id', $sedeId))
+            ->get()
+            ->first(fn (CategoriaMerceologica $candidate) => $this->resolveFromCategoria($candidate) === $magazzinoLogico);
+
+        return $this->getLabelForCategoria($categoria) ?? ('Magazzino ' . $magazzinoLogico);
+    }
 }

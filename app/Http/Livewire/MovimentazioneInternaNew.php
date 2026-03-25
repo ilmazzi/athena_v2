@@ -155,7 +155,7 @@ class MovimentazioneInternaNew extends Component
 
                 return (object) [
                     'id' => $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                     'categoria_locale_id' => $categoria->id,
                     'categoria_locale_codice' => $categoria->codice,
                 ];
@@ -767,3 +767,4 @@ class MovimentazioneInternaNew extends Component
         ]);
     }
 }
+

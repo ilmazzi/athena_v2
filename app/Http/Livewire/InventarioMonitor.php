@@ -129,7 +129,7 @@ class InventarioMonitor extends Component
 
                 return $magazzinoLogico ? (object) [
                     'id' => $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                 ] : null;
             })
             ->filter()
@@ -1966,3 +1966,4 @@ class InventarioMonitor extends Component
         ];
     }
 }
+

@@ -618,7 +618,7 @@ class DocumentiAcquistoTable extends Component
 
                 return $magazzinoLogico ? (object) [
                     'id' => $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                 ] : null;
             })
             ->filter()
@@ -709,3 +709,4 @@ class DocumentiAcquistoTable extends Component
         return number_format($prezzo, 2, ',', '.');
     }
 }
+

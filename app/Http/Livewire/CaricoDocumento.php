@@ -39,6 +39,7 @@ class CaricoDocumento extends Component
     public $categoriaId;
     public $partitaIva;
     public $importoTotale;
+    public $importoTotaleEstratto;
     public $confidenceScore = 0;
     public $saveError = null;
 
@@ -166,8 +167,8 @@ class CaricoDocumento extends Component
         $this->fornitoreId = $doc->fornitore_id;
         $this->numeroDocumento = $dati['numero'] ?? '';
         $this->dataDocumento = $dati['data'] ?? now()->format('Y-m-d');
-        $this->partitaIva = $dati['partita_iva'] ?? '';
-        $this->importoTotale = $dati['importo_totale'] ?? null;
+        $this->importoTotaleEstratto = $dati['importo_totale'] ?? null;
+        $this->importoTotale = $this->getImportoTotaleCalcolatoProperty() ?? $this->normalizePrice($this->importoTotaleEstratto);
         $this->confidenceScore = $doc->confidence_score;
         $this->articoli = $dati['articoli'] ?? [];
 
@@ -373,7 +374,7 @@ class CaricoDocumento extends Component
                     'tipo_carico' => 'ocr',
                     'ocr_document_id' => $this->ocrDocumentId,
                     'partita_iva' => $this->partitaIva,
-                    'totale' => $this->importoTotale,
+                    'totale' => $this->getImportoTotaleCalcolatoProperty(),
                     'stato' => 'caricata',
                     'data_carico' => now(),
                     'note' => 'Caricata tramite OCR',
@@ -679,6 +680,44 @@ class CaricoDocumento extends Component
         $this->mount();
     }
 
+
+    public function getImportoTotaleCalcolatoProperty(): ?float
+    {
+        $totale = 0.0;
+        $haValori = false;
+
+        foreach ($this->articoli as $articolo) {
+            $quantita = max(1, (int) ($articolo['quantita'] ?? 1));
+            $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
+            $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
+
+            if ($prezzoUnitario !== null) {
+                $totale += $prezzoUnitario * $quantita;
+                $haValori = true;
+                continue;
+            }
+
+            if ($prezzoTotale !== null) {
+                $totale += $prezzoTotale;
+                $haValori = true;
+            }
+        }
+
+        return $haValori ? round($totale, 2) : null;
+    }
+
+    public function getImportoTotaleScostamentoProperty(): ?float
+    {
+        $estratto = $this->normalizePrice($this->importoTotaleEstratto);
+        $calcolato = $this->getImportoTotaleCalcolatoProperty();
+
+        if ($estratto === null || $calcolato === null) {
+            return null;
+        }
+
+        return round($calcolato - $estratto, 2);
+    }
+
     public function render()
     {
         return view('livewire.carico-documento', [
@@ -873,7 +912,7 @@ class CaricoDocumento extends Component
 
                 return [
                     'id' => $magazzinoLogico,
-                    'label' => "Magazzino {$magazzinoLogico}",
+                    'label' => $service->getLabelForCategoria($categoria),
                     'categoria_locale_id' => $categoria->id,
                     'categoria_locale_codice' => $categoria->codice,
                     'categoria_locale_nome' => $categoria->nome,
@@ -909,3 +948,5 @@ class CaricoDocumento extends Component
         return app(MagazzinoLogicoService::class)->findCategoriaIdForSede((int) $sedeId, (int) $magazzinoLogico);
     }
 }
+
+

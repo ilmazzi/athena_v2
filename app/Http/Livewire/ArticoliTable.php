@@ -1645,7 +1645,7 @@ class ArticoliTable extends Component
 
                 return (object) [
                     'id' => (int) $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                 ];
             })
             ->filter()
@@ -1672,7 +1672,7 @@ class ArticoliTable extends Component
 
                 return (object) [
                     'id' => (int) $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                     'sede_id' => $categoria->sede_id,
                     'sede_nome' => $categoria->sede->nome ?? ('Sede ' . $categoria->sede_id),
                     'codice_locale' => $categoria->codice,
@@ -1923,5 +1923,6 @@ class ArticoliTable extends Component
         return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));
     }
 }
+
 
 

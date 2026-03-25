@@ -313,7 +313,7 @@ class ScaricoMagazzino extends Component
                 $magazzinoLogico = $service->resolveFromCategoria($categoria);
                 return $magazzinoLogico ? (object) [
                     'id' => $magazzinoLogico,
-                    'nome' => 'Magazzino ' . $magazzinoLogico,
+                    'nome' => $service->getLabelForCategoria($categoria),
                 ] : null;
             })
             ->filter()
@@ -333,3 +333,4 @@ class ScaricoMagazzino extends Component
         return view('livewire.scarico-magazzino', compact('articoli', 'categorie', 'sedi', 'stats'));
     }
 }
+
