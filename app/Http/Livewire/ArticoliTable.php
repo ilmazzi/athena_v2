@@ -1236,14 +1236,7 @@ class ArticoliTable extends Component
         }
 
         if ($this->fornitoreFilter) {
-            $query->where(function ($q) {
-                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    })
-                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    });
-            });
+            $this->applyFornitoreVisibilityFilter($query, $this->fornitoreFilter, true);
         }
 
         if ($this->marcaFilter) {
@@ -1315,11 +1308,11 @@ class ArticoliTable extends Component
         }
 
         if ($this->dataDocumentoFrom) {
-            $query->where('articoli.data_carico', '>=', $this->dataDocumentoFrom);
+            $this->applyDataDocumentoFromFilter($query, $this->dataDocumentoFrom, true);
         }
 
         if ($this->dataDocumentoTo) {
-            $query->where('articoli.data_carico', '<=', $this->dataDocumentoTo);
+            $this->applyDataDocumentoToFilter($query, $this->dataDocumentoTo, true);
         }
 
         if ($this->soloVetrina) {
@@ -1737,6 +1730,43 @@ class ArticoliTable extends Component
         $query->whereIn('articoli.magazzino_logico', $magazziniIds);
     }
 
+    private function applyFornitoreVisibilityFilter($query, $fornitoreId, bool $qualifiedColumns = false): void
+    {
+        $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
+
+        $query->where(function ($q) use ($fornitoreId, $codiceColumn) {
+            $q->where($codiceColumn, 'like', '9-%')
+                ->orWhereHas('ddtDettaglio.ddt', function($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                })
+                ->orWhereHas('fatturaDettaglio.fattura', function($subQ) use ($fornitoreId) {
+                    $subQ->where('fornitore_id', $fornitoreId);
+                });
+        });
+    }
+
+    private function applyDataDocumentoFromFilter($query, string $date, bool $qualifiedColumns = false): void
+    {
+        $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
+        $dataCaricoColumn = $qualifiedColumns ? 'articoli.data_carico' : 'data_carico';
+
+        $query->where(function ($q) use ($codiceColumn, $dataCaricoColumn, $date) {
+            $q->where($codiceColumn, 'like', '9-%')
+                ->orWhere($dataCaricoColumn, '>=', $date);
+        });
+    }
+
+    private function applyDataDocumentoToFilter($query, string $date, bool $qualifiedColumns = false): void
+    {
+        $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
+        $dataCaricoColumn = $qualifiedColumns ? 'articoli.data_carico' : 'data_carico';
+
+        $query->where(function ($q) use ($codiceColumn, $dataCaricoColumn, $date) {
+            $q->where($codiceColumn, 'like', '9-%')
+                ->orWhere($dataCaricoColumn, '<=', $date);
+        });
+    }
+
     private function getMagazziniFilterOptions()
     {
         $userSedeId = auth()->user()?->sede_id;
@@ -1836,14 +1866,7 @@ class ArticoliTable extends Component
 
         // Filtro fornitore: campo diretto articolo + fallback documenti carico
         if ($this->fornitoreFilter) {
-            $query->where(function ($q) {
-                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    })
-                    ->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreFilter);
-                    });
-            });
+            $this->applyFornitoreVisibilityFilter($query, $this->fornitoreFilter);
         }
 
         if ($this->marcaFilter) {
@@ -1920,11 +1943,11 @@ class ArticoliTable extends Component
         }
 
         if ($this->dataDocumentoFrom) {
-            $query->where('data_carico', '>=', $this->dataDocumentoFrom);
+            $this->applyDataDocumentoFromFilter($query, $this->dataDocumentoFrom);
         }
 
         if ($this->dataDocumentoTo) {
-            $query->where('data_carico', '<=', $this->dataDocumentoTo);
+            $this->applyDataDocumentoToFilter($query, $this->dataDocumentoTo);
         }
 
         if ($this->soloVetrina) {

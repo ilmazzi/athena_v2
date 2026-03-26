@@ -1107,61 +1107,47 @@
                                         $rowsOnPage = $articoli->count();
                                         $isNearBottom = $rowsOnPage > 3 && $index >= ($rowsOnPage - 3);
                                     @endphp
-                                    <div class="dropdown articolo-actions-dropdown{{ $isNearBottom ? ' dropup' : '' }}">
-                                        <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
+                                    <details class="articolo-actions-details{{ $isNearBottom ? ' is-up' : '' }}">
+                                        <summary class="btn btn-light btn-sm articolo-actions-trigger">
                                             <iconify-icon icon="solar:menu-dots-bold" class="text-secondary"></iconify-icon>
-                                         </button>
-                                        <ul class="dropdown-menu dropdown-menu-end articolo-actions-menu">
-                                            <li>
-                                                <a class="dropdown-item" href="{{ route('articoli.show', $articolo->id) }}">
+                                        </summary>
+                                        <div class="articolo-actions-menu">
+                                                <a class="articolo-actions-item" href="{{ route('articoli.show', $articolo->id) }}">
                                                     <iconify-icon icon="solar:eye-bold" class="text-primary me-2"></iconify-icon>
                                                     Visualizza
                                                 </a>
-                                            </li>
-                                            <li>
-                                                <button type="button" class="dropdown-item" wire:click="apriModalFoto({{ $articolo->id }})">
+                                                <button type="button" class="articolo-actions-item" wire:click="apriModalFoto({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:camera-bold" class="text-info me-2"></iconify-icon>
                                                     Gestisci Immagine
                                                 </button>
-                                            </li>
-                                            <li>
-                                                <button type="button" class="dropdown-item" wire:click="apriModalModifica({{ $articolo->id }})">
+                                                <button type="button" class="articolo-actions-item" wire:click="apriModalModifica({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:pen-bold" class="text-warning me-2"></iconify-icon>
                                                     Modifica
                                                 </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item" wire:click="apriModalStampa({{ $articolo->id }})">
+                                                <button type="button" class="articolo-actions-item" wire:click="apriModalStampa({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:printer-bold" class="text-success me-2"></iconify-icon>
                                                     Stampa Etichetta
                                                 </button>
-                                            </li>
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li>
-                                                <button class="dropdown-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
+                                                <hr class="dropdown-divider">
+                                                <button type="button" class="articolo-actions-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
                                                     Ricarica Quantità
                                                 </button>
-                                            </li>
                                             @if($articolo->stato_articolo === 'disponibile')
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <button class="dropdown-item text-danger" wire:click="scaricaArticolo({{ $articolo->id }})">
+                                                    <hr class="dropdown-divider">
+                                                    <button type="button" class="articolo-actions-item text-danger" wire:click="scaricaArticolo({{ $articolo->id }})">
                                                         <iconify-icon icon="solar:box-remove-bold" class="text-danger me-2"></iconify-icon>
                                                         Scarica Articolo
                                                     </button>
-                                                </li>
                                             @elseif($articolo->stato_articolo === 'scaricato')
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <button class="dropdown-item text-success" wire:click="ripristinaArticolo({{ $articolo->id }})">
+                                                    <hr class="dropdown-divider">
+                                                    <button type="button" class="articolo-actions-item text-success" wire:click="ripristinaArticolo({{ $articolo->id }})">
                                                         <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
                                                         Ripristina Articolo
                                                     </button>
-                                                </li>
                                             @endif
-                                        </ul>
-                                    </div>
+                                        </div>
+                                    </details>
                                 </td>
                                 @endif
                             </tr>
@@ -1732,27 +1718,70 @@
             overflow-y: visible;
         }
 
-        .articoli-table-responsive .dropdown {
+        .articolo-actions-details {
             position: relative;
+            display: inline-block;
         }
 
-        .articolo-actions-dropdown .articolo-actions-menu {
-            min-width: 220px;
-            max-height: none !important;
-            overflow-y: visible !important;
+        .articolo-actions-trigger {
+            list-style: none;
+            cursor: pointer;
         }
 
-        .articolo-actions-dropdown:not(.dropup) .articolo-actions-menu.show {
-            top: calc(100% + 2px) !important;
-            bottom: auto !important;
-            margin-top: 0 !important;
+        .articolo-actions-trigger::-webkit-details-marker {
+            display: none;
         }
 
-        .articolo-actions-dropdown.dropup .articolo-actions-menu.show {
-            top: auto !important;
-            bottom: calc(100% + 2px) !important;
-            margin-top: 0 !important;
-            margin-bottom: 0 !important;
+        .articolo-actions-details > .articolo-actions-menu {
+            min-width: 240px;
+            position: fixed;
+            left: var(--articolo-actions-left, auto);
+            top: var(--articolo-actions-top, auto);
+            z-index: 1060;
+            display: none;
+            padding: .4rem;
+            background: #fff;
+            border: 1px solid var(--bs-border-color);
+            border-radius: 1rem;
+            box-shadow: 0 14px 32px rgba(33, 37, 41, 0.12), 0 4px 12px rgba(33, 37, 41, 0.08);
+            max-height: none;
+            overflow: visible;
+        }
+
+        .articolo-actions-details[open] > .articolo-actions-menu {
+            display: block;
+        }
+
+        .articolo-actions-details.is-up > .articolo-actions-menu {
+            top: var(--articolo-actions-top, auto);
+            bottom: auto;
+        }
+
+        .articolo-actions-menu .articolo-actions-item {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            width: 100%;
+            padding: .55rem .8rem;
+            border: 0;
+            border-radius: .7rem;
+            background: transparent;
+            text-align: left;
+            color: var(--bs-body-color);
+            font-size: .95rem;
+            line-height: 1.2;
+            text-decoration: none;
+            transition: background-color .15s ease, color .15s ease;
+        }
+
+        .articolo-actions-menu .articolo-actions-item:hover,
+        .articolo-actions-menu .articolo-actions-item:focus {
+            background: var(--bs-light);
+            color: var(--bs-emphasis-color);
+        }
+
+        .articolo-actions-menu .dropdown-divider {
+            margin: .2rem 0 !important;
         }
     </style>
 
@@ -1974,6 +2003,58 @@
                 cleanupOffcanvasScrollLock();
             });
             observer.observe(document.body, { childList: true, subtree: true });
+
+            const closeAllArticoloActionMenus = (except = null) => {
+                document.querySelectorAll('.articolo-actions-details[open]').forEach((details) => {
+                    if (except && details === except) {
+                        return;
+                    }
+                    details.removeAttribute('open');
+                });
+            };
+
+            document.addEventListener('click', (event) => {
+                const clickedSummary = event.target.closest('.articolo-actions-trigger');
+                const clickedDetails = event.target.closest('.articolo-actions-details');
+
+                if (!clickedDetails) {
+                    closeAllArticoloActionMenus();
+                    return;
+                }
+
+                if (clickedSummary) {
+                    const details = clickedDetails;
+                    closeAllArticoloActionMenus(details);
+
+                    requestAnimationFrame(() => {
+                        if (!details.hasAttribute('open')) {
+                            return;
+                        }
+
+                        const summaryRect = clickedSummary.getBoundingClientRect();
+                        const menu = details.querySelector('.articolo-actions-menu');
+                        if (!menu) {
+                            return;
+                        }
+
+                        const menuHeight = menu.offsetHeight || 260;
+                        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                        const openUp = summaryRect.bottom + menuHeight + 12 > viewportHeight && summaryRect.top > menuHeight;
+                        const top = openUp
+                            ? Math.max(8, summaryRect.top - menuHeight - 2)
+                            : Math.min(viewportHeight - menuHeight - 8, summaryRect.bottom + 2);
+                        const left = Math.max(8, summaryRect.right - Math.max(menu.offsetWidth, 220));
+
+                        details.classList.toggle('is-up', openUp);
+                        details.style.setProperty('--articolo-actions-top', `${top}px`);
+                        details.style.setProperty('--articolo-actions-left', `${left}px`);
+                    });
+
+                    return;
+                }
+
+                closeAllArticoloActionMenus(clickedDetails);
+            });
         </script>
     @endpush
 @endonce
