@@ -17,6 +17,7 @@ class MigraDeltaMssql extends Command
 {
     protected $signature = 'migra:delta-mssql 
                             {--dry-run : Simula senza salvare}
+                            {--recover-articolo-id= : Recupera un singolo articolo legacy con giacenza/documenti/vetrina}
                             {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}
                             {--backfill-ddt-descrizioni : Popola descrizione su ddt_dettagli da articoli}
                             {--backfill-ddt-links : Crea/aggancia DDT e dettagli per articoli senza carico}
@@ -69,10 +70,12 @@ class MigraDeltaMssql extends Command
 
     private array $codiciUsati = [];
     private array $codiceCounters = [];
+    private array $tableColumnsCache = [];
 
     public function handle()
     {
         $this->dryRun = $this->option('dry-run');
+        $recoverArticoloId = $this->option('recover-articolo-id');
         $forceMissing = $this->option('force-missing');
         $backfillDescrizioni = $this->option('backfill-ddt-descrizioni');
         $backfillLinks = $this->option('backfill-ddt-links');
@@ -115,6 +118,12 @@ class MigraDeltaMssql extends Command
         }
 
         try {
+            if ($recoverArticoloId !== null && $recoverArticoloId !== '') {
+                $this->recoverSingleArticolo((int) $recoverArticoloId);
+                $this->displaySummary();
+                return 0;
+            }
+
             $this->migraFornitori();
             $this->migraArticoliEGiacenze();
             if ($forceMissing) {
@@ -1719,6 +1728,286 @@ class MigraDeltaMssql extends Command
         return true;
     }
 
+    private function recoverSingleArticolo(int $articoloId): void
+    {
+        $this->info("🎯 RECOVERY SINGOLO ARTICOLO LEGACY #{$articoloId}");
+
+        $this->migraFornitori();
+
+        $imported = $this->importArticoloById($articoloId);
+        if (!$imported && !DB::table('articoli')->where('id', $articoloId)->exists()) {
+            throw new \RuntimeException("Articolo legacy {$articoloId} non trovato in elenco_articoli_magazzino");
+        }
+
+        $this->ensureGiacenzaForArticolo($articoloId);
+        $this->recoverDdtLinksForArticolo($articoloId);
+        $this->recoverFatturaLinksForArticolo($articoloId);
+        $this->recoverVetrinaLinksForArticolo($articoloId);
+    }
+
+    private function recoverDdtLinksForArticolo(int $articoloId): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('mag_ddt_articoli_dettagli')) {
+            $this->warn('⚠️  Tabella mag_ddt_articoli_dettagli non trovata, skip recovery DDT');
+            return;
+        }
+
+        $rows = DB::connection('mssql_prod')
+            ->table('mag_ddt_articoli_dettagli')
+            ->where('id_articolo', $articoloId)
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            $this->line("  ↳ Nessun dettaglio DDT legacy per articolo {$articoloId}");
+            return;
+        }
+
+        foreach ($rows as $det) {
+            $ddtId = (int) ($det->id_testata ?? 0);
+            if ($ddtId <= 0) {
+                continue;
+            }
+
+            $this->ensureLegacyDdtExists($ddtId);
+
+            if (!Ddt::where('id', $ddtId)->exists()) {
+                $this->warn("  ⚠️  DDT {$ddtId} non disponibile per articolo {$articoloId}");
+                continue;
+            }
+
+            if (DdtDettaglio::where('id', $det->id)->exists()) {
+                continue;
+            }
+
+            if (DdtDettaglio::where('ddt_id', $ddtId)->where('articolo_id', $articoloId)->exists()) {
+                continue;
+            }
+
+            if ($this->dryRun) {
+                $this->line("  [dry-run] Creerei dettaglio DDT {$det->id} per articolo {$articoloId}");
+                $this->stats['ddt_dettagli']++;
+                continue;
+            }
+
+            $descrizioneDettaglio = $this->legacyValue($det, 'descrizione');
+            $quantitaDettaglio = $this->legacyValue($det, 'qta_caricata', $this->legacyValue($det, 'quantita', 1));
+            $prezzoUnitario = $this->legacyValue($det, 'prezzo_unitario');
+
+            DdtDettaglio::create([
+                'id' => $det->id,
+                'ddt_id' => $ddtId,
+                'articolo_id' => $articoloId,
+                'descrizione' => $descrizioneDettaglio ?: Articolo::where('id', $articoloId)->value('descrizione'),
+                'quantita' => $quantitaDettaglio,
+                'prezzo_unitario' => $prezzoUnitario,
+                'caricato' => true,
+                'created_at' => $this->legacyValue($det, 'created_at', now()),
+            ]);
+
+            $this->stats['ddt_dettagli']++;
+        }
+    }
+
+    private function ensureLegacyDdtExists(int $ddtId): void
+    {
+        if (Ddt::where('id', $ddtId)->exists()) {
+            return;
+        }
+
+        $ddtMssql = DB::connection('mssql_prod')
+            ->table('mag_ddt_articoli_testate')
+            ->where('id', $ddtId)
+            ->first();
+
+        if (!$ddtMssql) {
+            return;
+        }
+
+        if ($this->dryRun) {
+            $this->line("  [dry-run] Creerei DDT {$ddtId}");
+            $this->stats['ddt']++;
+            return;
+        }
+
+        $fornitoreId = $this->resolveFornitoreIdFromId($ddtMssql->fornitore ?? null, Fornitore::min('id'));
+        Ddt::create([
+            'id' => $ddtMssql->id,
+            'numero' => $ddtMssql->numero_documento ?? $ddtMssql->id,
+            'data_documento' => $ddtMssql->data_documento ?? now(),
+            'anno' => date('Y', strtotime($ddtMssql->data_documento ?? 'now')),
+            'fornitore_id' => $fornitoreId,
+            'stato' => 'caricato',
+            'note' => $ddtMssql->note ?? null,
+            'data_carico' => $ddtMssql->data_carico ?? null,
+            'created_at' => $ddtMssql->created_at ?? now(),
+            'updated_at' => $ddtMssql->updated_at ?? now(),
+        ]);
+
+        $this->stats['ddt']++;
+    }
+
+    private function recoverFatturaLinksForArticolo(int $articoloId): void
+    {
+        $testateTable = $this->resolveFattureTestateTable();
+        $dettagliTable = $this->resolveFattureDettagliTable();
+
+        if (!$testateTable || !$dettagliTable) {
+            return;
+        }
+
+        $rows = DB::connection('mssql_prod')
+            ->table($dettagliTable)
+            ->where('id_articolo', $articoloId)
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        foreach ($rows as $det) {
+            $fatturaId = (int) ($det->id_testata ?? $det->fattura_id ?? 0);
+            if ($fatturaId <= 0) {
+                continue;
+            }
+
+            $this->ensureLegacyFatturaExists($fatturaId, $testateTable);
+
+            if (!Fattura::where('id', $fatturaId)->exists()) {
+                $this->warn("  ⚠️  Fattura {$fatturaId} non disponibile per articolo {$articoloId}");
+                continue;
+            }
+
+            if (FatturaDettaglio::where('id', $det->id)->exists()) {
+                continue;
+            }
+
+            if (FatturaDettaglio::where('fattura_id', $fatturaId)->where('articolo_id', $articoloId)->exists()) {
+                continue;
+            }
+
+            if ($this->dryRun) {
+                $this->line("  [dry-run] Creerei dettaglio Fattura {$det->id} per articolo {$articoloId}");
+                $this->stats['fatture_dettagli']++;
+                continue;
+            }
+
+            FatturaDettaglio::create([
+                'id' => $det->id,
+                'fattura_id' => $fatturaId,
+                'articolo_id' => $articoloId,
+                'codice_articolo' => $this->legacyValue($det, 'codice_articolo'),
+                'descrizione' => $this->legacyValue($det, 'descrizione', 'Articolo ' . $articoloId),
+                'quantita' => $this->legacyValue($det, 'quantita', 1),
+                'prezzo_unitario' => $this->legacyValue($det, 'prezzo_unitario', 0),
+                'sconto_percentuale' => $this->legacyValue($det, 'sconto_percentuale', 0),
+                'iva_percentuale' => $this->legacyValue($det, 'iva_percentuale', 22.00),
+                'totale_riga' => $this->legacyValue($det, 'totale_riga', 0),
+                'caricato' => true,
+                'created_at' => $this->legacyValue($det, 'created_at', now()),
+            ]);
+
+            $this->stats['fatture_dettagli']++;
+        }
+    }
+
+    private function ensureLegacyFatturaExists(int $fatturaId, string $testateTable): void
+    {
+        if (Fattura::where('id', $fatturaId)->exists()) {
+            return;
+        }
+
+        $fatturaMssql = DB::connection('mssql_prod')
+            ->table($testateTable)
+            ->where('id', $fatturaId)
+            ->first();
+
+        if (!$fatturaMssql) {
+            return;
+        }
+
+        if ($this->dryRun) {
+            $this->line("  [dry-run] Creerei Fattura {$fatturaId}");
+            $this->stats['fatture']++;
+            return;
+        }
+
+        $fornitoreId = $this->resolveFornitoreIdFromId($fatturaMssql->fornitore ?? null, Fornitore::min('id'));
+        $dataDocumento = $fatturaMssql->data_documento ?? $fatturaMssql->data_fattura ?? now();
+        $numero = $fatturaMssql->numero_documento ?? $fatturaMssql->numero_fattura ?? $fatturaMssql->numero ?? $fatturaMssql->id;
+
+        Fattura::create([
+            'id' => $fatturaMssql->id,
+            'numero' => $numero,
+            'data_documento' => $dataDocumento,
+            'anno' => date('Y', strtotime($dataDocumento ?? 'now')),
+            'fornitore_id' => $fornitoreId,
+            'imponibile' => $fatturaMssql->imponibile ?? 0,
+            'iva' => $fatturaMssql->iva ?? 0,
+            'totale' => $fatturaMssql->totale ?? 0,
+            'stato' => 'caricato',
+            'note' => $fatturaMssql->note ?? null,
+            'created_at' => $fatturaMssql->created_at ?? now(),
+            'updated_at' => $fatturaMssql->updated_at ?? now(),
+        ]);
+
+        $this->stats['fatture']++;
+    }
+
+    private function recoverVetrinaLinksForArticolo(int $articoloId): void
+    {
+        if (!Schema::connection('mssql_prod')->hasTable('mag_articoli_vetrine')) {
+            return;
+        }
+
+        $rows = DB::connection('mssql_prod')
+            ->table('mag_articoli_vetrine')
+            ->where('id_articolo', $articoloId)
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        foreach ($rows as $rel) {
+            $vetrinaId = (int) ($rel->id_vetrina ?? 0);
+            if ($vetrinaId <= 0 || !DB::table('vetrine')->where('id', $vetrinaId)->exists()) {
+                $this->warn("  ⚠️  Vetrina {$vetrinaId} non presente per articolo {$articoloId}");
+                continue;
+            }
+
+            $exists = DB::table('articoli_vetrine')
+                ->where('vetrina_id', $vetrinaId)
+                ->where('articolo_id', $articoloId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            if ($this->dryRun) {
+                $this->line("  [dry-run] Creerei link vetrina {$vetrinaId} per articolo {$articoloId}");
+                continue;
+            }
+
+            DB::table('articoli_vetrine')->insert([
+                'articolo_id' => $articoloId,
+                'vetrina_id' => $vetrinaId,
+                'tipo_articolo' => 'interno',
+                'testo_vetrina' => $rel->testo_vetrina ?? null,
+                'posizione' => $rel->ordine_vetrina ?? 0,
+                'ripiano' => null,
+                'prezzo_vetrina' => $rel->prezzo_vetrina ?? null,
+                'data_inserimento' => now()->toDateString(),
+                'note' => $rel->nc ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
     private function ensureGiacenzaForArticolo(int $articoloId, ?object $art = null): void
     {
         $exists = DB::table('giacenze')->where('articolo_id', $articoloId)->exists();
@@ -1744,9 +2033,10 @@ class MigraDeltaMssql extends Command
         $scaffale = $art->ubicazione ?? null;
         $note = $art->ubicazione ?? null;
 
-        DB::table('giacenze')->insert([
+        $payload = $this->filterPayloadForTable('giacenze', [
             'articolo_id' => $articoloId,
             'categoria_merceologica_id' => $articolo->categoria_merceologica_id ?? null,
+            'magazzino_logico' => $articolo->magazzino_logico ?? null,
             'sede_id' => $articolo->sede_id ?? 1,
             'quantita' => $qta,
             'quantita_residua' => $qtaResidua,
@@ -1757,6 +2047,7 @@ class MigraDeltaMssql extends Command
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('giacenze')->insert($payload);
         $this->stats['giacenze']++;
     }
 
@@ -1777,12 +2068,15 @@ class MigraDeltaMssql extends Command
             $codiceUnico = $this->generateUniqueCodice($codiceBase);
         }
 
-        DB::table('articoli')->where('id', $art->id)->update([
+        $payload = $this->filterPayloadForTable('articoli', [
             'codice' => $codiceUnico,
             'descrizione' => $art->descrizione ?? $existing->descrizione ?? ('Articolo ' . $art->id),
             'descrizione_estesa' => $art->note ?? $existing->descrizione_estesa,
             'categoria_merceologica_id' => $art->id_magazzino ?? $existing->categoria_merceologica_id,
+            'magazzino_logico' => $art->id_magazzino ?? $existing->magazzino_logico ?? null,
             'sede_id' => $sedeId,
+            'numero_seriale' => $art->seriale ?? $existing->numero_seriale ?? null,
+            'modello' => $art->referenza ?? $existing->modello ?? null,
             'materiale' => $art->materiale ?? $existing->materiale,
             'colore' => $art->colore ?? $existing->colore,
             'peso_lordo' => $art->peso_lordo ?? $existing->peso_lordo,
@@ -1791,6 +2085,7 @@ class MigraDeltaMssql extends Command
             'caratura' => $art->carati ?? $existing->caratura,
             'prezzo_acquisto' => $art->costo_unitario ?? $existing->prezzo_acquisto,
             'prezzo_fornitore' => $art->prezzo_fornitore ?? $existing->prezzo_fornitore,
+            'stato' => $existing->stato ?? 'disponibile',
             'tipo_carico' => isset($art->fatturato) && $art->fatturato == 1 ? 'fattura' : 'ddt',
             'numero_documento_carico' => $art->numero_documento ?? $existing->numero_documento_carico,
             'data_carico' => $art->data_documento ?? $existing->data_carico,
@@ -1802,6 +2097,7 @@ class MigraDeltaMssql extends Command
             ]),
             'updated_at' => now(),
         ]);
+        DB::table('articoli')->where('id', $art->id)->update($payload);
     }
 
     private function insertArticoloFromRow(object $art): void
@@ -1822,17 +2118,17 @@ class MigraDeltaMssql extends Command
             $sedeId = $this->ubicazioneToSedeMapping[$art->ubicazione_magazzino ?? 0] ?? 1;
         }
 
-        $fornitoreId = $this->resolveFornitoreIdFromArticolo($art);
-
         try {
-            DB::table('articoli')->insert([
+            $payload = $this->filterPayloadForTable('articoli', [
                 'id' => $art->id,
                 'codice' => $codiceUnico,
                 'descrizione' => $descrizione,
                 'descrizione_estesa' => $art->note ?? null,
                 'categoria_merceologica_id' => $art->id_magazzino ?? null,
+                'magazzino_logico' => $art->id_magazzino ?? null,
                 'sede_id' => $sedeId,
-                'fornitore_id' => $fornitoreId,
+                'numero_seriale' => $art->seriale ?? null,
+                'modello' => $art->referenza ?? null,
                 'materiale' => $art->materiale ?? null,
                 'colore' => $art->colore ?? null,
                 'peso_lordo' => $art->peso_lordo ?? null,
@@ -1841,6 +2137,7 @@ class MigraDeltaMssql extends Command
                 'caratura' => $art->carati ?? null,
                 'prezzo_acquisto' => $art->costo_unitario ?? 0,
                 'prezzo_fornitore' => $art->prezzo_fornitore ?? null,
+                'stato' => 'disponibile',
                 'stato_articolo' => 'disponibile',
                 'tipo_carico' => isset($art->fatturato) && $art->fatturato == 1 ? 'fattura' : 'ddt',
                 'numero_documento_carico' => $art->numero_documento ?? null,
@@ -1854,6 +2151,7 @@ class MigraDeltaMssql extends Command
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+            DB::table('articoli')->insert($payload);
 
             $exists = DB::table('articoli')->where('id', $art->id)->exists();
             if (!$exists) {
@@ -1893,6 +2191,26 @@ class MigraDeltaMssql extends Command
             return true;
         }
         return DB::table('articoli')->where('codice', $code)->exists();
+    }
+
+    private function filterPayloadForTable(string $table, array $payload): array
+    {
+        $columns = $this->getTableColumns($table);
+        return array_intersect_key($payload, array_flip($columns));
+    }
+
+    private function getTableColumns(string $table): array
+    {
+        if (!isset($this->tableColumnsCache[$table])) {
+            $this->tableColumnsCache[$table] = Schema::getColumnListing($table);
+        }
+
+        return $this->tableColumnsCache[$table];
+    }
+
+    private function legacyValue(object $row, string $field, mixed $default = null): mixed
+    {
+        return property_exists($row, $field) ? $row->{$field} : $default;
     }
 
     private function displaySummary(): void
