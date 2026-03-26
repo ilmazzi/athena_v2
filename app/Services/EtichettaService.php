@@ -66,7 +66,7 @@ class EtichettaService
     $prezzoFormattato = $this->formattaPrezzoCompat($prezzo, $formatoPrezzo);
 
     if ($stampante->modello === 'ZT421') {
-        return $this->buildNcZplZT421($prezzoFormattato, $carati);
+        return $this->buildNcZplZT421Validated($prezzoFormattato, $carati);
     }
 
     $layout = filled($carati) ? 'nc_prezzo_carati' : 'nc_prezzo';
@@ -268,6 +268,7 @@ class EtichettaService
         return '^XA
 ^MD30
 ^PR3
+^CI28
 ^LH180,0
 ^PW552^LL80
 ^FO60,25^A@N,13,13,E:TT0003M_.FNT^FD{PREZZO}^FS
@@ -624,6 +625,29 @@ class EtichettaService
     ^XZ';
     }
     
+
+    private function buildNcZplZT421Validated(string $prezzoFormattato, ?string $carati): string
+    {
+        $prezzoFormattato = trim((string) $prezzoFormattato);
+        $prezzoFormattato = preg_replace('/^[^\d]*/u', '', $prezzoFormattato);
+        $prezzoFormattato = '€ ' . ltrim($prezzoFormattato);
+
+        $carati = trim((string) $carati);
+        if ($carati !== '') {
+            $carati = preg_replace('/^ct\s*/i', '', $carati);
+            $carati = 'CT ' . ltrim($carati);
+        }
+
+        return '^XA
+^MD30
+^PR3
+^CI28
+^LH180,0
+^PW552^LL80
+^FO60,25^A@N,13,13,E:TT0003M_.FNT^FD' . $prezzoFormattato . '^FS
+^FO60,40^A@N,13,13,E:TT0003M_.FNT^FB100,2,3,L^FD' . $carati . '^FS
+^XZ';
+    }
 
     /**
      * Stampa etichetta per un articolo
