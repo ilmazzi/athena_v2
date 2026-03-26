@@ -1104,7 +1104,8 @@
                                 @if($visibleColumns['azioni'] ?? true)
                                 <td class="text-center">
                                     @php
-                                        $isNearBottom = $index >= max(0, $articoli->count() - 3);
+                                        $rowsOnPage = $articoli->count();
+                                        $isNearBottom = $rowsOnPage > 3 && $index >= ($rowsOnPage - 3);
                                     @endphp
                                     <div class="dropdown{{ $isNearBottom ? ' dropup' : '' }}">
                                         <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
