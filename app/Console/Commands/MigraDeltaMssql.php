@@ -18,6 +18,7 @@ class MigraDeltaMssql extends Command
     protected $signature = 'migra:delta-mssql 
                             {--dry-run : Simula senza salvare}
                             {--recover-articolo-id= : Recupera un singolo articolo legacy con giacenza/documenti/vetrina}
+                            {--audit-missing-carico : Elenca articoli legacy con carico ancora assenti nel nuovo DB}
                             {--force-missing : Importa articoli mancanti dai dettagli DDT ignorando max ID}
                             {--backfill-ddt-descrizioni : Popola descrizione su ddt_dettagli da articoli}
                             {--backfill-ddt-links : Crea/aggancia DDT e dettagli per articoli senza carico}
@@ -76,6 +77,7 @@ class MigraDeltaMssql extends Command
     {
         $this->dryRun = $this->option('dry-run');
         $recoverArticoloId = $this->option('recover-articolo-id');
+        $auditMissingCarico = $this->option('audit-missing-carico');
         $forceMissing = $this->option('force-missing');
         $backfillDescrizioni = $this->option('backfill-ddt-descrizioni');
         $backfillLinks = $this->option('backfill-ddt-links');
@@ -121,6 +123,11 @@ class MigraDeltaMssql extends Command
             if ($recoverArticoloId !== null && $recoverArticoloId !== '') {
                 $this->recoverSingleArticolo((int) $recoverArticoloId);
                 $this->displaySummary();
+                return 0;
+            }
+
+            if ($auditMissingCarico) {
+                $this->auditMissingArticoliConCarico();
                 return 0;
             }
 
@@ -1400,6 +1407,105 @@ class MigraDeltaMssql extends Command
         if ($skippedConflict > 0) {
             $this->line("  Saltati per conflitto: {$skippedConflict}");
         }
+        $this->newLine();
+    }
+
+    private function auditMissingArticoliConCarico(): void
+    {
+        $table = $this->resolveMssqlArticoliTable();
+        if (!$table) {
+            $this->warn('Nessuna tabella/vista MSSQL trovata per audit articoli con carico.');
+            return;
+        }
+
+        $this->info('AUDIT ARTICOLI LEGACY CON CARICO ANCORA ASSENTI');
+        $this->line(str_repeat('━', 60));
+
+        $legacyRows = collect(DB::connection('mssql_prod')
+            ->table($table)
+            ->select('id', 'id_magazzino', 'carico', 'referenza', 'descrizione', 'seriale', 'numero_documento', 'data_documento')
+            ->whereNotNull('carico')
+            ->orderBy('id')
+            ->get());
+
+        $legacyIds = $legacyRows->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $newIds = DB::table('articoli')
+            ->whereIn('id', $legacyIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $newIdMap = array_flip($newIds);
+
+        $missing = $legacyRows
+            ->filter(fn ($row) => !isset($newIdMap[(int) $row->id]))
+            ->values();
+
+        $legacyCount = $legacyRows->count();
+        $missingCount = $missing->count();
+        $coverage = $legacyCount > 0 ? round((($legacyCount - $missingCount) / $legacyCount) * 100, 2) : 100.0;
+        $serialCount = $missing->filter(function ($row) {
+            $seriale = trim((string) ($row->seriale ?? ''));
+            return $seriale !== '' && strtoupper($seriale) !== 'NESSUNO' && strtoupper($seriale) !== 'NESSUNA';
+        })->count();
+
+        $this->line("Legacy con carico: {$legacyCount}");
+        $this->line("Mancanti nel nuovo: {$missingCount}");
+        $this->line("Copertura: {$coverage}%");
+        $this->line("Mancanti con seriale valorizzato: {$serialCount}");
+
+        $carichi = $missing
+            ->pluck('carico')
+            ->filter(fn ($v) => $v !== null && $v !== '')
+            ->map(fn ($v) => (string) $v)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($carichi)) {
+            $this->newLine();
+            $this->line('Carichi mancanti: ' . implode(', ', $carichi));
+        }
+
+        $csvPath = storage_path('app/missing_articoli_con_carico_residui.csv');
+        $lines = ['id,id_magazzino,carico,referenza,descrizione,seriale,numero_documento,data_documento'];
+        foreach ($missing as $row) {
+            $values = [
+                (string) ($row->id ?? ''),
+                (string) ($row->id_magazzino ?? ''),
+                (string) ($row->carico ?? ''),
+                (string) ($row->referenza ?? ''),
+                preg_replace('/\s+/', ' ', (string) ($row->descrizione ?? '')),
+                (string) ($row->seriale ?? ''),
+                (string) ($row->numero_documento ?? ''),
+                (string) ($row->data_documento ?? ''),
+            ];
+            $escaped = array_map(function ($value) {
+                $value = str_replace('"', '""', $value);
+                return '"' . $value . '"';
+            }, $values);
+            $lines[] = implode(',', $escaped);
+        }
+        file_put_contents($csvPath, implode(PHP_EOL, $lines) . PHP_EOL);
+
+        $this->newLine();
+        $this->info("CSV esportato: {$csvPath}");
+
+        $sample = $missing->take(20);
+        if ($sample->isNotEmpty()) {
+            $this->newLine();
+            $this->line('Primi mancanti:');
+            foreach ($sample as $row) {
+                $this->line(sprintf(
+                    '  #%s | mag %s | carico %s | ref %s | seriale %s',
+                    $row->id ?? '',
+                    $row->id_magazzino ?? '',
+                    $row->carico ?? '',
+                    $row->referenza ?? '-',
+                    $row->seriale ?? '-'
+                ));
+            }
+        }
+
         $this->newLine();
     }
 
