@@ -23,7 +23,29 @@
         .carico-doc-table .carico-doc-input-price-wide {
             min-width: 150px;
         }
-    </style>
+        .carico-doc-item {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+            border: 1px solid #e9ecef;
+        }
+        .carico-doc-item-label {
+            font-size: .72rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: .35rem;
+        }
+        .carico-doc-item .form-control,
+        .carico-doc-item .form-select {
+            min-height: 38px;
+        }
+        .carico-doc-item textarea.form-control {
+            min-height: 96px;
+        }
+        .carico-doc-item-price {
+            background-color: #f8fafc;
+        }
+      </style>
     {{-- Overlay blocco UI durante elaborazione OCR --}}
     <div wire:loading wire:target="processaPdf"
          wire:loading.class.remove="d-none"
@@ -393,8 +415,107 @@
                     <iconify-icon icon="solar:add-circle-bold-duotone" class="me-1"></iconify-icon> Aggiungi
                 </button>
             </div>
-            
-            <div class="table-responsive">
+
+            <div class="card-body d-xl-none carico-doc-table">
+                @forelse($articoli as $index => $articolo)
+                    <div class="carico-doc-item rounded-3 p-3 mb-3" wire:key="art-mobile-{{ $index }}">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary-subtle text-primary fs-12">Riga {{ $index + 1 }}</span>
+                                <span class="badge bg-warning-subtle text-warning">Nuovo</span>
+                            </div>
+                            <button type="button" wire:click="rimuoviArticolo({{ $index }})" class="btn btn-sm btn-outline-danger">
+                                <iconify-icon icon="solar:trash-bin-trash-bold-duotone"></iconify-icon>
+                            </button>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Codice / Referenza *</label>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
+                                       class="form-control @error('articoli.'.$index.'.codice') is-invalid @enderror"
+                                       placeholder="Codice / Referenza">
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Descrizione</label>
+                                <textarea wire:model.defer="articoli.{{ $index }}.descrizione"
+                                          class="form-control"
+                                          rows="3"
+                                          style="white-space: pre-wrap;"
+                                          placeholder="Descrizione"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Magazzino *</label>
+                                <select wire:model.defer="articoli.{{ $index }}.categoria_id"
+                                        class="form-select @error('articoli.'.$index.'.categoria_id') is-invalid @enderror"
+                                        @disabled(empty($sedeId))>
+                                    <option value="">Seleziona...</option>
+                                    @foreach($categorie as $categoria)
+                                        <option value="{{ $categoria['id'] }}">{{ $categoria['label'] }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="carico-doc-item-label">QuantitÃ  *</label>
+                                <input type="number" wire:model.live.debounce.300ms="articoli.{{ $index }}.quantita"
+                                       class="form-control text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
+                                       min="1">
+                            </div>
+                            <div class="col-6">
+                                <label class="carico-doc-item-label">Carati</label>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.caratura"
+                                       class="form-control" placeholder="ct">
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">{{ $tipoDocumento === 'ddt' ? 'Prezzo Unit.' : 'Costo Unit.' }}</label>
+                                <input type="text" wire:model.live.debounce.300ms="articoli.{{ $index }}.prezzo_unitario"
+                                       class="form-control text-end carico-doc-item-price @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
+                                       placeholder="0,00">
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">{{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}</label>
+                                <input type="text" value="{{ ($totaleRiga = $this->calcolaTotaleRiga($articolo)) !== null ? number_format($totaleRiga, 2, ',', '.') : '' }}"
+                                       class="form-control text-end carico-doc-item-price"
+                                       placeholder="0,00" readonly>
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Prezzo di Listino</label>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_fornitore"
+                                       class="form-control text-end carico-doc-item-price @error('articoli.'.$index.'.prezzo_fornitore') is-invalid @enderror"
+                                       placeholder="Opzionale">
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Prezzo Etichetta</label>
+                                <div class="input-group">
+                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
+                                           class="form-control text-end carico-doc-item-price"
+                                           placeholder="Prezzo etichetta">
+                                    <button type="button" class="btn btn-outline-primary" wire:click="applicaCodicePrezzoRiga({{ $index }})">
+                                        Auto
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">Seriale</label>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
+                                       class="form-control" placeholder="Seriale">
+                            </div>
+                            <div class="col-12">
+                                <label class="carico-doc-item-label">EAN</label>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.ean"
+                                       class="form-control" placeholder="EAN">
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="text-center py-5">
+                        <iconify-icon icon="solar:inbox-line-bold-duotone" class="fs-1 text-muted d-block mb-2" style="font-size: 3rem;"></iconify-icon>
+                        <p class="text-muted mb-0">Nessun articolo trovato</p>
+                    </div>
+                @endforelse
+            </div>
+
+            <div class="table-responsive d-none d-xl-block">
                 <table class="table table-hover align-middle mb-0 carico-doc-table">
                     <thead class="table-light">
                         <tr>
