@@ -1107,11 +1107,11 @@
                                         $rowsOnPage = $articoli->count();
                                         $isNearBottom = $rowsOnPage > 3 && $index >= ($rowsOnPage - 3);
                                     @endphp
-                                    <div class="dropdown{{ $isNearBottom ? ' dropup' : '' }}">
+                                    <div class="dropdown articolo-actions-dropdown{{ $isNearBottom ? ' dropup' : '' }}">
                                         <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
                                             <iconify-icon icon="solar:menu-dots-bold" class="text-secondary"></iconify-icon>
                                          </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
+                                        <ul class="dropdown-menu dropdown-menu-end articolo-actions-menu">
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('articoli.show', $articolo->id) }}">
                                                     <iconify-icon icon="solar:eye-bold" class="text-primary me-2"></iconify-icon>
@@ -1734,6 +1734,25 @@
 
         .articoli-table-responsive .dropdown {
             position: relative;
+        }
+
+        .articolo-actions-dropdown .articolo-actions-menu {
+            min-width: 220px;
+            max-height: none !important;
+            overflow-y: visible !important;
+        }
+
+        .articolo-actions-dropdown:not(.dropup) .articolo-actions-menu.show {
+            top: calc(100% + 2px) !important;
+            bottom: auto !important;
+            margin-top: 0 !important;
+        }
+
+        .articolo-actions-dropdown.dropup .articolo-actions-menu.show {
+            top: auto !important;
+            bottom: calc(100% + 2px) !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
         }
     </style>
 
