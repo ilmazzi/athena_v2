@@ -277,7 +277,7 @@ class ArticoliTable extends Component
             'caratura' => 'Caratura',
             'giacenza' => 'Giacenza',
             'costo_unitario' => 'Costo unitario',
-            'prezzo_fornitore' => 'Prezzo fornitore',
+            'prezzo_fornitore' => 'Prezzo di listino',
             'valore_totale' => 'Valore totale',
             'dati_carico' => 'Dati carico',
             'ubicazione' => 'Ubicazione',
@@ -1655,6 +1655,9 @@ class ArticoliTable extends Component
         $query = $this->buildPrezziQuery();
         $aggiornati = 0;
         $modificati = 0;
+        $ristampati = 0;
+        $erroriStampa = 0;
+        $idsDaRistampare = [];
 
         if (!$this->prezziApplicaATutti) {
             $ids = array_filter($this->prezziSelezionati);
@@ -1667,7 +1670,7 @@ class ArticoliTable extends Component
 
         $query->select('id', 'prezzo_fornitore')
             ->orderBy('id')
-            ->chunkById(200, function ($chunk) use ($prezzo, &$aggiornati, &$modificati) {
+            ->chunkById(200, function ($chunk) use ($prezzo, &$aggiornati, &$modificati, &$idsDaRistampare) {
                 foreach ($chunk as $articolo) {
                     $aggiornati++;
                     if ((float) $articolo->prezzo_fornitore === (float) $prezzo) {
@@ -1679,8 +1682,25 @@ class ArticoliTable extends Component
                     ]);
 
                     $modificati++;
+                    $idsDaRistampare[] = (int) $articolo->id;
                 }
             });
+
+        if (!empty($idsDaRistampare)) {
+            $etichettaService = app(\App\Services\EtichettaService::class);
+
+            Articolo::whereIn('id', $idsDaRistampare)
+                ->orderBy('id')
+                ->chunkById(100, function ($chunk) use ($etichettaService, &$ristampati, &$erroriStampa) {
+                    foreach ($chunk as $articolo) {
+                        if ($etichettaService->stampaEtichetta($articolo)) {
+                            $ristampati++;
+                        } else {
+                            $erroriStampa++;
+                        }
+                    }
+                });
+        }
 
         if ($this->prezziSalvaRegola && $this->prezziFornitoreId) {
             FornitorePrezzo::updateOrCreate(
@@ -1695,7 +1715,16 @@ class ArticoliTable extends Component
             );
         }
 
-        session()->flash('success', "Aggiornati {$modificati} articoli (trovati {$aggiornati}).");
+        $message = "Aggiornati {$modificati} articoli (trovati {$aggiornati}).";
+
+        if ($modificati > 0) {
+            $message .= " Etichette ristampate: {$ristampati}.";
+            if ($erroriStampa > 0) {
+                $message .= " Errori stampa: {$erroriStampa}.";
+            }
+        }
+
+        session()->flash('success', $message);
     }
 
     private function applyMagazzinoFilter($query, array $magazziniIds): void

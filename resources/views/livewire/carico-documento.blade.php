@@ -8,6 +8,21 @@
         .carico-doc-table textarea {
             resize: vertical;
         }
+        .carico-doc-table .carico-doc-input {
+            min-width: 120px;
+        }
+        .carico-doc-table .carico-doc-input-wide {
+            min-width: 220px;
+        }
+        .carico-doc-table .carico-doc-input-desc {
+            min-width: 420px;
+        }
+        .carico-doc-table .carico-doc-input-price {
+            min-width: 130px;
+        }
+        .carico-doc-table .carico-doc-input-price-wide {
+            min-width: 150px;
+        }
     </style>
     {{-- Overlay blocco UI durante elaborazione OCR --}}
     <div wire:loading wire:target="processaPdf"
@@ -316,6 +331,11 @@
             Il magazzino in testata imposta automaticamente il magazzino su tutte le righe. Puoi comunque cambiarlo per singolo articolo.
         </div>
 
+        <div class="alert alert-warning py-2 mb-3">
+            <iconify-icon icon="solar:tag-price-bold-duotone" class="me-1"></iconify-icon>
+            <strong>Prezzo di listino:</strong> e' opzionale e separato dal costo/prezzo unitario del documento. Compilalo solo se vuoi salvare un prezzo di listino specifico sull'articolo.
+        </div>
+
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body py-3">
                 <div class="row g-3 align-items-center">
@@ -380,17 +400,18 @@
                         <tr>
                             <th width="40">#</th>
                             <th width="50">Stato</th>
-                            <th width="200">Codice / Referenza *</th>
-                            <th width="420">Descrizione</th>
+                            <th width="240">Codice / Referenza *</th>
+                            <th width="520">Descrizione</th>
                             <th width="180">Magazzino *</th>
                             <th width="110">Quantità *</th>
                             <th width="100">Carati</th>
                             <th width="140">
-                                {{ $tipoDocumento === 'ddt' ? 'Prezzo Fornitore' : 'Costo Unit.' }}
+                                {{ $tipoDocumento === 'ddt' ? 'Prezzo Unit.' : 'Costo Unit.' }}
                             </th>
                             <th width="140">
                                 {{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}
                             </th>
+                            <th width="170">Prezzo di Listino (opt)</th>
                             <th width="160">Prezzo Etichetta</th>
                             <th width="160">Seriale</th>
                             <th width="160">EAN</th>
@@ -406,19 +427,19 @@
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
-                                       class="form-control form-control-sm @error('articoli.'.$index.'.codice') is-invalid @enderror"
+                                       class="form-control form-control-sm carico-doc-input carico-doc-input-wide @error('articoli.'.$index.'.codice') is-invalid @enderror"
                                        placeholder="Codice / Referenza">
                             </td>
                             <td>
                                 <textarea wire:model.defer="articoli.{{ $index }}.descrizione"
-                                          class="form-control form-control-sm"
+                                          class="form-control form-control-sm carico-doc-input carico-doc-input-desc"
                                           rows="3"
                                           style="white-space: pre-wrap;"
                                           placeholder="Descrizione"></textarea>
                             </td>
                             <td>
                                 <select wire:model.defer="articoli.{{ $index }}.categoria_id"
-                                        class="form-select form-select-sm @error('articoli.'.$index.'.categoria_id') is-invalid @enderror"
+                                        class="form-select form-select-sm carico-doc-input @error('articoli.'.$index.'.categoria_id') is-invalid @enderror"
                                         @disabled(empty($sedeId))>
                                     <option value="">Seleziona...</option>
                                     @foreach($categorie as $categoria)
@@ -428,26 +449,31 @@
                             </td>
                             <td>
                                 <input type="number" wire:model.live.debounce.300ms="articoli.{{ $index }}.quantita"
-                                       class="form-control form-control-sm text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
+                                       class="form-control form-control-sm carico-doc-input text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
                                        min="1">
                             </td>
                             <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.caratura"
-                                       class="form-control form-control-sm" placeholder="ct">
+                                       class="form-control form-control-sm carico-doc-input" placeholder="ct">
                             </td>
                             <td>
                                 <input type="text" wire:model.live.debounce.300ms="articoli.{{ $index }}.prezzo_unitario"
-                                       class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
+                                       class="form-control form-control-sm carico-doc-input carico-doc-input-price text-end @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
                                        placeholder="0,00">
                             </td>
                             <td>
                                 <input type="text" value="{{ ($totaleRiga = $this->calcolaTotaleRiga($articolo)) !== null ? number_format($totaleRiga, 2, ',', '.') : '' }}"
-                                       class="form-control form-control-sm text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
+                                       class="form-control form-control-sm carico-doc-input carico-doc-input-price text-end @error('articoli.'.$index.'.prezzo_totale') is-invalid @enderror"
                                        placeholder="0,00" readonly>
                             </td>
                             <td>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_fornitore"
+                                       class="form-control form-control-sm carico-doc-input carico-doc-input-price-wide text-end @error('articoli.'.$index.'.prezzo_fornitore') is-invalid @enderror"
+                                       placeholder="Opzionale">
+                            </td>
+                            <td>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
-                                       class="form-control form-control-sm text-end"
+                                       class="form-control form-control-sm carico-doc-input carico-doc-input-price-wide text-end"
                                        placeholder="Prezzo etichetta">
                                 <button type="button"
                                         class="btn btn-link btn-sm p-0"
@@ -472,7 +498,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="13" class="text-center py-5">
+                            <td colspan="14" class="text-center py-5">
                                 <iconify-icon icon="solar:inbox-line-bold-duotone" class="fs-1 text-muted d-block mb-2" style="font-size: 3rem;"></iconify-icon>
                                 <p class="text-muted">Nessun articolo trovato</p>
                             </td>

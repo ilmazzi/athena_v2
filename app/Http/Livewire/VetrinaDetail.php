@@ -228,18 +228,52 @@ class VetrinaDetail extends Component
 
     protected function normalizeNumericInput($value): ?float
     {
-        if ($value === null) {
+        if ($value === null || $value === '') {
             return null;
         }
-        $value = trim((string) $value);
-        if ($value === '') {
+
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        $raw = str_replace(["\xc2\xa0", ' '], '', $raw);
+        $raw = preg_replace('/[^\d,.\-]/u', '', $raw);
+
+        if ($raw === '') {
             return null;
         }
-        $normalized = str_replace(['.', ','], ['', '.'], $value);
-        if (!is_numeric($normalized)) {
-            return null;
+
+        $lastComma = strrpos($raw, ',');
+        $lastDot = strrpos($raw, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $raw);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $raw);
+            }
+        } elseif ($lastComma !== false) {
+            $decimals = strlen($raw) - $lastComma - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace('.', '', $raw);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $raw);
+            }
+        } elseif ($lastDot !== false) {
+            $decimals = strlen($raw) - $lastDot - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace(',', '', $raw);
+            } else {
+                $normalized = str_replace('.', '', $raw);
+            }
+        } else {
+            $normalized = $raw;
         }
-        return (float) $normalized;
+
+        return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     public function removeArticoloFromVetrina($articoloVetrinaId)

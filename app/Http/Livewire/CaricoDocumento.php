@@ -86,6 +86,7 @@ class CaricoDocumento extends Component
             'articoli.*.categoria_id' => 'required|integer|min:1',
             'articoli.*.prezzo_unitario' => ['nullable', $priceRule],
             'articoli.*.prezzo_totale' => ['nullable', $priceRule],
+            'articoli.*.prezzo_fornitore' => ['nullable', $priceRule],
             'articoli.*.prezzo_etichetta' => 'nullable|string|max:50',
             'importoTotale' => ['nullable', $priceRule],
         ];
@@ -192,6 +193,7 @@ class CaricoDocumento extends Component
             $this->articoli[$index]['esiste'] = false;
             $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
             $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
+            $this->articoli[$index]['prezzo_fornitore'] = $articolo['prezzo_fornitore'] ?? null;
             $this->articoli[$index]['prezzo_etichetta'] = $prezzoEtichettaEstratto !== ''
                 ? $prezzoEtichettaEstratto
                 : (
@@ -224,6 +226,7 @@ class CaricoDocumento extends Component
             'caratura' => '',
             'prezzo_unitario' => null,
             'prezzo_totale' => null,
+            'prezzo_fornitore' => null,
             'prezzo_etichetta' => '',
             'numero_seriale' => '',
             'ean' => '',
@@ -448,6 +451,7 @@ class CaricoDocumento extends Component
             foreach ($this->articoli as $articolo) {
                 $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
                 $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
+                $prezzoFornitore = $this->normalizePrice($articolo['prezzo_fornitore'] ?? null);
                 $referenzaFornitore = trim((string) ($articolo['codice'] ?? ''));
                 $numeroSeriale = $this->normalizeSerial($articolo['numero_seriale'] ?? null);
                 $ean = trim((string) ($articolo['ean'] ?? '')) ?: null;
@@ -474,7 +478,7 @@ class CaricoDocumento extends Component
                     'sede_id' => $this->sedeId,
                     'fornitore_id' => $this->fornitoreId ?: null,
                     'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
-                    'prezzo_fornitore' => $prezzoUnitario,
+                    'prezzo_fornitore' => $prezzoFornitore,
                     'ean' => $ean,
                     'numero_seriale' => $numeroSeriale,
                     'caratura' => $articolo['caratura'] ?? null,
@@ -570,7 +574,7 @@ class CaricoDocumento extends Component
                         'categoria_merceologica_id' => $articoloCategoriaId,
                         'sede_id' => $this->sedeId,
                         'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
-                        'prezzo_fornitore' => $prezzoUnitario, // DDT e fattura (Pomellato prezzo imposto su fattura)
+                        'prezzo_fornitore' => $prezzoFornitore,
                         'ean' => $articolo['ean'] ?? null,
                         'numero_seriale' => $articolo['numero_seriale'] ?? null,
                         'caratura' => $articolo['caratura'] ?? null,
@@ -592,8 +596,8 @@ class CaricoDocumento extends Component
                             ->update(['caratura' => $articolo['caratura']]);
                     }
                     $updatesArticolo = [];
-                    if ($prezzoUnitario !== null) {
-                        $updatesArticolo['prezzo_fornitore'] = $prezzoUnitario;
+                    if ($prezzoFornitore !== null) {
+                        $updatesArticolo['prezzo_fornitore'] = $prezzoFornitore;
                     }
 
                     if ($referenzaFornitore !== '') {
@@ -652,10 +656,14 @@ class CaricoDocumento extends Component
                 }
 
                 if ($this->tipoDocumento === 'fattura' && $prezzoUnitario !== null) {
-                    Articolo::where('id', $articoloId)->update([
+                    $updatesPrezzo = [
                         'prezzo_acquisto' => $prezzoUnitario,
-                        'prezzo_fornitore' => $prezzoUnitario, // Prezzo imposto (es. Pomellato) per cartellino
-                    ]);
+                    ];
+                    if ($prezzoFornitore !== null) {
+                        $updatesPrezzo['prezzo_fornitore'] = $prezzoFornitore;
+                    }
+
+                    Articolo::where('id', $articoloId)->update($updatesPrezzo);
                 }
 
                 // Aggiorna/Crea giacenza
@@ -796,12 +804,48 @@ class CaricoDocumento extends Component
             return null;
         }
 
-        $normalized = str_replace(['.', ','], ['', '.'], (string) $value);
-        if (!is_numeric($normalized)) {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        $raw = str_replace(["\xc2\xa0", ' '], '', $raw);
+        $raw = preg_replace('/[^\d,.\-]/u', '', $raw);
+
+        if ($raw === '') {
             return null;
         }
 
-        return (float) $normalized;
+        $lastComma = strrpos($raw, ',');
+        $lastDot = strrpos($raw, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $raw);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $raw);
+            }
+        } elseif ($lastComma !== false) {
+            $decimals = strlen($raw) - $lastComma - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace('.', '', $raw);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $raw);
+            }
+        } elseif ($lastDot !== false) {
+            $decimals = strlen($raw) - $lastDot - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace(',', '', $raw);
+            } else {
+                $normalized = str_replace('.', '', $raw);
+            }
+        } else {
+            $normalized = $raw;
+        }
+
+        return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     protected function stampaEtichetteCarico(array $articoliDaStampare): void

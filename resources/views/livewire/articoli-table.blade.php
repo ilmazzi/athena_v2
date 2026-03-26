@@ -640,7 +640,7 @@
                             <th>
                                 <div class="d-flex align-items-center gap-1">
                                     <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
-                                    Prezzo Fornitore
+                                    Prezzo di Listino
                                 </div>
                             </th>
                             @endif
@@ -1534,7 +1534,7 @@
                                 <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="€ 0,00">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Prezzo fornitore</label>
+                                <label class="form-label">Prezzo di listino</label>
                                 <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="€ 0,00">
                             </div>
                             <div class="col-md-4">
