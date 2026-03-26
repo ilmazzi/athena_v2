@@ -459,14 +459,14 @@ class EtichettaService
             }
         } else {
             // Formato codificato (es. 345X3P3) - usa cosÃ¬ com'Ã¨
-            return $prezzo;
+            return mb_strtoupper(trim($prezzo), 'UTF-8');
         }
     }
 
     private function formattaPrezzoCompat(string $prezzo, string $formatoPrezzo): string
     {
         if ($formatoPrezzo !== 'euro') {
-            return $prezzo;
+            return mb_strtoupper(trim($prezzo), 'UTF-8');
         }
     
         $prezzoNumerico = $this->normalizeEuroPriceCompat($prezzo);

@@ -546,7 +546,7 @@
         </div>
 
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive articoli-table-responsive">
                 <table class="table align-middle mb-0 table-hover table-centered">
                     <thead class="">
                         @php
@@ -1214,7 +1214,7 @@
     @if($showModalScarico && $articoloDaScaricare)
         <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-dialog-centered" role="document">
-                <div class="modal-content">
+                <div class="modal-content" wire:keydown.enter.prevent="confermaStampaEtichetta">
                     <div class="modal-header">
                         <h5 class="modal-title">
                             <iconify-icon icon="solar:box-remove-bold" class="text-danger me-2"></iconify-icon>
@@ -1357,13 +1357,13 @@
                                 </select>
                                 <div class="form-text">
                                     <iconify-icon icon="solar:info-circle-bold" class="me-1"></iconify-icon>
-                                    Sono mostrate solo le stampanti compatibili con questo articolo
+                                    Sono mostrate tutte le stampanti attive
                                 </div>
                             @else
                                 <div class="alert alert-warning">
                                     <iconify-icon icon="solar:danger-triangle-bold" class="me-2"></iconify-icon>
                                     <strong>Nessuna stampante disponibile</strong><br>
-                                    Non ci sono stampanti compatibili con questo articolo o non hai i permessi necessari.
+                                    Non ci sono stampanti attive disponibili.
                                 </div>
                             @endif
                         </div>
@@ -1441,6 +1441,8 @@
                                        class="form-control" 
                                        id="prezzoEtichetta"
                                        wire:model.live="prezzoEtichetta"
+                                       wire:keydown.enter.prevent="confermaStampaEtichetta"
+                                       autocapitalize="characters"
                                        @if($formatoPrezzo === 'euro')
                                            placeholder="123,45"
                                        @else
@@ -1724,6 +1726,17 @@
     @endif
 
 @once
+    <style>
+        .articoli-table-responsive {
+            overflow-x: auto;
+            overflow-y: visible;
+        }
+
+        .articoli-table-responsive .dropdown {
+            position: static;
+        }
+    </style>
+
     <div class="modal fade" id="articoloFotoModal" tabindex="-1" aria-labelledby="articoloFotoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">

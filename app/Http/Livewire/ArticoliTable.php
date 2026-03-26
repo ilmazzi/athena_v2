@@ -620,6 +620,14 @@ class ArticoliTable extends Component
         $this->impostaPrezzoEtichettaDaFonte($this->articoloDaStampare);
     }
 
+    public function updatedPrezzoEtichetta($value)
+    {
+        [$prezzo, $formato] = $this->normalizzaInputPrezzoEtichetta($value);
+
+        $this->prezzoEtichetta = $prezzo;
+        $this->formatoPrezzo = $formato;
+    }
+
     private function getPrezzoVetrinaArticolo(Articolo $articolo): ?string
     {
         $prezzo = $articolo->articoliVetrina()
@@ -652,10 +660,7 @@ class ArticoliTable extends Component
         if ($this->prezzoEtichettaFonte === 'vetrina') {
             $prezzoVetrina = $this->getPrezzoVetrinaArticolo($articolo);
             if ($prezzoVetrina) {
-                $this->prezzoEtichetta = $prezzoVetrina;
-                $this->formatoPrezzo = is_numeric(str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoVetrina)))
-                    ? 'euro'
-                    : 'codificato';
+                [$this->prezzoEtichetta, $this->formatoPrezzo] = $this->normalizzaInputPrezzoEtichetta($prezzoVetrina);
                 return;
             }
         }
@@ -667,6 +672,29 @@ class ArticoliTable extends Component
 
         $this->prezzoEtichetta = '';
         $this->formatoPrezzo = 'euro';
+    }
+
+    private function normalizzaInputPrezzoEtichetta($value): array
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return ['', 'euro'];
+        }
+
+        if ($this->sembraPrezzoEuro($value)) {
+            return [$value, 'euro'];
+        }
+
+        return [mb_strtoupper($value, 'UTF-8'), 'codificato'];
+    }
+
+    private function sembraPrezzoEuro(string $value): bool
+    {
+        $normalized = preg_replace('/\s+/u', '', $value);
+        $normalized = str_replace('€', '', $normalized);
+
+        return $normalized !== '' && preg_match('/^\d+(?:[.,]\d{0,2})?$/', $normalized) === 1;
     }
     
     /**
