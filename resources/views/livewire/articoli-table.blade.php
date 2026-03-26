@@ -1103,7 +1103,10 @@
                                 @endif
                                 @if($visibleColumns['azioni'] ?? true)
                                 <td class="text-center">
-                                    <div class="dropdown dropup">
+                                    @php
+                                        $isNearBottom = $index >= max(0, $articoli->count() - 3);
+                                    @endphp
+                                    <div class="dropdown{{ $isNearBottom ? ' dropup' : '' }}">
                                         <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
                                             <iconify-icon icon="solar:menu-dots-bold" class="text-secondary"></iconify-icon>
                                          </button>
