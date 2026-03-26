@@ -1,8 +1,8 @@
 ^XA
 ^MD30
+^PR3
 ^CI28
-^LH0,0                     ; Offset orizzontale azzerato
-^PW552^LL80                ; Dimensioni dell'etichetta
-^FO60,25^A0N,16,16^FD{PREZZO}^FS      ; Carico accanto al prezzo con font G
-^FO60,50^A0N,14,14^FB100,2,3,L^FD{CARATI}^FS ; Testo multilinea con font G
+^PW552^LL80
+^FO60,25^A@N,13,13,E:TT0003M_.FNT^FD{PREZZO}^FS
+^FO60,40^A@N,13,13,E:TT0003M_.FNT^FB100,2,3,L^FD{CARATI}^FS
 ^XZ
