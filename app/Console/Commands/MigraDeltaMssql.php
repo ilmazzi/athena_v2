@@ -1421,9 +1421,18 @@ class MigraDeltaMssql extends Command
         $this->info('AUDIT ARTICOLI LEGACY CON CARICO ANCORA ASSENTI');
         $this->line(str_repeat('━', 60));
 
+        $availableColumns = $this->getMssqlColumns($table);
+        $wantedColumns = ['id', 'id_magazzino', 'carico', 'referenza', 'descrizione', 'seriale', 'numero_documento', 'data_documento'];
+        $selectColumns = array_values(array_intersect($wantedColumns, $availableColumns));
+
+        if (!in_array('id', $selectColumns, true) || !in_array('carico', $selectColumns, true)) {
+            $this->warn("La sorgente MSSQL {$table} non espone le colonne minime richieste per l'audit.");
+            return;
+        }
+
         $legacyRows = collect(DB::connection('mssql_prod')
             ->table($table)
-            ->select('id', 'id_magazzino', 'carico', 'referenza', 'descrizione', 'seriale', 'numero_documento', 'data_documento')
+            ->select($selectColumns)
             ->whereNotNull('carico')
             ->orderBy('id')
             ->get());
@@ -1538,6 +1547,28 @@ class MigraDeltaMssql extends Command
             ->get();
 
         return $rows->merge($fallback);
+    }
+
+    private function getMssqlColumns(string $table): array
+    {
+        $cacheKey = 'mssql:' . $table;
+        if (isset($this->tableColumnsCache[$cacheKey])) {
+            return $this->tableColumnsCache[$cacheKey];
+        }
+
+        try {
+            $rows = DB::connection('mssql_prod')->select(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?",
+                [$table]
+            );
+
+            return $this->tableColumnsCache[$cacheKey] = collect($rows)
+                ->pluck('COLUMN_NAME')
+                ->map(fn ($name) => (string) $name)
+                ->all();
+        } catch (\Throwable $e) {
+            return $this->tableColumnsCache[$cacheKey] = [];
+        }
     }
 
     private function fetchMssqlRowById(string $primaryTable, int $id): ?object
