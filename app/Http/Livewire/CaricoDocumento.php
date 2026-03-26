@@ -64,6 +64,16 @@ class CaricoDocumento extends Component
     // Regole di validazione (Livewire 2)
     protected function rules(): array
     {
+        $priceRule = function (string $attribute, $value, $fail): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($this->normalizePrice($value) === null) {
+                $fail('Il campo deve contenere un importo valido.');
+            }
+        };
+
         $base = [
             'tipoDocumento' => 'required|in:ddt,fattura',
             'numeroDocumento' => 'required|string|max:50',
@@ -74,10 +84,10 @@ class CaricoDocumento extends Component
             'articoli.*.quantita' => 'required|integer|min:1',
             'articoli.*.caratura' => 'nullable|string|max:50',
             'articoli.*.categoria_id' => 'required|integer|min:1',
-            'articoli.*.prezzo_unitario' => 'nullable|numeric|min:0',
-            'articoli.*.prezzo_totale' => 'nullable|numeric|min:0',
+            'articoli.*.prezzo_unitario' => ['nullable', $priceRule],
+            'articoli.*.prezzo_totale' => ['nullable', $priceRule],
             'articoli.*.prezzo_etichetta' => 'nullable|string|max:50',
-            'importoTotale' => 'nullable|numeric|min:0',
+            'importoTotale' => ['nullable', $priceRule],
         ];
 
         if ($this->step === 1) {
@@ -286,6 +296,7 @@ class CaricoDocumento extends Component
 
     public function richiestaSalvaCarico()
     {
+        $this->prepareForSaveValidation();
         $this->validate();
 
         if ($this->stampaEtichette) {
@@ -351,6 +362,7 @@ class CaricoDocumento extends Component
     public function salvaCarico()
     {
         $this->saveError = null;
+        $this->prepareForSaveValidation();
         // Validazione Livewire 2
         $this->validate();
 
@@ -760,6 +772,15 @@ class CaricoDocumento extends Component
         }
 
         return round($calcolato - $estratto, 2);
+    }
+
+    protected function prepareForSaveValidation(): void
+    {
+        foreach (array_keys($this->articoli) as $index) {
+            $this->syncTotaleRiga($index);
+        }
+
+        $this->importoTotale = $this->getImportoTotaleCalcolatoProperty();
     }
 
     public function render()
