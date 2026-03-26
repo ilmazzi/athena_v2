@@ -40,7 +40,7 @@ class GestioneFornitori extends Component
     public $citta = '';
     public $provincia = '';
     public $cap = '';
-    public $nazione = 'Italia';
+    public $nazione = 'IT';
     public $telefono = '';
     public $email = '';
     public $pec = '';
@@ -75,6 +75,42 @@ class GestioneFornitori extends Component
         'codice.unique' => 'Il codice fornitore e gia esistente',
         'ragione_sociale.required' => 'La ragione sociale e obbligatoria',
     ];
+
+    protected function normalizeNazione(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = strtoupper($value);
+        $map = [
+            'ITALIA' => 'IT',
+            'ITALY' => 'IT',
+            'GERMANIA' => 'DE',
+            'GERMANY' => 'DE',
+            'FRANCIA' => 'FR',
+            'FRANCE' => 'FR',
+            'SPAGNA' => 'ES',
+            'SPAIN' => 'ES',
+            'SVIZZERA' => 'CH',
+            'SWITZERLAND' => 'CH',
+            'STATI UNITI' => 'US',
+            'USA' => 'US',
+            'REGNO UNITO' => 'GB',
+            'UNITED KINGDOM' => 'GB',
+        ];
+
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+
+        if (strlen($normalized) <= 2) {
+            return $normalized;
+        }
+
+        return substr($normalized, 0, 2);
+    }
 
     public function updatingSearch(): void
     {
@@ -243,7 +279,7 @@ class GestioneFornitori extends Component
         $this->citta = $fornitore->citta ?? '';
         $this->provincia = $fornitore->provincia ?? '';
         $this->cap = $fornitore->cap ?? '';
-        $this->nazione = $fornitore->nazione ?? 'Italia';
+        $this->nazione = $fornitore->nazione ?? 'IT';
         $this->telefono = $fornitore->telefono ?? '';
         $this->email = $fornitore->email ?? '';
         $this->pec = $fornitore->pec ?? '';
@@ -271,7 +307,7 @@ class GestioneFornitori extends Component
             'citta' => trim((string) $this->citta) ?: null,
             'provincia' => strtoupper(trim((string) $this->provincia)) ?: null,
             'cap' => trim((string) $this->cap) ?: null,
-            'nazione' => trim((string) $this->nazione) ?: null,
+            'nazione' => $this->normalizeNazione($this->nazione),
             'telefono' => trim((string) $this->telefono) ?: null,
             'email' => trim((string) $this->email) ?: null,
             'pec' => trim((string) $this->pec) ?: null,
@@ -281,10 +317,10 @@ class GestioneFornitori extends Component
 
         if ($this->modalMode === 'create') {
             Fornitore::create($data);
-            session()->flash('message', '✅ Fornitore creato con successo');
+            session()->flash('message', '? Fornitore creato con successo');
         } else {
             Fornitore::findOrFail($this->fornitoreSelezionatoId)->update($data);
-            session()->flash('message', '✅ Fornitore aggiornato con successo');
+            session()->flash('message', '? Fornitore aggiornato con successo');
         }
 
         $this->chiudiModal();
@@ -377,7 +413,7 @@ class GestioneFornitori extends Component
 
         $dest = Fornitore::find($this->fornitoreDestinazioneId);
         $nomeDest = $dest?->ragione_sociale ?? ('#' . $this->fornitoreDestinazioneId);
-        session()->flash('message', "✅ Spostati {$ddtSpostati} DDT e {$fattureSpostate} fatture su fornitore {$nomeDest}");
+        session()->flash('message', "? Spostati {$ddtSpostati} DDT e {$fattureSpostate} fatture su fornitore {$nomeDest}");
         $this->chiudiModalRiassegnaArticoli();
     }
 
@@ -396,7 +432,7 @@ class GestioneFornitori extends Component
 
         if ($hasRelazioni) {
             $msg = sprintf(
-                '❌ Impossibile eliminare: DDT=%d, Fatture=%d, Articoli=%d, Prezzi=%d.',
+                '? Impossibile eliminare: DDT=%d, Fatture=%d, Articoli=%d, Prezzi=%d.',
                 (int) $fornitore->ddt_count,
                 (int) $fornitore->fatture_count,
                 (int) $fornitore->articoli_count,
@@ -408,7 +444,7 @@ class GestioneFornitori extends Component
         }
 
         $fornitore->delete();
-        session()->flash('message', '✅ Fornitore eliminato con successo');
+        session()->flash('message', '? Fornitore eliminato con successo');
         $this->chiudiModalEliminazione();
     }
 
@@ -435,7 +471,7 @@ class GestioneFornitori extends Component
         $this->citta = '';
         $this->provincia = '';
         $this->cap = '';
-        $this->nazione = 'Italia';
+        $this->nazione = 'IT';
         $this->telefono = '';
         $this->email = '';
         $this->pec = '';
@@ -501,4 +537,3 @@ class GestioneFornitori extends Component
             });
     }
 }
-
