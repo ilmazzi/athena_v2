@@ -111,25 +111,13 @@ class EtichettaService
         $user = Auth::user();
         if ($user && $user->stampante_default_id) {
             $stampante = Stampante::find($user->stampante_default_id);
-            if (!$stampante) {
-                // noop
-            } elseif ($user instanceof User && $user->isAdmin()) {
-                return $stampante;
-            } elseif ($stampante->canPrintArticolo($articolo)) {
+            if ($stampante && $stampante->attiva) {
                 return $stampante;
             }
         }
 
-        // Poi cerca una stampante compatibile
-        return Stampante::where('attiva', true)
-            ->get()
-            ->first(function ($stampante) use ($articolo, $user) {
-                if ($user instanceof User && $user->isAdmin()) {
-                    return true;
-                }
-
-                return $stampante->canPrintArticolo($articolo);
-            });
+        // Poi usa la prima stampante attiva disponibile.
+        return Stampante::where('attiva', true)->first();
     }
 
     /**

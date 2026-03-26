@@ -23,13 +23,6 @@ class StampaController extends Controller
     public function stampaEtichetta($articoloId, $stampanteId = null)
     {
         $articolo = Articolo::findOrFail($articoloId);
-        
-        
-        // Verifica permessi utente
-        if (!auth()->user()->canAccessArticolo($articolo)) {
-            abort(403, 'Non hai i permessi per stampare questo articolo');
-        }
-
         try {
             $success = $this->etichettaService->stampaEtichetta($articolo, $stampanteId);
             
@@ -51,15 +44,6 @@ class StampaController extends Controller
     {
         try {
             $articolo = Articolo::findOrFail($datiStampa['articolo_id']);
-            
-            // Verifica permessi utente
-            if (!auth()->user()->canAccessArticolo($articolo)) {
-                return [
-                    'success' => false,
-                    'message' => 'Non hai i permessi per stampare questo articolo'
-                ];
-            }
-            
             // Trova stampante selezionata o predefinita
             if (isset($datiStampa['stampante_id'])) {
                 $stampante = \App\Models\Stampante::find($datiStampa['stampante_id']);
@@ -129,7 +113,7 @@ class StampaController extends Controller
         foreach ($articoliIds as $articoloId) {
             $articolo = Articolo::find($articoloId);
             
-            if (!$articolo || !auth()->user()->canAccessArticolo($articolo)) {
+            if (!$articolo) {
                 $errorCount++;
                 continue;
             }
@@ -158,11 +142,6 @@ class StampaController extends Controller
     public function downloadZPL($articoloId, $stampanteId = null)
     {
         $articolo = Articolo::findOrFail($articoloId);
-        
-        if (!auth()->user()->canAccessArticolo($articolo)) {
-            abort(403, 'Non hai i permessi per questo articolo');
-        }
-
         try {
             $zpl = $this->etichettaService->generaEtichettaZPL($articolo, $stampanteId);
             
@@ -180,11 +159,6 @@ class StampaController extends Controller
     public function anteprimaEtichetta($articoloId, $stampanteId = null)
     {
         $articolo = Articolo::findOrFail($articoloId);
-        
-        if (!auth()->user()->canAccessArticolo($articolo)) {
-            abort(403, 'Non hai i permessi per questo articolo');
-        }
-
         try {
             $zpl = $this->etichettaService->generaEtichettaZPL($articolo, $stampanteId);
             
@@ -201,19 +175,8 @@ class StampaController extends Controller
      */
     public function stampantiDisponibili()
     {
-        $user = auth()->user();
-        
         $stampanti = Stampante::where('attiva', true)
-            ->get()
-            ->filter(function ($stampante) use ($user) {
-                // Filtra per permessi utente se definiti
-                if ($user->categorie_permesse && $user->sedi_permesse) {
-                    return !empty(array_intersect($stampante->categorie_permesse, $user->categorie_permesse)) &&
-                           !empty(array_intersect($stampante->sedi_permesse, $user->sedi_permesse));
-                }
-                
-                return true; // Se l'utente non ha restrizioni
-            });
+            ->get();
 
         return response()->json($stampanti);
     }
