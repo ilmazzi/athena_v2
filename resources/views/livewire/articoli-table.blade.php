@@ -398,15 +398,11 @@
                         Cerca
                     </button>
                 </div>
-                <div class="col-12">
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="checkbox" id="prezziSoloSenzaPrezzo" wire:model.live="prezziSoloSenzaPrezzo">
-                        <label class="form-check-label small" for="prezziSoloSenzaPrezzo">Solo articoli senza prezzo</label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="checkbox" id="prezziSalvaRegola" wire:model.live="prezziSalvaRegola">
-                        <label class="form-check-label small" for="prezziSalvaRegola">Salva regola fornitore</label>
-                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="prezziSalvaRegola" wire:model.live="prezziSalvaRegola">
+                            <label class="form-check-label small" for="prezziSalvaRegola">Salva regola fornitore</label>
+                        </div>
                     <div class="form-check form-check-inline">
                         <input class="form-check-input" type="checkbox" id="prezziApplicaATutti" wire:model.live="prezziApplicaATutti">
                         <label class="form-check-label small" for="prezziApplicaATutti">Applica a tutti i risultati trovati</label>
@@ -417,7 +413,7 @@
                     @if($prezziPreviewLoaded)
                         <div class="alert alert-info py-2">
                             <iconify-icon icon="solar:info-circle-bold" class="me-1"></iconify-icon>
-                            Trovati <strong>{{ $prezziPreviewTotal }}</strong> articoli. Mostro i primi <strong>{{ count($prezziPreview) }}</strong>.
+                            Trovati <strong>{{ $prezziPreviewTotal }}</strong> articoli.
                         </div>
                     @endif
                 </div>
@@ -450,7 +446,7 @@
                                                        value="{{ $row['id'] }}">
                                             </td>
                                             <td>{{ $row['codice'] }}</td>
-                                            <td>{{ Str::limit($row['descrizione'] ?? 'N/A', 40) }}</td>
+                                            <td style="white-space: normal; word-break: break-word; min-width: 280px;">{{ $row['descrizione'] ?? 'N/A' }}</td>
                                             <td>{{ $referenza ?? '-' }}</td>
                                             <td>{{ $row['numero_seriale'] ?? '-' }}</td>
                                             <td>

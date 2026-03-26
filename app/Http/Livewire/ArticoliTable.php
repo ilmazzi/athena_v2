@@ -53,7 +53,7 @@ class ArticoliTable extends Component
     public $prezziMatchType = 'referenza';
     public $prezziMatchValue = '';
     public $prezziNuovoPrezzo = '';
-    public $prezziSoloSenzaPrezzo = true;
+    public $prezziSoloSenzaPrezzo = false;
     public $prezziSalvaRegola = true;
     public $prezziPreview = [];
     public $prezziPreviewTotal = 0;
@@ -1612,7 +1612,6 @@ class ArticoliTable extends Component
         $this->prezziPreviewTotal = (clone $query)->count();
 
         $items = $query->orderBy('id')
-            ->limit(200)
             ->get([
                 'id',
                 'codice',
