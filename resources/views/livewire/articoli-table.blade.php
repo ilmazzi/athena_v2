@@ -541,8 +541,8 @@
             </div>
         </div>
 
-        <div class="card-body p-0">
-            <div class="table-responsive articoli-table-responsive">
+        <div class="card-body p-0 overflow-visible">
+            <div class="articoli-table-responsive">
                 <table class="table align-middle mb-0 table-hover table-centered">
                     <thead class="">
                         @php
