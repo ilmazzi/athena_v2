@@ -1534,9 +1534,13 @@ class ArticoliTable extends Component
         switch ($this->prezziMatchType) {
             case 'referenza':
                 $query->where(function ($q) use ($value) {
-                    $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.referenza')) = ?", [$value])
-                        ->orWhereHas('caricoDettagli', function($subQ) use ($value) {
-                            $subQ->where('referenza_fornitore', $value);
+                    $normalizedValue = mb_strtolower(trim($value), 'UTF-8');
+
+                    $q->whereRaw(
+                        "LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.referenza')))) = ?",
+                        [$normalizedValue]
+                    )->orWhereHas('caricoDettagli', function($subQ) use ($normalizedValue) {
+                            $subQ->whereRaw('LOWER(TRIM(referenza_fornitore)) = ?', [$normalizedValue]);
                         });
                 });
                 break;
