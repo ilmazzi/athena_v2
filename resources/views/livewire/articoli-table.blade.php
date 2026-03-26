@@ -1103,10 +1103,10 @@
                                 @endif
                                 @if($visibleColumns['azioni'] ?? true)
                                 <td class="text-center">
-                                    <div class="dropdown">
+                                    <div class="dropdown dropup">
                                         <button class="btn btn-light btn-sm" type="button" data-bs-toggle="dropdown">
                                             <iconify-icon icon="solar:menu-dots-bold" class="text-secondary"></iconify-icon>
-                                        </button>
+                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
                                             <li>
                                                 <a class="dropdown-item" href="{{ route('articoli.show', $articolo->id) }}">
@@ -1729,7 +1729,7 @@
         }
 
         .articoli-table-responsive .dropdown {
-            position: static;
+            position: relative;
         }
     </style>
 

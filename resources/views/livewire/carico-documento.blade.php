@@ -40,7 +40,7 @@
             min-height: 38px;
         }
         .carico-doc-item textarea.form-control {
-            min-height: 96px;
+            min-height: 72px;
         }
         .carico-doc-item-price {
             background-color: #f8fafc;
@@ -369,7 +369,7 @@
                                 Stampa etichette a fine carico
                             </label>
                         </div>
-                        <small class="text-muted d-block">Stampa solo se il prezzo etichetta è compilato.</small>
+                        <small class="text-muted d-block">Usa prima il prezzo di listino; se manca, inserisci un prezzo etichetta manuale solo per la stampa.</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label small text-muted mb-1">Stampante</label>
@@ -416,7 +416,7 @@
                 </button>
             </div>
 
-            <div class="card-body d-xl-none carico-doc-table">
+            <div class="card-body carico-doc-table">
                 @forelse($articoli as $index => $articolo)
                     <div class="carico-doc-item rounded-3 p-3 mb-3" wire:key="art-mobile-{{ $index }}">
                         <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
@@ -429,22 +429,22 @@
                             </button>
                         </div>
 
-                        <div class="row g-3">
-                            <div class="col-12">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-xl-3 col-lg-4 col-12">
                                 <label class="carico-doc-item-label">Codice / Referenza *</label>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.codice"
                                        class="form-control @error('articoli.'.$index.'.codice') is-invalid @enderror"
                                        placeholder="Codice / Referenza">
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-5 col-lg-8 col-12">
                                 <label class="carico-doc-item-label">Descrizione</label>
                                 <textarea wire:model.defer="articoli.{{ $index }}.descrizione"
                                           class="form-control"
-                                          rows="3"
+                                          rows="2"
                                           style="white-space: pre-wrap;"
                                           placeholder="Descrizione"></textarea>
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-6 col-12">
                                 <label class="carico-doc-item-label">Magazzino *</label>
                                 <select wire:model.defer="articoli.{{ $index }}.categoria_id"
                                         class="form-select @error('articoli.'.$index.'.categoria_id') is-invalid @enderror"
@@ -455,52 +455,50 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-6">
+                            <div class="col-xl-1 col-lg-2 col-md-3 col-6">
                                 <label class="carico-doc-item-label">QuantitÃ  *</label>
-                                <input type="number" wire:model.live.debounce.300ms="articoli.{{ $index }}.quantita"
+                                <input type="number" wire:model.blur="articoli.{{ $index }}.quantita"
                                        class="form-control text-center @error('articoli.'.$index.'.quantita') is-invalid @enderror"
                                        min="1">
                             </div>
-                            <div class="col-6">
+                            <div class="col-xl-1 col-lg-2 col-md-3 col-6">
                                 <label class="carico-doc-item-label">Carati</label>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.caratura"
                                        class="form-control" placeholder="ct">
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-3 col-6">
                                 <label class="carico-doc-item-label">{{ $tipoDocumento === 'ddt' ? 'Prezzo Unit.' : 'Costo Unit.' }}</label>
-                                <input type="text" wire:model.live.debounce.300ms="articoli.{{ $index }}.prezzo_unitario"
+                                <input type="text" wire:model.blur="articoli.{{ $index }}.prezzo_unitario"
                                        class="form-control text-end carico-doc-item-price @error('articoli.'.$index.'.prezzo_unitario') is-invalid @enderror"
                                        placeholder="0,00">
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-3 col-6">
                                 <label class="carico-doc-item-label">{{ $tipoDocumento === 'ddt' ? 'Valore' : 'Totale Riga' }}</label>
                                 <input type="text" value="{{ ($totaleRiga = $this->calcolaTotaleRiga($articolo)) !== null ? number_format($totaleRiga, 2, ',', '.') : '' }}"
                                        class="form-control text-end carico-doc-item-price"
                                        placeholder="0,00" readonly>
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-3 col-6">
                                 <label class="carico-doc-item-label">Prezzo di Listino</label>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_fornitore"
                                        class="form-control text-end carico-doc-item-price @error('articoli.'.$index.'.prezzo_fornitore') is-invalid @enderror"
                                        placeholder="Opzionale">
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-6">
                                 <label class="carico-doc-item-label">Prezzo Etichetta</label>
-                                <div class="input-group">
-                                    <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
-                                           class="form-control text-end carico-doc-item-price"
-                                           placeholder="Prezzo etichetta">
-                                    <button type="button" class="btn btn-outline-primary" wire:click="applicaCodicePrezzoRiga({{ $index }})">
-                                        Auto
-                                    </button>
-                                </div>
+                                <input type="text" wire:model.defer="articoli.{{ $index }}.prezzo_etichetta"
+                                       class="form-control text-end carico-doc-item-price @error('articoli.'.$index.'.prezzo_etichetta') is-invalid @enderror"
+                                       placeholder="{{ ($articolo['prezzo_fornitore'] ?? null) !== null && ($articolo['prezzo_fornitore'] ?? '') !== '' ? 'Usa il listino' : 'Solo stampa etichetta' }}">
+                                @error('articoli.'.$index.'.prezzo_etichetta')
+                                    <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-6">
                                 <label class="carico-doc-item-label">Seriale</label>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.numero_seriale"
                                        class="form-control" placeholder="Seriale">
                             </div>
-                            <div class="col-12">
+                            <div class="col-xl-2 col-lg-3 col-md-4 col-6">
                                 <label class="carico-doc-item-label">EAN</label>
                                 <input type="text" wire:model.defer="articoli.{{ $index }}.ean"
                                        class="form-control" placeholder="EAN">
@@ -515,7 +513,7 @@
                 @endforelse
             </div>
 
-            <div class="table-responsive d-none d-xl-block">
+            <div class="table-responsive d-none">
                 <table class="table table-hover align-middle mb-0 carico-doc-table">
                     <thead class="table-light">
                         <tr>
@@ -695,7 +693,7 @@
                         <p class="mb-0">
                             Etichette da stampare: <strong>{{ $etichetteTotali }}</strong>
                         </p>
-                        <small class="text-muted">Verranno stampate solo le righe con prezzo etichetta compilato.</small>
+                        <small class="text-muted">Verranno stampate tutte le righe: prezzo di listino se presente, altrimenti prezzo etichetta manuale obbligatorio.</small>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" type="button" wire:click="annullaSalvaCarico">Annulla</button>

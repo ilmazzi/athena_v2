@@ -184,23 +184,15 @@ class CaricoDocumento extends Component
         $this->articoli = $dati['articoli'] ?? [];
 
         foreach ($this->articoli as $index => $articolo) {
-            $prezzoBaseEtichetta = $articolo['prezzo_unitario']
-                ?? null;
-            $prezzoBaseEtichettaNormalizzato = $this->normalizePrice($prezzoBaseEtichetta);
             $prezzoEtichettaEstratto = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
 
             $this->articoli[$index]['articolo_id'] = null;
             $this->articoli[$index]['esiste'] = false;
+            $this->articoli[$index]['ordine_inserimento'] = $articolo['ordine_inserimento'] ?? ($index + 1);
             $this->articoli[$index]['prezzo_unitario'] = $articolo['prezzo_unitario'] ?? null;
             $this->articoli[$index]['prezzo_totale'] = $articolo['prezzo_totale'] ?? null;
             $this->articoli[$index]['prezzo_fornitore'] = $articolo['prezzo_fornitore'] ?? null;
-            $this->articoli[$index]['prezzo_etichetta'] = $prezzoEtichettaEstratto !== ''
-                ? $prezzoEtichettaEstratto
-                : (
-                    ($prezzoBaseEtichettaNormalizzato !== null)
-                        ? number_format((float) $prezzoBaseEtichettaNormalizzato, 2, ',', '')
-                        : ''
-                );
+            $this->articoli[$index]['prezzo_etichetta'] = $prezzoEtichettaEstratto;
             $categoriaEstratta = $articolo['categoria_id'] ?? null;
             $this->articoli[$index]['categoria_id'] = $categoriaEstratta
                 ? $this->resolveMagazzinoLogicoForCategoria($categoriaEstratta)
@@ -219,7 +211,7 @@ class CaricoDocumento extends Component
      */
     public function aggiungiArticolo()
     {
-        $this->articoli[] = [
+        array_unshift($this->articoli, [
             'codice' => '',
             'descrizione' => '',
             'quantita' => 1,
@@ -233,7 +225,8 @@ class CaricoDocumento extends Component
             'articolo_id' => null,
             'esiste' => false,
             'categoria_id' => $this->categoriaId,
-        ];
+            'ordine_inserimento' => $this->nextOrdineInserimento(),
+        ]);
     }
 
 
@@ -303,6 +296,14 @@ class CaricoDocumento extends Component
         $this->validate();
 
         if ($this->stampaEtichette) {
+            if (!$this->validatePrezziEtichetteStampabili()) {
+                $this->dispatch('swal:error', [
+                    'title' => 'Prezzi etichette mancanti',
+                    'text' => 'Compila il prezzo etichetta per le righe senza prezzo di listino prima di stampare.',
+                ]);
+                return;
+            }
+
             $this->etichetteTotali = $this->calcolaEtichetteTotali();
             $this->showConfirmModal = true;
             return;
@@ -448,7 +449,7 @@ class CaricoDocumento extends Component
             $articoliDaStampare = [];
             $this->assertSerialsAreUniqueForCurrentLoad();
 
-            foreach ($this->articoli as $articolo) {
+            foreach ($this->getArticoliInOrdineInserimento() as $articolo) {
                 $prezzoUnitario = $this->normalizePrice($articolo['prezzo_unitario'] ?? null);
                 $prezzoTotale = $this->normalizePrice($articolo['prezzo_totale'] ?? null);
                 $prezzoFornitore = $this->normalizePrice($articolo['prezzo_fornitore'] ?? null);
@@ -548,7 +549,7 @@ class CaricoDocumento extends Component
                 $articoliDaStampare[] = [
                     'articolo_id' => $articoloId,
                     'quantita' => (int) ($articolo['quantita'] ?? 1),
-                    'prezzo_etichetta' => $articolo['prezzo_etichetta'] ?? '',
+                    'prezzo_fornitore' => $articolo['prezzo_fornitore'] ?? null,
                 ];
 
                 continue;
@@ -692,7 +693,7 @@ class CaricoDocumento extends Component
                 $articoliDaStampare[] = [
                     'articolo_id' => $articoloId,
                     'quantita' => (int) ($articolo['quantita'] ?? 1),
-                    'prezzo_etichetta' => $articolo['prezzo_etichetta'] ?? '',
+                    'prezzo_fornitore' => $articolo['prezzo_fornitore'] ?? null,
                 ];
             }
             
@@ -869,11 +870,7 @@ class CaricoDocumento extends Component
             }
 
             $quantita = max(1, (int) ($item['quantita'] ?? 1));
-            $prezzoEtichetta = trim((string) ($item['prezzo_etichetta'] ?? ''));
-            if ($prezzoEtichetta === '') {
-                // Non stampare se il prezzo etichetta non è compilato
-                continue;
-            }
+            $prezzoEtichetta = $this->resolvePrezzoEtichettaPerStampa($item);
             $formatoPrezzo = $this->guessFormatoPrezzo($prezzoEtichetta);
 
             $stampante = $this->stampanteId
@@ -914,6 +911,49 @@ class CaricoDocumento extends Component
         }
     }
 
+    protected function resolvePrezzoEtichettaPerStampa(array $item): string
+    {
+        $prezzoListino = $this->normalizePrice($item['prezzo_fornitore'] ?? null);
+
+        if ($prezzoListino !== null) {
+            return number_format($prezzoListino, 2, ',', '');
+        }
+
+        $prezzoManuale = trim((string) ($item['prezzo_etichetta'] ?? ''));
+        if ($prezzoManuale !== '') {
+            return $prezzoManuale;
+        }
+
+        return '';
+    }
+
+    public function prezzoEtichettaPreview(array $item): string
+    {
+        return $this->resolvePrezzoEtichettaPerStampa($item);
+    }
+
+    protected function validatePrezziEtichetteStampabili(): bool
+    {
+        $valid = true;
+
+        foreach ($this->articoli as $index => $articolo) {
+            $prezzoListino = $this->normalizePrice($articolo['prezzo_fornitore'] ?? null);
+            $prezzoManuale = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
+
+            if ($prezzoListino !== null || $prezzoManuale !== '') {
+                continue;
+            }
+
+            $this->addError(
+                'articoli.' . $index . '.prezzo_etichetta',
+                'Inserisci un prezzo etichetta per la stampa oppure compila il prezzo di listino.'
+            );
+            $valid = false;
+        }
+
+        return $valid;
+    }
+
     protected function guessFormatoPrezzo(string $prezzo): string
     {
         if ($prezzo === '') {
@@ -930,13 +970,31 @@ class CaricoDocumento extends Component
     {
         $totale = 0;
         foreach ($this->articoli as $articolo) {
-            $prezzoEtichetta = trim((string) ($articolo['prezzo_etichetta'] ?? ''));
-            if ($prezzoEtichetta === '') {
-                continue;
-            }
             $totale += max(1, (int) ($articolo['quantita'] ?? 1));
         }
         return $totale;
+    }
+
+    protected function getArticoliInOrdineInserimento(): array
+    {
+        $articoli = $this->articoli;
+
+        usort($articoli, function (array $a, array $b): int {
+            return ((int) ($a['ordine_inserimento'] ?? 0)) <=> ((int) ($b['ordine_inserimento'] ?? 0));
+        });
+
+        return $articoli;
+    }
+
+    protected function nextOrdineInserimento(): int
+    {
+        $max = 0;
+
+        foreach ($this->articoli as $articolo) {
+            $max = max($max, (int) ($articolo['ordine_inserimento'] ?? 0));
+        }
+
+        return $max + 1;
     }
 
     protected function buildCodicePrezzo($costoUnitario, string $tipo, string $suffix): string
