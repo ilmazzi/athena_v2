@@ -43,6 +43,11 @@
             $filtriAttivi[] = ['label' => 'Sede', 'value' => $sede ? $sede->nome : $ubicazioneFilter, 'field' => 'ubicazioneFilter'];
         }
         if($statoFilter) $filtriAttivi[] = ['label' => 'Stato', 'value' => ucfirst($statoFilter), 'field' => 'statoFilter'];
+        if($prezzoMin !== '') $filtriAttivi[] = ['label' => 'Prezzo min', 'value' => $prezzoMin, 'field' => 'prezzoMin'];
+        if($prezzoMax !== '') $filtriAttivi[] = ['label' => 'Prezzo max', 'value' => $prezzoMax, 'field' => 'prezzoMax'];
+        if($dataDocumentoFrom) $filtriAttivi[] = ['label' => 'Data da', 'value' => $dataDocumentoFrom, 'field' => 'dataDocumentoFrom'];
+        if($dataDocumentoTo) $filtriAttivi[] = ['label' => 'Data a', 'value' => $dataDocumentoTo, 'field' => 'dataDocumentoTo'];
+        if($soloVetrina) $filtriAttivi[] = ['label' => 'Vetrina', 'value' => 'Solo in vetrina', 'field' => 'soloVetrina'];
         if($fotoFilter) {
             $fotoLabel = $fotoFilter === 'con' ? 'Con foto' : 'Senza foto';
             $filtriAttivi[] = ['label' => 'Foto', 'value' => $fotoLabel, 'field' => 'fotoFilter'];
