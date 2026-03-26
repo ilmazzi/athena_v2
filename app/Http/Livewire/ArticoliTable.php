@@ -1512,6 +1512,29 @@ class ArticoliTable extends Component
         return is_numeric($normalized) ? (float) $normalized : null;
     }
 
+    private function normalizeReferenceSearchValue(string $value): string
+    {
+        $value = mb_strtolower(trim($value), 'UTF-8');
+
+        return str_replace(
+            [' ', '-', '_', '/', '\\', '.', 'o'],
+            ['', '', '', '', '', '', '0'],
+            $value
+        );
+    }
+
+    private function sqlNormalizeReferenceExpression(string $expression): string
+    {
+        $normalized = "LOWER(COALESCE({$expression}, ''))";
+
+        foreach ([' ', '-', '_', '/', '\\\\', '.', 'o'] as $search) {
+            $replace = $search === 'o' ? '0' : '';
+            $normalized = "REPLACE({$normalized}, '{$search}', '{$replace}')";
+        }
+
+        return $normalized;
+    }
+
     private function buildPrezziQuery()
     {
         $query = Articolo::query();
@@ -1534,13 +1557,15 @@ class ArticoliTable extends Component
         switch ($this->prezziMatchType) {
             case 'referenza':
                 $query->where(function ($q) use ($value) {
-                    $normalizedValue = mb_strtolower(trim($value), 'UTF-8');
+                    $normalizedValue = $this->normalizeReferenceSearchValue($value);
+                    $jsonReferenceExpr = $this->sqlNormalizeReferenceExpression(
+                        "JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.referenza'))"
+                    );
 
-                    $q->whereRaw(
-                        "LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.referenza')))) = ?",
-                        [$normalizedValue]
-                    )->orWhereHas('caricoDettagli', function($subQ) use ($normalizedValue) {
-                            $subQ->whereRaw('LOWER(TRIM(referenza_fornitore)) = ?', [$normalizedValue]);
+                    $q->whereRaw("{$jsonReferenceExpr} LIKE ?", ['%' . $normalizedValue . '%'])
+                        ->orWhereHas('caricoDettagli', function($subQ) use ($normalizedValue) {
+                            $docReferenceExpr = $this->sqlNormalizeReferenceExpression('referenza_fornitore');
+                            $subQ->whereRaw("{$docReferenceExpr} LIKE ?", ['%' . $normalizedValue . '%']);
                         });
                 });
                 break;

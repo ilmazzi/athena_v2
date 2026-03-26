@@ -772,7 +772,7 @@
                                                 )->referenza_fornitore;
                                                 $referenzaView = $referenzaJson !== '' ? $referenzaJson : trim($referenzaDoc);
                                             @endphp
-                                            <span class="ms-2">
+                                            <span class="ms-2 text-nowrap">
                                                 <iconify-icon icon="solar:settings-bold" class="text-secondary me-1"></iconify-icon>
                                                 <span class="fw-semibold">Ref:</span>
                                                 {{ $referenzaView !== '' ? $referenzaView : '-' }}
