@@ -1467,13 +1467,49 @@ class ArticoliTable extends Component
         if ($value === null || $value === '') {
             return null;
         }
-        $clean = str_replace(['€', ' '], '', (string) $value);
-        $clean = str_replace('.', '', $clean);
-        $clean = str_replace(',', '.', $clean);
-        if (!is_numeric($clean)) {
+
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $clean = trim((string) $value);
+        $clean = str_replace(["\xc2\xa0", ' '], '', $clean);
+        $clean = preg_replace('/[^\d,.\-]/u', '', $clean);
+
+        if ($clean === '') {
             return null;
         }
-        return (float) $clean;
+
+        $lastComma = strrpos($clean, ',');
+        $lastDot = strrpos($clean, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            if ($lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $clean);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $clean);
+            }
+        } elseif ($lastComma !== false) {
+            $decimals = strlen($clean) - $lastComma - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace('.', '', $clean);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $clean);
+            }
+        } elseif ($lastDot !== false) {
+            $decimals = strlen($clean) - $lastDot - 1;
+            if ($decimals > 0 && $decimals <= 2) {
+                $normalized = str_replace(',', '', $clean);
+            } else {
+                $normalized = str_replace('.', '', $clean);
+            }
+        } else {
+            $normalized = $clean;
+        }
+
+        return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     private function buildPrezziQuery()

@@ -45,7 +45,11 @@
 
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Prezzo</label>
-                <input type="text" class="form-control" wire:model.defer="prezzo" placeholder="Es. 345X3P3 oppure 1.250,00">
+                <input type="text"
+                       class="form-control"
+                       wire:model.live="prezzo"
+                       autocapitalize="characters"
+                       placeholder="Es. 345X3P3 oppure 1.250,00">
                 <small class="text-muted">Accetta sia prezzo codificato sia prezzo in euro.</small>
                 @error('prezzo') <div class="text-danger small mt-1">{{ $message }}</div> @enderror
             </div>

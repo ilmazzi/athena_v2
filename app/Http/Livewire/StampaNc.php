@@ -56,6 +56,13 @@ class StampaNc extends Component
         }
     }
 
+    public function updatedPrezzo(string $value): void
+    {
+        if ($this->formatoPrezzo !== 'euro') {
+            $this->prezzo = mb_strtoupper(trim($value), 'UTF-8');
+        }
+    }
+
     public function stampa(EtichettaService $etichettaService): void
     {
         $validated = $this->validate();
