@@ -118,6 +118,22 @@ class ArticoliTable extends Component
     public $fotoUpload = null;
     public $mobileUploadUrl = '';
     public $mobileUploadQrBase64 = '';
+
+    private function articoliBaseQuery()
+    {
+        return Articolo::withoutGlobalScope('user_sede');
+    }
+
+    private function findArticoloForTable(int $articoloId, array $relations = [])
+    {
+        $query = $this->articoliBaseQuery();
+
+        if (!empty($relations)) {
+            $query->with($relations);
+        }
+
+        return $query->findOrFail($articoloId);
+    }
     public $fotoTargetSnapshot = '';
     
     // Paginazione e ordinamento
@@ -405,7 +421,7 @@ class ArticoliTable extends Component
     public function scaricaArticolo($articoloId)
     {
         try {
-            $articolo = Articolo::findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId);
             
             // Verifica che l'articolo sia disponibile
             if ($articolo->stato_articolo !== 'disponibile') {
@@ -513,7 +529,7 @@ class ArticoliTable extends Component
     public function apriModalRicarico($articoloId)
     {
         try {
-            $articolo = Articolo::with('giacenza')->findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId, ['giacenza']);
             $quantita = $articolo->giacenza->quantita ?? 0;
             $residua = $articolo->giacenza->quantita_residua ?? 0;
             $mancante = max(0, $quantita - $residua);
@@ -543,7 +559,7 @@ class ArticoliTable extends Component
         }
 
         try {
-            $articolo = Articolo::with('giacenza')->findOrFail($this->articoloDaRicaricare->id);
+            $articolo = $this->findArticoloForTable((int) $this->articoloDaRicaricare->id, ['giacenza']);
             if (!$articolo->giacenza) {
                 DB::table('giacenze')->insert([
                     'articolo_id' => $articolo->id,
@@ -594,7 +610,7 @@ class ArticoliTable extends Component
     public function apriModalStampa($articoloId)
     {
         try {
-            $articolo = Articolo::findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId);
             $this->articoloDaStampare = $articolo;
             
             $this->prezzoEtichettaFonte = $this->getDefaultPrezzoFonte($articolo);
@@ -748,7 +764,7 @@ class ArticoliTable extends Component
     public function apriModalModifica($articoloId)
     {
         try {
-            $articolo = Articolo::with(['categoriaMerceologica'])->findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId, ['categoriaMerceologica']);
             $caratteristiche = $articolo->caratteristiche ?? [];
             if (is_string($caratteristiche)) {
                 $decoded = json_decode($caratteristiche, true);
@@ -800,7 +816,7 @@ class ArticoliTable extends Component
     public function apriModalFoto($articoloId)
     {
         try {
-            $articolo = Articolo::findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId);
             $this->articoloFotoTarget = $articolo;
             $this->fotoUpload = null;
             $this->fotoTargetSnapshot = (string) ($articolo->foto_principale ?? '');
@@ -840,7 +856,7 @@ class ArticoliTable extends Component
         }
 
         try {
-            $articolo = Articolo::find($this->articoloFotoTarget->id);
+            $articolo = $this->articoliBaseQuery()->find($this->articoloFotoTarget->id);
             if (!$articolo) {
                 return;
             }
@@ -872,7 +888,7 @@ class ArticoliTable extends Component
         ]);
 
         try {
-            $articolo = Articolo::findOrFail($this->articoloFotoTarget->id);
+            $articolo = $this->findArticoloForTable((int) $this->articoloFotoTarget->id);
             $vecchioPath = $articolo->foto_principale;
 
             $nuovoPath = $this->fotoUpload->store("articoli/{$articolo->id}", 'public');
@@ -985,7 +1001,7 @@ class ArticoliTable extends Component
         }
 
         try {
-            $articolo = Articolo::findOrFail($this->articoloFotoTarget->id);
+            $articolo = $this->findArticoloForTable((int) $this->articoloFotoTarget->id);
             $path = $articolo->foto_principale;
 
             if (!empty($path) && !str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
@@ -1040,7 +1056,7 @@ class ArticoliTable extends Component
         ]);
 
         try {
-            $articolo = Articolo::findOrFail($this->articoloDaModificare->id);
+            $articolo = $this->findArticoloForTable((int) $this->articoloDaModificare->id);
 
             $magazzinoLogico = (int) ($this->modifica['magazzino_logico'] ?? 0);
             $categoriaLocaleId = app(MagazzinoLogicoService::class)->findCategoriaIdForSede(
@@ -1186,7 +1202,7 @@ class ArticoliTable extends Component
     public function ripristinaArticolo($articoloId)
     {
         try {
-            $articolo = Articolo::findOrFail($articoloId);
+            $articolo = $this->findArticoloForTable((int) $articoloId);
             
             // Verifica che l'articolo sia scaricato
             if ($articolo->stato_articolo !== 'scaricato') {
@@ -1220,7 +1236,7 @@ class ArticoliTable extends Component
      */
     private function getFilteredQuery()
     {
-        $query = Articolo::query();
+        $query = $this->articoliBaseQuery();
 
         // Applica tutti i filtri (stessa logica del render)
         $this->applySearchFilter($query, true);
@@ -1530,7 +1546,7 @@ class ArticoliTable extends Component
 
     private function buildPrezziQuery()
     {
-        $query = Articolo::query();
+        $query = $this->articoliBaseQuery();
 
         if ($this->prezziFornitoreId) {
             $query->where(function ($q) {
@@ -1670,7 +1686,7 @@ class ArticoliTable extends Component
                         continue;
                     }
 
-                    Articolo::where('id', $articolo->id)->update([
+                    $this->articoliBaseQuery()->where('id', $articolo->id)->update([
                         'prezzo_fornitore' => $prezzo,
                     ]);
 
@@ -1682,7 +1698,7 @@ class ArticoliTable extends Component
         if (!empty($idsDaRistampare)) {
             $etichettaService = app(\App\Services\EtichettaService::class);
 
-            Articolo::whereIn('id', $idsDaRistampare)
+            $this->articoliBaseQuery()->whereIn('id', $idsDaRistampare)
                 ->orderBy('id')
                 ->chunkById(100, function ($chunk) use ($etichettaService, &$ristampati, &$erroriStampa) {
                     foreach ($chunk as $articolo) {
@@ -1848,7 +1864,7 @@ class ArticoliTable extends Component
             $relations[] = 'fatturaDettaglio.fattura.fornitore';
         }
 
-        $query = Articolo::with($relations);
+        $query = $this->articoliBaseQuery()->with($relations);
 
         // Applica filtri
         $this->applySearchFilter($query);
