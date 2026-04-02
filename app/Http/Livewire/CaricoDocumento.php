@@ -550,6 +550,7 @@ class CaricoDocumento extends Component
                     'articolo_id' => $articoloId,
                     'quantita' => (int) ($articolo['quantita'] ?? 1),
                     'prezzo_fornitore' => $articolo['prezzo_fornitore'] ?? null,
+                    'prezzo_etichetta' => $articolo['prezzo_etichetta'] ?? null,
                 ];
 
                 continue;
@@ -958,6 +959,10 @@ class CaricoDocumento extends Component
     {
         if ($prezzo === '') {
             return 'euro';
+        }
+
+        if (preg_match('/[A-Z]/i', $prezzo)) {
+            return 'codificato';
         }
 
         $numeric = preg_replace('/[^\d,.]/', '', $prezzo);

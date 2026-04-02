@@ -681,6 +681,10 @@ class DocumentiAcquistoTable extends Component
 
     protected function guessFormatoPrezzo(string $prezzo): string
     {
+        if (preg_match('/[A-Z]/i', $prezzo)) {
+            return 'codificato';
+        }
+
         $numeric = preg_replace('/[^\d,.]/', '', $prezzo);
         $numeric = str_replace(',', '.', $numeric);
         return is_numeric($numeric) ? 'euro' : 'codificato';
