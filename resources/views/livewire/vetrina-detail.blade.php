@@ -53,7 +53,7 @@
             <div class="card">
                 <div class="card-body text-center">
                     <iconify-icon icon="solar:box-bold-duotone" class="fs-36 text-primary mb-2"></iconify-icon>
-                    <h4 class="mb-1">{{ $articoliInVetrina->total() }}</h4>
+                    <h4 class="mb-1">{{ $articoliInVetrina->count() }}</h4>
                     <p class="text-muted mb-0">Articoli in Vetrina</p>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                 <div class="card-body text-center">
                     <iconify-icon icon="solar:tag-bold-duotone" class="fs-36 text-success mb-2"></iconify-icon>
                     @php
-                        $prezziCodificati = $articoliInVetrina->getCollection()
+                        $prezziCodificati = $articoliInVetrina
                             ->filter(fn($item) => !empty($item->prezzo_vetrina))
                             ->count();
                     @endphp
@@ -259,14 +259,6 @@
                 </table>
             </div>
 
-            {{-- Paginazione --}}
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div class="text-muted small">
-                    Mostrando {{ $articoliInVetrina->firstItem() ?? 0 }} - {{ $articoliInVetrina->lastItem() ?? 0 }} 
-                    di {{ $articoliInVetrina->total() }} articoli
-                </div>
-                {{ $articoliInVetrina->links() }}
-            </div>
         </div>
     </div>
 

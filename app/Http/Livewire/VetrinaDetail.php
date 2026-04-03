@@ -7,14 +7,12 @@ use App\Models\Articolo;
 use App\Models\ArticoloVetrina;
 use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
-use Livewire\WithPagination;
 
 class VetrinaDetail extends Component
 {
-    use WithPagination;
-
     public $vetrina;
     public $search = '';
     
@@ -80,11 +78,6 @@ class VetrinaDetail extends Component
     public function mount($id)
     {
         $this->vetrina = Vetrina::findOrFail($id);
-    }
-
-    public function updatedSearch()
-    {
-        $this->resetPage();
     }
 
     public function openAddModal()
@@ -590,7 +583,7 @@ class VetrinaDetail extends Component
             return;
         }
 
-        \DB::transaction(function () use ($orderedIds) {
+        DB::transaction(function () use ($orderedIds) {
             foreach ($orderedIds as $index => $id) {
                 ArticoloVetrina::where('id', $id)
                     ->where('vetrina_id', $this->vetrina->id)
@@ -656,9 +649,9 @@ class VetrinaDetail extends Component
             })
             ->orderBy('posizione')
             ->orderBy('created_at', 'desc')
-            ->paginate(20);
+            ->get();
 
-        $pfIds = $articoliInVetrina->getCollection()
+        $pfIds = $articoliInVetrina
             ->map(function ($item) {
                 if ($item->prodotto_finito_id) {
                     return $item->prodotto_finito_id;
@@ -671,7 +664,7 @@ class VetrinaDetail extends Component
 
         $componentiByPfId = collect();
         if ($pfIds->isNotEmpty()) {
-            $componentiByPfId = \DB::table('componenti_prodotto as cp')
+            $componentiByPfId = DB::table('componenti_prodotto as cp')
                 ->leftJoin('articoli as a', 'a.id', '=', 'cp.articolo_id')
                 ->whereIn('cp.prodotto_finito_id', $pfIds)
                 ->select([
