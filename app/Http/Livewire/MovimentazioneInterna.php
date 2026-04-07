@@ -51,6 +51,11 @@ class MovimentazioneInterna extends Component
     
     public function mount()
     {
+        $legacyEnabled = filter_var((string) env('LEGACY_MOVIMENTAZIONE_INTERNA_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN);
+        if (!$legacyEnabled) {
+            abort(410, 'Flusso legacy disabilitato: usare Movimentazione Interna New.');
+        }
+
         \Log::info("🚀 MovimentazioneInterna MOUNT - Component caricato");
         $this->dataMovimentazione = now()->format('Y-m-d');
         

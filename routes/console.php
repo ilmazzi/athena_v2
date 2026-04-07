@@ -25,6 +25,14 @@ Schedule::job(new ControllaScadenzeContiDeposito())
     ->onOneServer()
     ->withoutOverlapping();
 
+// Audit integrità magazzino - ogni ora (read-only) su connessione dedicata da env
+Schedule::command('audit:integrita-magazzino --use-env-audit-db --fail-on-critical')
+    ->hourly()
+    ->name('audit-integrita-magazzino-orario')
+    ->description('Audit orario coerenza articoli/giacenze/movimenti/deposito')
+    ->onOneServer()
+    ->withoutOverlapping();
+
 // ==========================================
 // ARTISAN COMMANDS
 // ==========================================

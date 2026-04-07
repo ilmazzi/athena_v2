@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'audit_db' => [
+        'host' => env('AUDIT_DB_HOST'),
+        'port' => env('AUDIT_DB_PORT'),
+        'database' => env('AUDIT_DB_DATABASE'),
+        'username' => env('AUDIT_DB_USERNAME'),
+        'password' => env('AUDIT_DB_PASSWORD'),
+    ],
+
 ];
