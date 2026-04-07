@@ -7,6 +7,7 @@ use App\Models\Stampante;
 use App\Services\EtichettaService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 class StampaController extends Controller
 {
@@ -22,7 +23,7 @@ class StampaController extends Controller
      */
     public function stampaEtichetta($articoloId, $stampanteId = null)
     {
-        $articolo = Articolo::findOrFail($articoloId);
+        $articolo = $this->findArticoloPerStampaOrFail((int) $articoloId);
         try {
             $success = $this->etichettaService->stampaEtichetta($articolo, $stampanteId);
             
@@ -32,7 +33,7 @@ class StampaController extends Controller
                 return redirect()->back()->with('error', 'Errore durante la stampa dell\'etichetta');
             }
         } catch (\Exception $e) {
-            \Log::error('Errore stampa etichetta: ' . $e->getMessage());
+            Log::error('Errore stampa etichetta: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Errore: ' . $e->getMessage());
         }
     }
@@ -43,7 +44,7 @@ class StampaController extends Controller
     public function stampaEtichettaConPrezzo($datiStampa)
     {
         try {
-            $articolo = Articolo::findOrFail($datiStampa['articolo_id']);
+            $articolo = $this->findArticoloPerStampaOrFail((int) $datiStampa['articolo_id']);
             // Trova stampante selezionata o predefinita
             if (isset($datiStampa['stampante_id'])) {
                 $stampante = \App\Models\Stampante::find($datiStampa['stampante_id']);
@@ -111,7 +112,7 @@ class StampaController extends Controller
         $errorCount = 0;
 
         foreach ($articoliIds as $articoloId) {
-            $articolo = Articolo::find($articoloId);
+            $articolo = Articolo::withoutGlobalScope('user_sede')->find($articoloId);
             
             if (!$articolo) {
                 $errorCount++;
@@ -141,7 +142,7 @@ class StampaController extends Controller
      */
     public function downloadZPL($articoloId, $stampanteId = null)
     {
-        $articolo = Articolo::findOrFail($articoloId);
+        $articolo = $this->findArticoloPerStampaOrFail((int) $articoloId);
         try {
             $zpl = $this->etichettaService->generaEtichettaZPL($articolo, $stampanteId);
             
@@ -158,7 +159,7 @@ class StampaController extends Controller
      */
     public function anteprimaEtichetta($articoloId, $stampanteId = null)
     {
-        $articolo = Articolo::findOrFail($articoloId);
+        $articolo = $this->findArticoloPerStampaOrFail((int) $articoloId);
         try {
             $zpl = $this->etichettaService->generaEtichettaZPL($articolo, $stampanteId);
             
@@ -206,5 +207,10 @@ class StampaController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()]);
         }
+    }
+
+    private function findArticoloPerStampaOrFail(int $articoloId): Articolo
+    {
+        return Articolo::withoutGlobalScope('user_sede')->findOrFail($articoloId);
     }
 }
