@@ -1059,14 +1059,21 @@ class ArticoliTable extends Component
             $articolo = $this->findArticoloForTable((int) $this->articoloDaModificare->id);
 
             $magazzinoLogico = (int) ($this->modifica['magazzino_logico'] ?? 0);
-            $categoriaLocaleId = app(MagazzinoLogicoService::class)->findCategoriaIdForSede(
-                (int) $articolo->sede_id,
-                $magazzinoLogico
-            );
+            $magazzinoOriginale = (int) ($articolo->magazzino_logico ?? 0);
 
-            if (!$categoriaLocaleId) {
-                session()->flash('error', "Magazzino {$magazzinoLogico} non disponibile per la sede dell'articolo.");
-                return;
+            // Se stiamo modificando solo campi anagrafici/economici e il magazzino
+            // non cambia, non bloccare il salvataggio con una nuova risoluzione sede->categoria.
+            $categoriaLocaleId = $articolo->categoria_merceologica_id;
+            if ($magazzinoLogico !== $magazzinoOriginale) {
+                $categoriaLocaleId = app(MagazzinoLogicoService::class)->findCategoriaIdForSede(
+                    (int) $articolo->sede_id,
+                    $magazzinoLogico
+                );
+
+                if (!$categoriaLocaleId) {
+                    session()->flash('error', "Magazzino {$magazzinoLogico} non disponibile per la sede dell'articolo.");
+                    return;
+                }
             }
 
             $prezzoAcquisto = $this->normalizePrezzo($this->modifica['prezzo_acquisto'] ?? null);
