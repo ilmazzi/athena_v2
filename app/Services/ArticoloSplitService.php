@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Articolo;
 use App\Models\Giacenza;
-use App\Models\GiacenzaSede;
 use Illuminate\Support\Facades\DB;
 
 class ArticoloSplitService
@@ -89,24 +88,6 @@ class ArticoloSplitService
                 'quantita_residua' => $nuovaResidua,
                 'ultimo_movimento_at' => now(),
             ]);
-
-            $giacenzaSede = GiacenzaSede::where('articolo_id', $articolo->id)
-                ->where('sede_id', $giacenza->sede_id)
-                ->first();
-
-            if ($giacenzaSede) {
-                $giacenzaSede->update([
-                    'quantita' => max(0, (int) $giacenzaSede->quantita - $quantita),
-                    'quantita_residua' => max(0, (int) $giacenzaSede->quantita_residua - $quantita),
-                ]);
-
-                GiacenzaSede::create([
-                    'articolo_id' => $figlio->id,
-                    'sede_id' => $giacenzaSede->sede_id,
-                    'quantita' => $quantita,
-                    'quantita_residua' => $quantita,
-                ]);
-            }
 
             return $figlio;
         });

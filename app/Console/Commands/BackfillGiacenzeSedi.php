@@ -4,41 +4,35 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Articolo;
-use App\Models\GiacenzaSede;
 
 class BackfillGiacenzeSedi extends Command
 {
     protected $signature = 'giacenze:backfill {--dry-run : Mostra cosa verrebbe fatto senza modificare}';
-    protected $description = 'Popola la tabella giacenze_sedi a partire dalle giacenze attuali degli articoli';
+    protected $description = 'DEPRECATO: giacenze_sedi non e piu una fonte di verita';
 
     public function handle(): int
     {
-        $dry = $this->option('dry-run');
-        $count = 0; $updated = 0;
+        $count = 0;
+        $candidati = 0;
 
-        $this->info('Avvio backfill giacenze_sedi...');
+        $this->warn('Comando deprecato: giacenze_sedi e dismessa come fonte dati operativa.');
+        $this->warn('Usare giacenze come unica fonte di verita.');
+
+        // Manteniamo solo una scansione informativa in read-only.
         Articolo::with(['giacenza'])
-            ->chunk(500, function($articoli) use (&$count, &$updated, $dry){
+            ->chunk(500, function($articoli) use (&$count, &$candidati){
                 foreach ($articoli as $a) {
                     $count++;
-                    $q = (int) ($a->giacenza->quantita ?? 0);
-                    $qr = (int) ($a->giacenza->quantita_residua ?? 0);
                     if ($a->sede_id) {
-                        if (!$dry) {
-                            GiacenzaSede::updateOrCreate(
-                                ['articolo_id' => $a->id, 'sede_id' => $a->sede_id],
-                                ['quantita' => $q, 'quantita_residua' => $qr]
-                            );
-                        }
-                        $updated++;
+                        $candidati++;
                     }
                 }
             });
 
         $this->info("Articoli scansionati: {$count}");
-        $this->info(($dry ? 'Verrebbero aggiornate' : 'Aggiornate') . " {$updated} righe in giacenze_sedi");
+        $this->info("Righe potenziali ex-giacenze_sedi: {$candidati}");
 
-        return 0;
+        return self::SUCCESS;
     }
 }
 

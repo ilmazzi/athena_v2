@@ -725,14 +725,6 @@ class MovimentazioneInternaNew extends Component
         if ($giacenza) {
             $giacenza->update(['sede_id' => $sedeId]);
         }
-
-        GiacenzaSede::where('articolo_id', $articoloId)->delete();
-        if ($giacenza) {
-            GiacenzaSede::updateOrCreate(
-                ['articolo_id' => $articoloId, 'sede_id' => $sedeId],
-                ['quantita' => (int) $giacenza->quantita, 'quantita_residua' => (int) $giacenza->quantita_residua]
-            );
-        }
     }
 
     private function resolveMagazzinoLogicoForCategoria(?int $categoriaId): ?int

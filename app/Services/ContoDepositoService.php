@@ -6,7 +6,7 @@ use App\Models\ContoDeposito;
 use App\Models\MovimentoDeposito;
 use App\Models\Articolo;
 use App\Models\ProdottoFinito;
-use App\Models\GiacenzaSede;
+use App\Models\Giacenza;
 use App\Models\DdtDeposito;
 use App\Models\DdtDepositoDettaglio;
 use App\Models\Fattura; // Fatture di acquisto (legacy)
@@ -161,21 +161,18 @@ class ContoDepositoService
                 if ($societaDestinataria) {
                     $magazzinoCD = $societaDestinataria->getMagazzinoContoDeposito();
                     if ($magazzinoCD) {
-                        // Aggiorna giacenze per sede
+                        // Canonical update su giacenze (fonte unica)
                         $mittenteId = $contoDeposito->sede_mittente_id;
                         $destId = $contoDeposito->sede_destinataria_id;
-                        $from = GiacenzaSede::firstOrCreate([
-                            'articolo_id' => $articolo->id,
-                            'sede_id' => $mittenteId,
-                        ]);
-                        $to = GiacenzaSede::firstOrCreate([
-                            'articolo_id' => $articolo->id,
-                            'sede_id' => $destId,
-                        ]);
-                        $from->increment('quantita', 0); // ensure exists
-                        $from->decrement('quantita_residua', $quantita);
-                        $to->increment('quantita', $quantita);
-                        $to->increment('quantita_residua', $quantita);
+                        $giacenza = $articolo->giacenza;
+                        if ($giacenza) {
+                            $giacenza->update([
+                                'sede_id' => $destId,
+                                'categoria_merceologica_id' => $magazzinoCD->id,
+                                'magazzino_logico' => $magazzinoOriginaleLogico,
+                                'ultimo_movimento_at' => now(),
+                            ]);
+                        }
                         // Associa magazzino CD (per visualizzazione depositi)
                         $articolo->update([
                             'categoria_merceologica_id' => $magazzinoCD->id,
@@ -286,11 +283,15 @@ class ContoDepositoService
                 }
 
                 $mittenteId = $contoDeposito->sede_mittente_id;
-                $destId = $contoDeposito->sede_destinataria_id;
-                $from = GiacenzaSede::firstOrCreate(['articolo_id' => $articolo->id, 'sede_id' => $destId]);
-                $to = GiacenzaSede::firstOrCreate(['articolo_id' => $articolo->id, 'sede_id' => $mittenteId]);
-                $from->decrement('quantita_residua', $quantita);
-                $to->increment('quantita_residua', $quantita);
+                $giacenza = Giacenza::where('articolo_id', $articolo->id)->first();
+                if ($giacenza) {
+                    $giacenza->update([
+                        'sede_id' => $mittenteId,
+                        'categoria_merceologica_id' => $magazzinoOriginaleId ?: $giacenza->categoria_merceologica_id,
+                        'magazzino_logico' => $magazzinoOriginaleLogico ?? $giacenza->magazzino_logico,
+                        'ultimo_movimento_at' => now(),
+                    ]);
+                }
             }
 
             $movimentiInvio->each->delete();
@@ -584,13 +585,16 @@ class ContoDepositoService
                     // Se trovato, ripristina il magazzino originale
                     if ($magazzinoOriginaleId) {
                         $articolo->categoria_merceologica_id = $magazzinoOriginaleId;
-                        // Move quantities back per sede
                         $mittenteId = $contoDeposito->sede_mittente_id;
-                        $destId = $contoDeposito->sede_destinataria_id;
-                        $from = GiacenzaSede::firstOrCreate(['articolo_id'=>$articolo->id,'sede_id'=>$destId]);
-                        $to = GiacenzaSede::firstOrCreate(['articolo_id'=>$articolo->id,'sede_id'=>$mittenteId]);
-                        $from->decrement('quantita_residua', $quantitaDaRestituire);
-                        $to->increment('quantita_residua', $quantitaDaRestituire);
+                        $giacenza = Giacenza::where('articolo_id', $articolo->id)->first();
+                        if ($giacenza) {
+                            $giacenza->update([
+                                'sede_id' => $mittenteId,
+                                'categoria_merceologica_id' => $magazzinoOriginaleId,
+                                'magazzino_logico' => $articolo->magazzino_logico ?? $giacenza->magazzino_logico,
+                                'ultimo_movimento_at' => now(),
+                            ]);
+                        }
                     }
                 }
                 

@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Articolo;
-use App\Models\GiacenzaSede;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -201,44 +200,9 @@ class ResetContiDeposito extends Command
                 $this->info('Prodotti finiti ripuliti dai riferimenti al deposito.');
             }
 
-            // Ricostruisci giacenze per sede
+            // giacenze_sedi deprecata: nessuna scrittura su questa tabella.
             if (DB::getSchemaBuilder()->hasTable('giacenze_sedi')) {
-                DB::table('giacenze_sedi')->delete();
-                if ($hard) {
-                    DB::statement('ALTER TABLE giacenze_sedi AUTO_INCREMENT = 1');
-                }
-
-                $scansionati = 0;
-                $aggiornati = 0;
-
-                Articolo::with('giacenza')
-                    ->chunk(500, function ($articoli) use (&$scansionati, &$aggiornati) {
-                        foreach ($articoli as $articolo) {
-                            $scansionati++;
-
-                            $quantita = (int) ($articolo->giacenza->quantita ?? 0);
-                            $quantitaResidua = (int) ($articolo->giacenza->quantita_residua ?? 0);
-
-                            if (!$articolo->sede_id) {
-                                continue;
-                            }
-
-                            GiacenzaSede::updateOrCreate(
-                                [
-                                    'articolo_id' => $articolo->id,
-                                    'sede_id' => $articolo->sede_id,
-                                ],
-                                [
-                                    'quantita' => $quantita,
-                                    'quantita_residua' => $quantitaResidua,
-                                ]
-                            );
-
-                            $aggiornati++;
-                        }
-                    });
-
-                $this->info("Giacenze per sede rigenerate ({$aggiornati} record aggiornati su {$scansionati} articoli).");
+                $this->warn('Skip reset/rigenerazione giacenze_sedi: tabella deprecata (fonte unica = giacenze).');
             }
 
             // Riabilita constraints
