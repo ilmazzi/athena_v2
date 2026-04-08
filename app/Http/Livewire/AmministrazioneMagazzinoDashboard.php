@@ -17,6 +17,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 
 /**
@@ -63,6 +64,8 @@ class AmministrazioneMagazzinoDashboard extends Component
     public $viewStatistiche = 'sede'; // 'sede', 'fornitore', 'categoria', 'marca', 'globale'
     public $sortStatisticheField = 'valore'; // Campo per sorting statistiche
     public $sortStatisticheDirection = 'desc'; // Direzione sorting
+    public $sortArticoliField = 'codice';
+    public $sortArticoliDirection = 'asc';
     
     // Confronto periodi
     public $dataInizio = '';
@@ -93,6 +96,8 @@ class AmministrazioneMagazzinoDashboard extends Component
         'categoriaId' => ['except' => ''],
         'search' => ['except' => ''],
         'dataDocumentoCaricoPrimaDi' => ['except' => ''],
+        'sortArticoliField' => ['except' => 'codice'],
+        'sortArticoliDirection' => ['except' => 'asc'],
         'soloSenzaCosto' => ['except' => false],
         'soloGiacenti' => ['except' => true],
     ];
@@ -134,7 +139,9 @@ class AmministrazioneMagazzinoDashboard extends Component
         ]);
         $this->applyFiltriArticoli($query);
 
-        return $query->orderBy('codice')->paginate(50);
+        $this->applyOrdinamentoArticoli($query);
+
+        return $query->paginate(50);
     }
 
     public function getStatisticheProperty()
@@ -285,6 +292,18 @@ class AmministrazioneMagazzinoDashboard extends Component
         $this->statisticheCachedAt = null;
     }
 
+    public function ordinaArticoli($campo)
+    {
+        if ($this->sortArticoliField === $campo) {
+            $this->sortArticoliDirection = $this->sortArticoliDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortArticoliField = $campo;
+            $this->sortArticoliDirection = in_array($campo, ['quantita', 'costo_unitario', 'valore'], true) ? 'desc' : 'asc';
+        }
+
+        $this->resetPage();
+    }
+
     private function getStatisticheCacheKey(): string
     {
         return 'amministrazione_magazzino_statistiche_' . md5(json_encode([
@@ -384,6 +403,69 @@ class AmministrazioneMagazzinoDashboard extends Component
                 $q->where('codice', 'like', '%' . $search . '%')
                     ->orWhere('descrizione', 'like', '%' . $search . '%');
             });
+        }
+    }
+
+    private function applyOrdinamentoArticoli(Builder $query): void
+    {
+        $direction = $this->sortArticoliDirection === 'desc' ? 'desc' : 'asc';
+        $field = $this->sortArticoliField ?: 'codice';
+
+        $query->select('articoli.*')
+            ->leftJoin('giacenze', 'giacenze.articolo_id', '=', 'articoli.id')
+            ->leftJoin('sedi', 'sedi.id', '=', 'giacenze.sede_id')
+            ->leftJoin('categorie_merceologiche', 'categorie_merceologiche.id', '=', 'articoli.categoria_merceologica_id');
+
+        $fornitoreNomeSql = "COALESCE(
+            (SELECT fornitori.ragione_sociale
+             FROM fatture_dettagli
+             INNER JOIN fatture ON fatture.id = fatture_dettagli.fattura_id
+             INNER JOIN fornitori ON fornitori.id = fatture.fornitore_id
+             WHERE fatture_dettagli.articolo_id = articoli.id
+             ORDER BY fatture.id ASC
+             LIMIT 1),
+            (SELECT fornitori.ragione_sociale
+             FROM ddt_dettagli
+             INNER JOIN ddts ON ddts.id = ddt_dettagli.ddt_id
+             INNER JOIN fornitori ON fornitori.id = ddts.fornitore_id
+             WHERE ddt_dettagli.articolo_id = articoli.id
+             ORDER BY ddts.id ASC
+             LIMIT 1)
+        )";
+
+        switch ($field) {
+            case 'descrizione':
+                $query->orderBy('articoli.descrizione', $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'sede':
+                $query->orderBy('sedi.nome', $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'categoria':
+                $query->orderBy('categorie_merceologiche.nome', $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'fornitore':
+                $query->orderByRaw($fornitoreNomeSql . ' ' . $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'quantita':
+                $query->orderBy('giacenze.quantita_residua', $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'costo_unitario':
+                $query->orderBy('articoli.prezzo_acquisto', $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'valore':
+                $query->orderByRaw('COALESCE(giacenze.quantita_residua, 0) * COALESCE(articoli.prezzo_acquisto, 0) ' . $direction)
+                    ->orderBy('articoli.codice', 'asc');
+                break;
+            case 'codice':
+            default:
+                $query->orderBy('articoli.codice', $direction);
+                break;
         }
     }
 
@@ -791,6 +873,16 @@ class AmministrazioneMagazzinoDashboard extends Component
     }
 
     public function updatingDataDocumentoCaricoPrimaDi()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSortArticoliField()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSortArticoliDirection()
     {
         $this->resetPage();
     }

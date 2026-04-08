@@ -665,14 +665,54 @@
                                            wire:click="@if(count($articoliSelezionati) == $articoli->total()) deselezionaTuttiArticoli @else selezionaTuttiArticoli @endif"
                                            @if(count($articoliSelezionati) == $articoli->total() && $articoli->total() > 0) checked @endif>
                                 </th>
-                                <th>Codice</th>
-                                <th>Descrizione</th>
-                                <th>Sede</th>
-                                <th>Categoria</th>
-                                <th>Fornitore</th>
-                                <th class="text-center">Quantità</th>
-                                <th class="text-end">Costo Unit.</th>
-                                <th class="text-end">Valore</th>
+                                <th style="cursor: pointer;" wire:click="ordinaArticoli('codice')" class="user-select-none">
+                                    Codice
+                                    @if($sortArticoliField == 'codice')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th style="cursor: pointer;" wire:click="ordinaArticoli('descrizione')" class="user-select-none">
+                                    Descrizione
+                                    @if($sortArticoliField == 'descrizione')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th style="cursor: pointer;" wire:click="ordinaArticoli('sede')" class="user-select-none">
+                                    Sede
+                                    @if($sortArticoliField == 'sede')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th style="cursor: pointer;" wire:click="ordinaArticoli('categoria')" class="user-select-none">
+                                    Categoria
+                                    @if($sortArticoliField == 'categoria')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th style="cursor: pointer;" wire:click="ordinaArticoli('fornitore')" class="user-select-none">
+                                    Fornitore
+                                    @if($sortArticoliField == 'fornitore')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th class="text-center user-select-none" style="cursor: pointer;" wire:click="ordinaArticoli('quantita')">
+                                    Quantità
+                                    @if($sortArticoliField == 'quantita')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th class="text-end user-select-none" style="cursor: pointer;" wire:click="ordinaArticoli('costo_unitario')">
+                                    Costo Unit.
+                                    @if($sortArticoliField == 'costo_unitario')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
+                                <th class="text-end user-select-none" style="cursor: pointer;" wire:click="ordinaArticoli('valore')">
+                                    Valore
+                                    @if($sortArticoliField == 'valore')
+                                        <iconify-icon icon="solar:{{ $sortArticoliDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                    @endif
+                                </th>
                                 <th class="text-center">Azioni</th>
                             </tr>
                         </thead>
@@ -1084,3 +1124,4 @@
         });
     </script>
 </div>
+
