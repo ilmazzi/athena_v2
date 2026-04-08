@@ -179,7 +179,7 @@
     </div>
 
     <!-- Offcanvas Filtri -->
-    <div class="offcanvas offcanvas-top" tabindex="-1" id="articoliFiltersCanvas" aria-labelledby="articoliFiltersCanvasLabel" style="height: 85vh;">
+    <div class="offcanvas offcanvas-top" tabindex="-1" id="articoliFiltersCanvas" aria-labelledby="articoliFiltersCanvasLabel" style="height: 85vh;" wire:ignore.self>
         <div class="offcanvas-header">
             <h6 class="offcanvas-title" id="articoliFiltersCanvasLabel">
                 <iconify-icon icon="solar:filter-bold" class="me-2"></iconify-icon>
