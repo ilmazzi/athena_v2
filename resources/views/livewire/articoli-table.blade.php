@@ -984,7 +984,48 @@
                                         @php
                                             $fattura = $articolo->fatturaDettaglio->first()?->fattura;
                                             $ddt = $articolo->ddtDettaglio->first()?->ddt;
-                                            $fornitoreDocumento = $fattura?->fornitore ?? $ddt?->fornitore;
+                                            $numeroCarico = trim((string) ($articolo->numero_documento_carico ?? ''));
+                                            $dataCarico = $articolo->data_carico
+                                                ? \Carbon\Carbon::parse((string) $articolo->data_carico)->format('Y-m-d')
+                                                : null;
+
+                                            $fatturaMatch = collect($articolo->fatturaDettaglio ?? [])
+                                                ->map(fn ($row) => $row?->fattura)
+                                                ->filter()
+                                                ->first(function ($doc) use ($numeroCarico, $dataCarico) {
+                                                    if (!$doc || trim((string) ($doc->numero ?? '')) !== $numeroCarico) {
+                                                        return false;
+                                                    }
+                                                    $docDate = $doc->data_documento
+                                                        ? \Carbon\Carbon::parse((string) $doc->data_documento)->format('Y-m-d')
+                                                        : null;
+                                                    return $dataCarico ? $docDate === $dataCarico : true;
+                                                });
+
+                                            $ddtMatch = collect($articolo->ddtDettaglio ?? [])
+                                                ->map(fn ($row) => $row?->ddt)
+                                                ->filter()
+                                                ->first(function ($doc) use ($numeroCarico, $dataCarico) {
+                                                    if (!$doc || trim((string) ($doc->numero ?? '')) !== $numeroCarico) {
+                                                        return false;
+                                                    }
+                                                    $docDate = $doc->data_documento
+                                                        ? \Carbon\Carbon::parse((string) $doc->data_documento)->format('Y-m-d')
+                                                        : null;
+                                                    return $dataCarico ? $docDate === $dataCarico : true;
+                                                });
+
+                                            $docCarico = null;
+                                            if (($articolo->tipo_carico ?? null) === 'fattura') {
+                                                $docCarico = $fatturaMatch;
+                                            } elseif (($articolo->tipo_carico ?? null) === 'ddt') {
+                                                $docCarico = $ddtMatch;
+                                            }
+                                            if (!$docCarico) {
+                                                $docCarico = $fatturaMatch ?? $ddtMatch;
+                                            }
+
+                                            $fornitoreDocumento = $docCarico?->fornitore;
                                         @endphp
 
                                         <div class="mb-1">
