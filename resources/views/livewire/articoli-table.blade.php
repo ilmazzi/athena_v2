@@ -981,6 +981,21 @@
                                 @if($visibleColumns['dati_carico'] ?? true)
                                 <td>
                                     <div class="text-center">
+                                        @php
+                                            $fattura = $articolo->fatturaDettaglio->first()?->fattura;
+                                            $ddt = $articolo->ddtDettaglio->first()?->ddt;
+                                            $fornitoreDocumento = $fattura?->fornitore ?? $ddt?->fornitore;
+                                        @endphp
+
+                                        <div class="mb-1">
+                                            <div class="d-flex align-items-center justify-content-center gap-1">
+                                                <iconify-icon icon="solar:shop-bold" class="text-warning"></iconify-icon>
+                                                <small class="fw-semibold">
+                                                    {{ Str::limit($fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
+                                                </small>
+                                            </div>
+                                        </div>
+
                                         <div class="mb-1">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:document-bold" class="text-info"></iconify-icon>
