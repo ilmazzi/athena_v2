@@ -334,7 +334,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         }
 
         if ($this->categoriaId) {
-            $query->where('categoria_merceologica_id', $this->categoriaId);
+            $query->where('articoli.categoria_merceologica_id', $this->categoriaId);
         }
 
         // Filtro marca (da caratteristiche JSON)
@@ -392,16 +392,16 @@ class AmministrazioneMagazzinoDashboard extends Component
 
         if ($this->soloSenzaCosto) {
             $query->where(function ($q) {
-                $q->whereNull('prezzo_acquisto')
-                    ->orWhere('prezzo_acquisto', 0);
+                $q->whereNull('articoli.prezzo_acquisto')
+                    ->orWhere('articoli.prezzo_acquisto', 0);
             });
         }
 
         if ($this->search) {
             $search = trim((string) $this->search);
             $query->where(function ($q) use ($search) {
-                $q->where('codice', 'like', '%' . $search . '%')
-                    ->orWhere('descrizione', 'like', '%' . $search . '%');
+                $q->where('articoli.codice', 'like', '%' . $search . '%')
+                    ->orWhere('articoli.descrizione', 'like', '%' . $search . '%');
             });
         }
     }
