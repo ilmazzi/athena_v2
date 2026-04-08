@@ -981,95 +981,26 @@
                                 @if($visibleColumns['dati_carico'] ?? true)
                                 <td>
                                     <div class="text-center">
-                                        @php
-                                            // Preferisci fornitore articolo, poi fattura, poi DDT
-                                            $fattura = $articolo->fatturaDettaglio->first()?->fattura;
-                                            $ddt = $articolo->ddtDettaglio->first()?->ddt;
-                                            $documento = $fattura ?? $ddt;
-                                            $tipoDocumento = $fattura ? 'FATTURA' : 'DDT';
-                                            $badgeColor = $fattura ? 'success' : 'primary';
-                                            $fornitoreDocumento = $documento?->fornitore;
-                                            $documentoListUrl = $documento
-                                                ? route('documenti-acquisto.index', ['search' => $documento->numero, 'tipoDocumento' => $fattura ? 'fattura' : 'ddt'])
-                                                : null;
-                                            $documentoPdfUrl = null;
-                                            if ($documento) {
-                                                if ($documento->tipo_carico === 'ocr' && $documento->ocrDocument) {
-                                                    $documentoPdfUrl = route('ocr.documents.pdf', $documento->ocrDocument);
-                                                } elseif (!empty($documento->allegato_path)) {
-                                                    $documentoPdfUrl = $fattura
-                                                        ? route('documenti-acquisto.fattura.pdf', $documento)
-                                                        : route('documenti-acquisto.ddt.pdf', $documento);
-                                                }
-                                            }
-                                        @endphp
-                                        
-                                        <!-- Fornitore -->
-                                        <div class="mb-1">
-                                            <div class="d-flex align-items-center justify-content-center gap-1">
-                                                <iconify-icon icon="solar:shop-bold" class="text-warning"></iconify-icon>
-                                                <small class="fw-semibold">
-                                                    {{ Str::limit($fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
-                                                </small>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Numero Documento -->
                                         <div class="mb-1">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:document-bold" class="text-info"></iconify-icon>
-                                                @if($documento)
-                                                    <a href="{{ $documentoPdfUrl ?? $documentoListUrl }}"
-                                                       class="link-primary text-decoration-underline small"
-                                                       @if($documentoPdfUrl) target="_blank" @endif>
-                                                        {{ $documento->numero }}
-                                                    </a>
-                                                @else
-                                                    <small class="text-muted">N/A</small>
-                                                @endif
+                                                <small class="fw-semibold">
+                                                    {{ $articolo->numero_documento_carico ?: 'N/A' }}
+                                                </small>
                                             </div>
                                         </div>
-                                        
-                                        <!-- Data e Tipo -->
+
                                         <div class="mb-1">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:calendar-bold" class="text-primary"></iconify-icon>
                                                 <small class="text-muted">
-                                                    @if($documento && $documento->data_documento)
-                                                        {{ $documento->data_documento->format('d/m/Y') }}
-                                                    @else
-                                                        N/A
-                                                    @endif
+                                                    {{ $articolo->data_carico ? \Carbon\Carbon::parse($articolo->data_carico)->format('d/m/Y') : 'N/A' }}
                                                 </small>
-                                                <span class="badge bg-{{ $badgeColor }}-subtle text-{{ $badgeColor }} fs-11">{{ $tipoDocumento }}</span>
+                                                <span class="badge bg-secondary-subtle text-secondary fs-11">
+                                                    {{ strtoupper((string)($articolo->tipo_carico ?? 'N/A')) }}
+                                                </span>
                                             </div>
                                         </div>
-                                        
-                                        @if($fattura && $ddt)
-                                            <!-- Se ci sono entrambi, mostra anche il DDT -->
-                                            <div class="mb-1 mt-2 pt-2 border-top">
-                                                <div class="d-flex align-items-center justify-content-center gap-1">
-                                                    <iconify-icon icon="solar:document-bold" class="text-info small"></iconify-icon>
-                                                    <small class="text-muted">
-                                                        DDT:
-                                                        @php
-                                                            $ddtPdfUrl = null;
-                                                            if ($ddt->tipo_carico === 'ocr' && $ddt->ocrDocument) {
-                                                                $ddtPdfUrl = route('ocr.documents.pdf', $ddt->ocrDocument);
-                                                            } elseif (!empty($ddt->allegato_path)) {
-                                                                $ddtPdfUrl = route('documenti-acquisto.ddt.pdf', $ddt);
-                                                            }
-                                                            $ddtListUrl = route('documenti-acquisto.index', ['search' => $ddt->numero, 'tipoDocumento' => 'ddt']);
-                                                        @endphp
-                                                        <a href="{{ $ddtPdfUrl ?? $ddtListUrl }}"
-                                                           class="link-primary text-decoration-underline"
-                                                           @if($ddtPdfUrl) target="_blank" @endif>
-                                                            {{ $ddt->numero }}
-                                                        </a>
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        @endif
                                     </div>
                                 </td>
                                 @endif

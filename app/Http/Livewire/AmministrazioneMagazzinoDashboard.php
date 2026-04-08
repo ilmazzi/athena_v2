@@ -16,6 +16,7 @@ use App\Exports\StatisticheMagazzinoExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
@@ -128,82 +129,8 @@ class AmministrazioneMagazzinoDashboard extends Component
             'sede',
             'fatturaDettaglio.fattura.fornitore',
             'ddtDettaglio.ddt.fornitore'
-        ])
-        ->whereHas('giacenza', function ($q) {
-            if ($this->soloGiacenti) {
-                $q->where('quantita_residua', '>', 0);
-            }
-        });
-
-        // Filtro sede
-        if ($this->sedeId) {
-            $query->whereHas('giacenza', function ($q) {
-                $q->where('sede_id', $this->sedeId);
-            });
-        }
-
-        // Filtro categoria
-        if ($this->categoriaId) {
-            $query->where('categoria_merceologica_id', $this->categoriaId);
-        }
-
-        // Filtro marca (dalle caratteristiche JSON) - usa marcaFiltroId per evitare conflitto
-        if ($this->marcaId && $this->marcaId !== '' && $this->marcaId !== null) {
-            if ($this->marcaId === 'n/a') {
-                // Articoli senza marca
-                $query->where(function ($q) {
-                    $q->whereNull('caratteristiche')
-                      ->orWhere('caratteristiche', '{}')
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.marca') IS NULL")
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.Marca') IS NULL")
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.brand') IS NULL")
-                      ->orWhereRaw("JSON_EXTRACT(caratteristiche, '$.Brand') IS NULL");
-                });
-            } else {
-                // Articoli con marca specifica (case insensitive)
-                $query->where(function ($q) {
-                    $marcaLower = strtolower($this->marcaId);
-                    $q->whereRaw("LOWER(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.marca'))) = ?", [$marcaLower])
-                      ->orWhereRaw("LOWER(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Marca'))) = ?", [$marcaLower])
-                      ->orWhereRaw("LOWER(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.brand'))) = ?", [$marcaLower])
-                      ->orWhereRaw("LOWER(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Brand'))) = ?", [$marcaLower]);
-                });
-            }
-        }
-
-        // Filtro speciale per fornitori (gestisce anche 'n/a' per articoli senza fornitore)
-        if ($this->fornitoreId !== null && $this->fornitoreId !== '') {
-            if ($this->fornitoreId === 'n/a') {
-                // Articoli senza fornitore (né da fattura né da DDT)
-                $query->whereDoesntHave('fatturaDettaglio.fattura.fornitore')
-                      ->whereDoesntHave('ddtDettaglio.ddt.fornitore');
-            } else {
-                // Articoli con fornitore specifico (da fattura o DDT)
-                $query->where(function ($q) {
-                    $q->whereHas('fatturaDettaglio.fattura', function ($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreId);
-                    })->orWhereHas('ddtDettaglio.ddt', function ($subQ) {
-                        $subQ->where('fornitore_id', $this->fornitoreId);
-                    });
-                });
-            }
-        }
-
-        // Solo senza costo
-        if ($this->soloSenzaCosto) {
-            $query->where(function ($q) {
-                $q->whereNull('prezzo_acquisto')
-                  ->orWhere('prezzo_acquisto', 0);
-            });
-        }
-
-        // Search
-        if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('codice', 'like', '%' . $this->search . '%')
-                  ->orWhere('descrizione', 'like', '%' . $this->search . '%');
-            });
-        }
+        ]);
+        $this->applyFiltriArticoli($query);
 
         return $query->orderBy('codice')->paginate(50);
     }
@@ -229,22 +156,15 @@ class AmministrazioneMagazzinoDashboard extends Component
             'per_marca' => [],
         ];
 
-        // Query base articoli giacenti (processata a chunk per evitare OOM)
+        // Query base articoli con gli stessi filtri della tabella (processata a chunk per evitare OOM)
         $articoliQuery = Articolo::with([
             'giacenza',
+            'giacenza.sede',
             'categoriaMerceologica',
             'fatturaDettaglio.fattura.fornitore',
             'ddtDettaglio.ddt.fornitore'
-        ])->whereHas('giacenza', function ($q) {
-            $q->where('quantita_residua', '>', 0);
-        });
-
-        // Applica filtri se presenti
-        if ($this->sedeId) {
-            $articoliQuery->whereHas('giacenza', function ($q) {
-                $q->where('sede_id', $this->sedeId);
-            });
-        }
+        ]);
+        $this->applyFiltriArticoli($articoliQuery);
 
         $articoliQuery->orderBy('id')->chunk(1000, function ($articoli) use (&$stats) {
             foreach ($articoli as $articolo) {
@@ -367,12 +287,94 @@ class AmministrazioneMagazzinoDashboard extends Component
     {
         return 'amministrazione_magazzino_statistiche_' . md5(json_encode([
             'sedeId' => $this->sedeId,
+            'fornitoreId' => $this->fornitoreId,
+            'categoriaId' => $this->categoriaId,
+            'marcaId' => $this->marcaId,
+            'search' => $this->search,
+            'soloSenzaCosto' => (bool) $this->soloSenzaCosto,
+            'soloGiacenti' => (bool) $this->soloGiacenti,
         ]));
+    }
+
+    private function applyFiltriArticoli($query): void
+    {
+        // Deve sempre esistere almeno una giacenza; opzionalmente solo giacenze con residuo > 0
+        $query->whereHas('giacenza', function ($q) {
+            if ($this->soloGiacenti) {
+                $q->where('quantita_residua', '>', 0);
+            }
+        });
+
+        if ($this->sedeId) {
+            $query->whereHas('giacenza', function ($q) {
+                $q->where('sede_id', $this->sedeId);
+            });
+        }
+
+        if ($this->categoriaId) {
+            $query->where('categoria_merceologica_id', $this->categoriaId);
+        }
+
+        // Filtro marca (da caratteristiche JSON)
+        if ($this->marcaId !== null && $this->marcaId !== '') {
+            if ($this->marcaId === 'n/a') {
+                // Senza marca: tutte le chiavi marca/brand assenti o vuote
+                $query->where(function ($q) {
+                    $q->whereNull('caratteristiche')
+                        ->orWhere('caratteristiche', '{}')
+                        ->orWhere(function ($jsonQ) {
+                            $jsonQ->whereRaw("COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.marca'))), ''), NULL) IS NULL")
+                                ->whereRaw("COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Marca'))), ''), NULL) IS NULL")
+                                ->whereRaw("COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.brand'))), ''), NULL) IS NULL")
+                                ->whereRaw("COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Brand'))), ''), NULL) IS NULL");
+                        });
+                });
+            } else {
+                $query->where(function ($q) {
+                    $marcaLower = strtolower(trim((string) $this->marcaId));
+                    $q->whereRaw("LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.marca')))) = ?", [$marcaLower])
+                        ->orWhereRaw("LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Marca')))) = ?", [$marcaLower])
+                        ->orWhereRaw("LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.brand')))) = ?", [$marcaLower])
+                        ->orWhereRaw("LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(caratteristiche, '$.Brand')))) = ?", [$marcaLower]);
+                });
+            }
+        }
+
+        // Filtro fornitore (fonte fattura o DDT)
+        if ($this->fornitoreId !== null && $this->fornitoreId !== '') {
+            if ($this->fornitoreId === 'n/a') {
+                $query->whereDoesntHave('fatturaDettaglio.fattura.fornitore')
+                    ->whereDoesntHave('ddtDettaglio.ddt.fornitore');
+            } else {
+                $query->where(function ($q) {
+                    $q->whereHas('fatturaDettaglio.fattura', function ($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreId);
+                    })->orWhereHas('ddtDettaglio.ddt', function ($subQ) {
+                        $subQ->where('fornitore_id', $this->fornitoreId);
+                    });
+                });
+            }
+        }
+
+        if ($this->soloSenzaCosto) {
+            $query->where(function ($q) {
+                $q->whereNull('prezzo_acquisto')
+                    ->orWhere('prezzo_acquisto', 0);
+            });
+        }
+
+        if ($this->search) {
+            $search = trim((string) $this->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('codice', 'like', '%' . $search . '%')
+                    ->orWhere('descrizione', 'like', '%' . $search . '%');
+            });
+        }
     }
 
     public function apriFatturaModal($articoloId = null)
     {
-        \Log::info('🔓 APERTURA MODAL FATTURA', ['articolo_id' => $articoloId, 'selezionati' => $this->articoliSelezionati]);
+        Log::info('🔓 APERTURA MODAL FATTURA', ['articolo_id' => $articoloId, 'selezionati' => $this->articoliSelezionati]);
         
         // Reset valori precedenti
         $this->reset(['articoliFattura', 'quantitaArticolo', 'costoUnitarioArticolo']);
@@ -390,7 +392,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                     'costo_unitario' => $art->prezzo_acquisto ?? 0,
                 ];
             }
-            \Log::info('📦 ARTICOLI MULTIPLI AGGIUNTI', ['count' => count($this->articoliFattura)]);
+            Log::info('📦 ARTICOLI MULTIPLI AGGIUNTI', ['count' => count($this->articoliFattura)]);
         } 
         // Se è un singolo articolo, aggiungilo direttamente
         elseif ($articoloId) {
@@ -400,7 +402,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                 'quantita' => 1,
                 'costo_unitario' => $articolo->prezzo_acquisto ?? 0,
             ];
-            \Log::info('📦 ARTICOLO SINGOLO AGGIUNTO', [
+            Log::info('📦 ARTICOLO SINGOLO AGGIUNTO', [
                 'id' => $articolo->id,
                 'codice' => $articolo->codice,
             ]);
@@ -472,7 +474,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             'costo_unitario' => $costo,
         ];
 
-        \Log::info('➕ ARTICOLO AGGIUNTO ALLA FATTURA', [
+        Log::info('➕ ARTICOLO AGGIUNTO ALLA FATTURA', [
             'articolo_id' => $articolo->id,
             'quantita' => $quantita,
             'costo_unitario' => $costo,
@@ -650,7 +652,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             return;
         }
 
-        \Log::info('💾 SALVATAGGIO FATTURA', [
+        Log::info('💾 SALVATAGGIO FATTURA', [
             'numero' => $this->numeroFattura,
             'articoli_count' => $articoliValidati->count(),
             'articoli' => $articoliValidati->toArray(),
@@ -680,7 +682,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                     $articolo = Articolo::find($art['articolo_id']);
                     
                     if (!$articolo) {
-                        \Log::error('❌ ARTICOLO NON TROVATO', ['articolo_id' => $art['articolo_id']]);
+                        Log::error('❌ ARTICOLO NON TROVATO', ['articolo_id' => $art['articolo_id']]);
                         continue;
                     }
                     
@@ -708,7 +710,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                     // Aggiorna costo articolo (l'articolo è già stato trovato sopra)
                     $costoPrecedente = $articolo->prezzo_acquisto;
                     
-                    \Log::info('📝 AGGIORNAMENTO ARTICOLO', [
+                    Log::info('📝 AGGIORNAMENTO ARTICOLO', [
                         'articolo_id' => $articolo->id,
                         'codice' => $articolo->codice,
                         'costo_precedente' => $costoPrecedente,
@@ -730,7 +732,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                     // Aggiorna costo articolo
                     $articolo->update(['prezzo_acquisto' => $prezzoUnitario]);
                     
-                    \Log::info('✅ ARTICOLO AGGIORNATO', [
+                    Log::info('✅ ARTICOLO AGGIORNATO', [
                         'articolo_id' => $articolo->id,
                         'prezzo_acquisto' => $articolo->fresh()->prezzo_acquisto,
                     ]);
@@ -748,7 +750,7 @@ class AmministrazioneMagazzinoDashboard extends Component
                 'numero_articoli' => $articoliValidati->count(),
             ]);
             
-            \Log::info('💰 FATTURA SALVATA', [
+            Log::info('💰 FATTURA SALVATA', [
                 'fattura_id' => $fattura->id,
                 'numero' => $fattura->numero,
                 'totale' => $totale,
