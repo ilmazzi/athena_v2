@@ -39,6 +39,7 @@ class AmministrazioneMagazzinoDashboard extends Component
     public $categoriaId = '';
     public $marcaId = ''; // Per future implementazioni marche
     public $search = '';
+    public $dataDocumentoCaricoPrimaDi = '';
     public $soloSenzaCosto = false;
     public $soloGiacenti = true;
 
@@ -91,6 +92,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         'fornitoreId' => ['except' => ''],
         'categoriaId' => ['except' => ''],
         'search' => ['except' => ''],
+        'dataDocumentoCaricoPrimaDi' => ['except' => ''],
         'soloSenzaCosto' => ['except' => false],
         'soloGiacenti' => ['except' => true],
     ];
@@ -273,7 +275,7 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     public function resetFiltri()
     {
-        $this->reset(['sedeId', 'fornitoreId', 'categoriaId', 'search', 'soloSenzaCosto']);
+        $this->reset(['sedeId', 'fornitoreId', 'categoriaId', 'search', 'dataDocumentoCaricoPrimaDi', 'soloSenzaCosto']);
         $this->soloGiacenti = true;
     }
 
@@ -291,6 +293,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             'categoriaId' => $this->categoriaId,
             'marcaId' => $this->marcaId,
             'search' => $this->search,
+            'dataDocumentoCaricoPrimaDi' => $this->dataDocumentoCaricoPrimaDi,
             'soloSenzaCosto' => (bool) $this->soloSenzaCosto,
             'soloGiacenti' => (bool) $this->soloGiacenti,
         ]));
@@ -354,6 +357,18 @@ class AmministrazioneMagazzinoDashboard extends Component
                     });
                 });
             }
+        }
+
+        if ($this->dataDocumentoCaricoPrimaDi) {
+            $dataLimite = Carbon::parse($this->dataDocumentoCaricoPrimaDi)->format('Y-m-d');
+
+            $query->where(function ($q) use ($dataLimite) {
+                $q->whereHas('fatturaDettaglio.fattura', function ($subQ) use ($dataLimite) {
+                    $subQ->whereDate('data_documento', '<', $dataLimite);
+                })->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($dataLimite) {
+                    $subQ->whereDate('data_documento', '<', $dataLimite);
+                });
+            });
         }
 
         if ($this->soloSenzaCosto) {
@@ -775,6 +790,11 @@ class AmministrazioneMagazzinoDashboard extends Component
         $this->resetPage();
     }
 
+    public function updatingDataDocumentoCaricoPrimaDi()
+    {
+        $this->resetPage();
+    }
+
     public function apriStoricoCosti($articoloId)
     {
         $this->articoloStorico = Articolo::with(['storicoCosti.user', 'storicoCosti.fattura'])
@@ -795,6 +815,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             'fornitoreId' => $this->fornitoreId,
             'categoriaId' => $this->categoriaId,
             'search' => $this->search,
+            'dataDocumentoCaricoPrimaDi' => $this->dataDocumentoCaricoPrimaDi,
             'soloSenzaCosto' => $this->soloSenzaCosto,
             'soloGiacenti' => $this->soloGiacenti,
         ];

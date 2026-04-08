@@ -125,6 +125,10 @@
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Doc. carico prima del</label>
+                    <input type="date" class="form-control" wire:model.live="dataDocumentoCaricoPrimaDi">
+                </div>
+                <div class="col-md-2">
                     <label class="form-label small fw-semibold">Opzioni</label>
                     <div class="d-flex gap-2">
                         <div class="form-check">

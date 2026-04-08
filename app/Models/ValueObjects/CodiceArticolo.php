@@ -11,7 +11,8 @@ class CodiceArticolo
 
     public static function fromString(string $codice): self
     {
-        // Formato: M-XXXXX dove M è il magazzino e XXXXX è il numero
+        // Formato: M-N dove M è il magazzino e N è il progressivo numerico
+        // (accetta anche storici con zeri iniziali, es: 5-00042)
         if (!preg_match('/^(\d+)-(\d+)$/', $codice, $matches)) {
             throw new \InvalidArgumentException("Formato codice non valido: {$codice}");
         }
@@ -24,7 +25,8 @@ class CodiceArticolo
 
     public function toString(): string
     {
-        return "{$this->magazzinoId}-" . str_pad($this->numero, 5, '0', STR_PAD_LEFT);
+        // Nuovo formato canonico senza zeri iniziali.
+        return "{$this->magazzinoId}-{$this->numero}";
     }
 
     public function __toString(): string
