@@ -257,7 +257,7 @@ class AuditFonteVeritaMagazzino extends Command
                         SELECT
                             pf.id,
                             pf.codice,
-                            pf.nome AS descrizione,
+                            pf.descrizione,
                             GREATEST(0, COALESCE(SUM(CASE
                                 WHEN md.tipo_movimento IN ('invio', 'rimando') THEN md.quantita
                                 WHEN md.tipo_movimento IN ('vendita', 'reso') THEN -md.quantita
@@ -270,7 +270,7 @@ class AuditFonteVeritaMagazzino extends Command
                         LEFT JOIN conti_deposito cd ON cd.id = md.conto_deposito_id
                         WHERE pf.deleted_at IS NULL
                           AND (cd.id IS NULL OR cd.stato IN ('attivo', 'parziale', 'scaduto'))
-                        GROUP BY pf.id, pf.codice, pf.nome, pf.in_conto_deposito, pf.conto_deposito_corrente_id
+                        GROUP BY pf.id, pf.codice, pf.descrizione, pf.in_conto_deposito, pf.conto_deposito_corrente_id
                     ) t
                     WHERE (t.net_qta > 0 AND t.in_dep = 0)
                        OR (t.net_qta = 0 AND t.in_dep = 1)
