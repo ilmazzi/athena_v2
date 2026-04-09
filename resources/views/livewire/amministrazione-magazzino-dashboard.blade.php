@@ -163,6 +163,50 @@
         </div>
     </div>
 
+    @if($this->hasDrilldownFilters)
+        <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 mb-4">
+            <span class="small text-muted fw-semibold me-2">Filtri attivi:</span>
+            @if($sedeId)
+                @php($sedeLabel = optional($sedi->firstWhere('id', $sedeId))->nome ?? ('Sede ' . $sedeId))
+                <button class="btn btn-sm btn-outline-primary" wire:click="clearSedeFilter">
+                    Sede: {{ $sedeLabel }}
+                    <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
+                </button>
+            @endif
+            @if($fornitoreId)
+                @php($fornitoreLabel = optional($fornitori->firstWhere('id', $fornitoreId))->ragione_sociale ?? $fornitoreId)
+                <button class="btn btn-sm btn-outline-primary" wire:click="clearFornitoreFilter">
+                    Fornitore: {{ $fornitoreLabel }}
+                    <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
+                </button>
+            @endif
+            @if($categoriaId)
+                @php($categoriaLabel = optional($categorie->firstWhere('id', $categoriaId))->nome ?? ('Categoria ' . $categoriaId))
+                <button class="btn btn-sm btn-outline-primary" wire:click="clearCategoriaFilter">
+                    Categoria: {{ $categoriaLabel }}
+                    @if($filtroContoDeposito === 'solo_reale')
+                        · solo reale
+                    @elseif($filtroContoDeposito === 'solo_conto_deposito')
+                        · solo conto deposito
+                    @else
+                        · reale + conto deposito
+                    @endif
+                    <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
+                </button>
+            @endif
+            @if($marcaId)
+                <button class="btn btn-sm btn-outline-primary" wire:click="clearMarcaFilter">
+                    Marca: {{ $marcaId }}
+                    <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
+                </button>
+            @endif
+            <button class="btn btn-sm btn-outline-secondary ms-auto" wire:click="resetFiltri">
+                <iconify-icon icon="solar:undo-left-bold" class="me-1"></iconify-icon>
+                Torna alla vista completa
+            </button>
+        </div>
+    @endif
+
     {{-- Export e Confronto --}}
     <div class="card mb-4">
         <div class="card-body">
@@ -228,7 +272,8 @@
     {{-- Tabs Statistiche --}}
     <div class="card mb-4">
         <div class="card-header">
-            <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <ul class="nav nav-tabs card-header-tabs border-0" role="tablist">
                 <li class="nav-item">
                     <button class="nav-link @if($viewStatistiche == 'globale') active @endif" 
                             wire:click="$set('viewStatistiche', 'globale')" 
@@ -268,6 +313,19 @@
                     </button>
                 </li>
             </ul>
+            @if($categoriaId)
+                <span class="badge bg-light-primary text-primary">
+                    {{ optional($categorie->firstWhere('id', $categoriaId))->nome ?? ('Categoria ' . $categoriaId) }}
+                    @if($filtroContoDeposito === 'solo_reale')
+                        · solo reale
+                    @elseif($filtroContoDeposito === 'solo_conto_deposito')
+                        · solo conto deposito
+                    @else
+                        · reale + conto deposito
+                    @endif
+                </span>
+            @endif
+            </div>
         </div>
         <div class="card-body">
             @if($viewStatistiche == 'sede')
@@ -322,10 +380,10 @@
                         <tfoot class="table-light">
                             <tr>
                                 <th>TOTALE</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_articoli'], 0, ',', '.') }}</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_quantita'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['articoli'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['quantita'], 0, ',', '.') }}</th>
                                 <th class="text-end">
-                                    <strong class="text-success">€{{ number_format($statistiche['totale_valore'], 2, ',', '.') }}</strong>
+                                    <strong class="text-success">€{{ number_format($this->totaliVistaCorrente['valore'], 2, ',', '.') }}</strong>
                                 </th>
                             </tr>
                         </tfoot>
@@ -424,10 +482,10 @@
                             @endif
                             <tr>
                                 <th>TOTALE</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_articoli'], 0, ',', '.') }}</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_quantita'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['articoli'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['quantita'], 0, ',', '.') }}</th>
                                 <th class="text-end">
-                                    <strong class="text-success">€{{ number_format($statistiche['totale_valore'], 2, ',', '.') }}</strong>
+                                    <strong class="text-success">€{{ number_format($this->totaliVistaCorrente['valore'], 2, ',', '.') }}</strong>
                                 </th>
                             </tr>
                         </tfoot>
@@ -485,10 +543,10 @@
                         <tfoot class="table-light">
                             <tr>
                                 <th>TOTALE</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_articoli'], 0, ',', '.') }}</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_quantita'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['articoli'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['quantita'], 0, ',', '.') }}</th>
                                 <th class="text-end">
-                                    <strong class="text-success">€{{ number_format($statistiche['totale_valore'], 2, ',', '.') }}</strong>
+                                    <strong class="text-success">€{{ number_format($this->totaliVistaCorrente['valore'], 2, ',', '.') }}</strong>
                                 </th>
                             </tr>
                         </tfoot>
@@ -587,10 +645,10 @@
                             @endif
                             <tr>
                                 <th>TOTALE</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_articoli'], 0, ',', '.') }}</th>
-                                <th class="text-end">{{ number_format($statistiche['totale_quantita'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['articoli'], 0, ',', '.') }}</th>
+                                <th class="text-end">{{ number_format($this->totaliVistaCorrente['quantita'], 0, ',', '.') }}</th>
                                 <th class="text-end">
-                                    <strong class="text-success">€{{ number_format($statistiche['totale_valore'], 2, ',', '.') }}</strong>
+                                    <strong class="text-success">€{{ number_format($this->totaliVistaCorrente['valore'], 2, ',', '.') }}</strong>
                                 </th>
                             </tr>
                         </tfoot>

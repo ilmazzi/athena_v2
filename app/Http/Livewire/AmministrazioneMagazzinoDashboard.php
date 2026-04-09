@@ -13,6 +13,7 @@ use App\Models\Sede;
 use App\Models\CategoriaMerceologica;
 use App\Models\ArticoloStoricoCosto;
 use App\Exports\StatisticheMagazzinoExport;
+use App\Services\MagazzinoLogicoService;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -34,7 +35,7 @@ class AmministrazioneMagazzinoDashboard extends Component
 {
     use WithPagination;
 
-    private const STATISTICHE_CACHE_VERSION = 'v2';
+    private const STATISTICHE_CACHE_VERSION = 'v3';
 
     // Filtri
     public $sedeId = '';
@@ -174,6 +175,27 @@ class AmministrazioneMagazzinoDashboard extends Component
         $this->soloGiacenti = true;
     }
 
+    public function clearSedeFilter()
+    {
+        $this->sedeId = '';
+    }
+
+    public function clearFornitoreFilter()
+    {
+        $this->fornitoreId = '';
+    }
+
+    public function clearCategoriaFilter()
+    {
+        $this->categoriaId = '';
+        $this->filtroContoDeposito = 'tutti';
+    }
+
+    public function clearMarcaFilter()
+    {
+        $this->marcaId = '';
+    }
+
     public function refreshStatistiche()
     {
         foreach ($this->getStatisticheCacheKeysForCurrentFilters() as $cacheKey) {
@@ -279,14 +301,16 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     private function getStatistichePerCategoria(): array
     {
+        $gruppoIdSql = $this->getMagazzinoLogicoGroupingSql();
+        $nomeSql = $this->getMagazzinoLogicoLabelSql();
+
         $rows = $this->buildStatisticheBaseQuery()
-            ->leftJoin('categorie_merceologiche', 'categorie_merceologiche.id', '=', 'articoli.categoria_merceologica_id')
-            ->selectRaw("COALESCE(CAST(articoli.categoria_merceologica_id AS CHAR), 'n/a') as gruppo_id")
-            ->selectRaw("COALESCE(categorie_merceologiche.nome, 'N/A') as nome")
+            ->selectRaw($gruppoIdSql . ' as gruppo_id')
+            ->selectRaw($nomeSql . ' as nome')
             ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
             ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as quantita')
             ->selectRaw('COALESCE(SUM(giacenze.quantita_residua * COALESCE(articoli.prezzo_acquisto, 0)), 0) as valore')
-            ->groupBy('articoli.categoria_merceologica_id', 'categorie_merceologiche.nome')
+            ->groupBy(DB::raw($gruppoIdSql), DB::raw($nomeSql))
             ->get();
 
         return $this->mapStatisticheRows($rows);
@@ -627,29 +651,15 @@ class AmministrazioneMagazzinoDashboard extends Component
             return;
         }
 
-        $prefix = $this->categoriaId . '-%';
+        $magazzinoLogico = $this->resolveMagazzinoLogicoCategoriaCorrente();
+        $prefix = $this->getMagazzinoLogicoPrefix($magazzinoLogico);
+
+        $query->where('articoli.codice', 'like', $prefix);
 
         if ($this->filtroContoDeposito === 'solo_conto_deposito') {
-            $query->where('articoli.codice', 'like', $prefix)
-                ->whereNotNull('articoli.conto_deposito_corrente_id')
+            $query->whereNotNull('articoli.conto_deposito_corrente_id')
                 ->where('articoli.quantita_in_deposito', '>', 0);
-
-            return;
-        }
-
-        $query->where(function ($q) use ($prefix) {
-            $q->where('articoli.categoria_merceologica_id', $this->categoriaId);
-
-            if ($this->filtroContoDeposito === 'tutti') {
-                $q->orWhere(function ($cdQ) use ($prefix) {
-                    $cdQ->where('articoli.codice', 'like', $prefix)
-                        ->whereNotNull('articoli.conto_deposito_corrente_id')
-                        ->where('articoli.quantita_in_deposito', '>', 0);
-                });
-            }
-        });
-
-        if ($this->filtroContoDeposito === 'solo_reale') {
+        } elseif ($this->filtroContoDeposito === 'solo_reale') {
             $query->where(function ($q) {
                 $q->whereNull('articoli.conto_deposito_corrente_id')
                     ->orWhere('articoli.quantita_in_deposito', '<=', 0);
@@ -673,34 +683,42 @@ class AmministrazioneMagazzinoDashboard extends Component
             return;
         }
 
-        $prefix = $this->categoriaId . '-%';
+        $magazzinoLogico = $this->resolveMagazzinoLogicoCategoriaCorrente();
+        $prefix = $this->getMagazzinoLogicoPrefix($magazzinoLogico);
+
+        $query->where('articoli.codice', 'like', $prefix);
 
         if ($this->filtroContoDeposito === 'solo_conto_deposito') {
-            $query->where('articoli.codice', 'like', $prefix)
-                ->whereNotNull('articoli.conto_deposito_corrente_id')
+            $query->whereNotNull('articoli.conto_deposito_corrente_id')
                 ->where('articoli.quantita_in_deposito', '>', 0);
-
-            return;
-        }
-
-        $query->where(function ($q) use ($prefix) {
-            $q->where('articoli.categoria_merceologica_id', $this->categoriaId);
-
-            if ($this->filtroContoDeposito === 'tutti') {
-                $q->orWhere(function ($cdQ) use ($prefix) {
-                    $cdQ->where('articoli.codice', 'like', $prefix)
-                        ->whereNotNull('articoli.conto_deposito_corrente_id')
-                        ->where('articoli.quantita_in_deposito', '>', 0);
-                });
-            }
-        });
-
-        if ($this->filtroContoDeposito === 'solo_reale') {
+        } elseif ($this->filtroContoDeposito === 'solo_reale') {
             $query->where(function ($q) {
                 $q->whereNull('articoli.conto_deposito_corrente_id')
                     ->orWhere('articoli.quantita_in_deposito', '<=', 0);
             });
         }
+    }
+
+    private function resolveMagazzinoLogicoCategoriaCorrente(): int
+    {
+        $resolved = app(MagazzinoLogicoService::class)->resolveFromCategoriaId((int) $this->categoriaId);
+
+        return $resolved ?: (int) $this->categoriaId;
+    }
+
+    private function getMagazzinoLogicoPrefix(int $magazzinoLogico): string
+    {
+        return $magazzinoLogico . '-%';
+    }
+
+    private function getMagazzinoLogicoGroupingSql(): string
+    {
+        return "COALESCE(CAST(articoli.magazzino_logico AS CHAR), CAST(SUBSTRING_INDEX(articoli.codice, '-', 1) AS CHAR), 'n/a')";
+    }
+
+    private function getMagazzinoLogicoLabelSql(): string
+    {
+        return "CONCAT('Magazzino ', " . $this->getMagazzinoLogicoGroupingSql() . ")";
     }
 
     private function applyOrdinamentoArticoli(Builder $query): void
@@ -917,6 +935,14 @@ class AmministrazioneMagazzinoDashboard extends Component
         $this->categoriaId = $categoriaId;
     }
 
+    public function getHasDrilldownFiltersProperty(): bool
+    {
+        return filled($this->sedeId)
+            || filled($this->fornitoreId)
+            || filled($this->categoriaId)
+            || filled($this->marcaId);
+    }
+
     public function getStatisticheOrdinateProperty()
     {
         $statistiche = $this->statistiche;
@@ -1004,6 +1030,31 @@ class AmministrazioneMagazzinoDashboard extends Component
     {
         // Se marcaId è 'n/a', cerca articoli senza marca
         $this->marcaId = $marcaId;
+    }
+
+    public function getTotaliVistaCorrenteProperty(): array
+    {
+        $items = match ($this->viewStatistiche) {
+            'sede' => $this->statisticheOrdinate['per_sede'] ?? [],
+            'fornitore' => $this->fornitoriVisibili,
+            'categoria' => $this->statisticheOrdinate['per_categoria'] ?? [],
+            'marca' => $this->marcheVisibili,
+            default => [],
+        };
+
+        if (empty($items)) {
+            return [
+                'articoli' => (int) ($this->statistiche['totale_articoli'] ?? 0),
+                'quantita' => (float) ($this->statistiche['totale_quantita'] ?? 0),
+                'valore' => (float) ($this->statistiche['totale_valore'] ?? 0),
+            ];
+        }
+
+        return [
+            'articoli' => (int) collect($items)->sum('articoli'),
+            'quantita' => (float) collect($items)->sum('quantita'),
+            'valore' => (float) collect($items)->sum('valore'),
+        ];
     }
 
     public function chiudiFatturaModal()
