@@ -268,7 +268,7 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     private function getStatisticheGlobali(): array
     {
-        $row = $this->buildStatisticheBaseQuery()
+        $row = $this->buildStatisticheBaseQuery($this->shouldApplySedeFilterToLogicalStats())
             ->selectRaw('COUNT(DISTINCT articoli.id) as totale_articoli')
             ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as totale_quantita')
             ->selectRaw('COALESCE(SUM(CASE WHEN COALESCE(articoli.prezzo_acquisto, 0) > 0 THEN giacenze.quantita_residua * articoli.prezzo_acquisto ELSE 0 END), 0) as totale_valore')
@@ -286,7 +286,7 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     private function getStatistichePerSede(): array
     {
-        $rows = $this->buildStatisticheBaseQuery()
+        $rows = $this->buildStatisticheBaseQuery(false)
             ->leftJoin('sedi', 'sedi.id', '=', 'giacenze.sede_id')
             ->selectRaw("COALESCE(CAST(giacenze.sede_id AS CHAR), 'n/a') as gruppo_id")
             ->selectRaw("COALESCE(sedi.nome, 'N/A') as nome")
@@ -304,7 +304,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         $gruppoIdSql = $this->getMagazzinoLogicoGroupingSql();
         $nomeSql = $this->getMagazzinoLogicoLabelSql();
 
-        $rows = $this->buildStatisticheBaseQuery()
+        $rows = $this->buildStatisticheBaseQuery($this->shouldApplySedeFilterToLogicalStats())
             ->selectRaw($gruppoIdSql . ' as gruppo_id')
             ->selectRaw($nomeSql . ' as nome')
             ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
@@ -321,7 +321,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         $fornitoreIdSql = $this->getFornitoreIdSql();
         $fornitoreNomeSql = $this->getFornitoreNomeSql();
 
-        $rows = $this->buildStatisticheBaseQuery()
+        $rows = $this->buildStatisticheBaseQuery($this->shouldApplySedeFilterToLogicalStats())
             ->selectRaw($fornitoreIdSql . ' as gruppo_id')
             ->selectRaw($fornitoreNomeSql . ' as nome')
             ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
@@ -338,7 +338,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         $marcaKeySql = $this->getMarcaKeySql();
         $marcaNomeSql = $this->getMarcaNomeSql();
 
-        $rows = $this->buildStatisticheBaseQuery()
+        $rows = $this->buildStatisticheBaseQuery($this->shouldApplySedeFilterToLogicalStats())
             ->selectRaw($marcaKeySql . ' as gruppo_id')
             ->selectRaw($marcaNomeSql . ' as nome')
             ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
@@ -366,7 +366,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         return $mapped;
     }
 
-    private function buildStatisticheBaseQuery()
+    private function buildStatisticheBaseQuery(bool $applySedeFilter = true)
     {
         $query = DB::table('articoli')
             ->join('giacenze', 'giacenze.articolo_id', '=', 'articoli.id')
@@ -376,7 +376,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             $query->where('giacenze.quantita_residua', '>', 0);
         }
 
-        if ($this->sedeId) {
+        if ($applySedeFilter && $this->sedeId) {
             $query->where('giacenze.sede_id', $this->sedeId);
         }
 
@@ -470,6 +470,14 @@ class AmministrazioneMagazzinoDashboard extends Component
         }
 
         return $query;
+    }
+
+    private function shouldApplySedeFilterToLogicalStats(): bool
+    {
+        // Quando l'utente sta analizzando un magazzino logico specifico, la sede
+        // deve restare una chiave di lettura della dislocazione fisica e non
+        // alterare il totale del magazzino di appartenenza.
+        return !$this->categoriaId;
     }
 
     private function getFornitoreIdSql(): string

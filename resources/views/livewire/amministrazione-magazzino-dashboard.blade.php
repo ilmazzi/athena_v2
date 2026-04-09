@@ -98,7 +98,7 @@
                            placeholder="Codice, descrizione...">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small fw-semibold">Sede</label>
+                    <label class="form-label small fw-semibold">Ubicazione fisica</label>
                     <select class="form-select" wire:model.live="sedeId">
                         <option value="">Tutte</option>
                         @foreach($sedi as $sede)
@@ -171,7 +171,7 @@
                     $sedeLabel = optional($sedi->firstWhere('id', $sedeId))->nome ?? ('Sede ' . $sedeId);
                 @endphp
                 <button class="btn btn-sm btn-outline-primary" wire:click="clearSedeFilter">
-                    Sede: {{ $sedeLabel }}
+                    Ubicazione: {{ $sedeLabel }}
                     <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
                 </button>
             @endif
@@ -332,6 +332,11 @@
                 </span>
             @endif
             </div>
+            @if($categoriaId && $sedeId)
+                <div class="mt-2 small text-muted">
+                    I totali del magazzino restano calcolati sul magazzino logico di appartenenza. L'ubicazione fisica serve come vista di dislocazione interna.
+                </div>
+            @endif
         </div>
         <div class="card-body">
             @if($viewStatistiche == 'sede')
