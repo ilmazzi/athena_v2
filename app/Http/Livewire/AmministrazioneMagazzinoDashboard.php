@@ -356,9 +356,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             $query->where('giacenze.sede_id', $this->sedeId);
         }
 
-        if ($this->categoriaId) {
-            $query->where('articoli.categoria_merceologica_id', $this->categoriaId);
-        }
+        $this->applyCategoriaEContoDepositoFilterToQueryBuilder($query);
 
         if ($this->soloSenzaCosto) {
             $query->where(function ($q) {
@@ -373,16 +371,6 @@ class AmministrazioneMagazzinoDashboard extends Component
                 $q->where('articoli.codice', 'like', '%' . $search . '%')
                     ->orWhere('articoli.descrizione', 'like', '%' . $search . '%');
             });
-        }
-
-        if ($this->filtroContoDeposito === 'solo_reale') {
-            $query->where(function ($q) {
-                $q->whereNull('articoli.conto_deposito_corrente_id')
-                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
-            });
-        } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
-            $query->whereNotNull('articoli.conto_deposito_corrente_id')
-                ->where('articoli.quantita_in_deposito', '>', 0);
         }
 
         if ($this->fornitoreId !== null && $this->fornitoreId !== '') {
@@ -545,9 +533,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             });
         }
 
-        if ($this->categoriaId) {
-            $query->where('articoli.categoria_merceologica_id', $this->categoriaId);
-        }
+        $this->applyCategoriaEContoDepositoFilterToEloquent($query);
 
         // Filtro marca (da caratteristiche JSON)
         if ($this->marcaId !== null && $this->marcaId !== '') {
@@ -609,16 +595,6 @@ class AmministrazioneMagazzinoDashboard extends Component
             });
         }
 
-        if ($this->filtroContoDeposito === 'solo_reale') {
-            $query->where(function ($q) {
-                $q->whereNull('articoli.conto_deposito_corrente_id')
-                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
-            });
-        } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
-            $query->whereNotNull('articoli.conto_deposito_corrente_id')
-                ->where('articoli.quantita_in_deposito', '>', 0);
-        }
-
         if ($this->soloSenzaCosto) {
             $query->where(function ($q) {
                 $q->whereNull('articoli.prezzo_acquisto')
@@ -631,6 +607,98 @@ class AmministrazioneMagazzinoDashboard extends Component
             $query->where(function ($q) use ($search) {
                 $q->where('articoli.codice', 'like', '%' . $search . '%')
                     ->orWhere('articoli.descrizione', 'like', '%' . $search . '%');
+            });
+        }
+    }
+
+    private function applyCategoriaEContoDepositoFilterToQueryBuilder($query): void
+    {
+        if (!$this->categoriaId) {
+            if ($this->filtroContoDeposito === 'solo_reale') {
+                $query->where(function ($q) {
+                    $q->whereNull('articoli.conto_deposito_corrente_id')
+                        ->orWhere('articoli.quantita_in_deposito', '<=', 0);
+                });
+            } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
+                $query->whereNotNull('articoli.conto_deposito_corrente_id')
+                    ->where('articoli.quantita_in_deposito', '>', 0);
+            }
+
+            return;
+        }
+
+        $prefix = $this->categoriaId . '-%';
+
+        if ($this->filtroContoDeposito === 'solo_conto_deposito') {
+            $query->where('articoli.codice', 'like', $prefix)
+                ->whereNotNull('articoli.conto_deposito_corrente_id')
+                ->where('articoli.quantita_in_deposito', '>', 0);
+
+            return;
+        }
+
+        $query->where(function ($q) use ($prefix) {
+            $q->where('articoli.categoria_merceologica_id', $this->categoriaId);
+
+            if ($this->filtroContoDeposito === 'tutti') {
+                $q->orWhere(function ($cdQ) use ($prefix) {
+                    $cdQ->where('articoli.codice', 'like', $prefix)
+                        ->whereNotNull('articoli.conto_deposito_corrente_id')
+                        ->where('articoli.quantita_in_deposito', '>', 0);
+                });
+            }
+        });
+
+        if ($this->filtroContoDeposito === 'solo_reale') {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.conto_deposito_corrente_id')
+                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
+            });
+        }
+    }
+
+    private function applyCategoriaEContoDepositoFilterToEloquent($query): void
+    {
+        if (!$this->categoriaId) {
+            if ($this->filtroContoDeposito === 'solo_reale') {
+                $query->where(function ($q) {
+                    $q->whereNull('articoli.conto_deposito_corrente_id')
+                        ->orWhere('articoli.quantita_in_deposito', '<=', 0);
+                });
+            } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
+                $query->whereNotNull('articoli.conto_deposito_corrente_id')
+                    ->where('articoli.quantita_in_deposito', '>', 0);
+            }
+
+            return;
+        }
+
+        $prefix = $this->categoriaId . '-%';
+
+        if ($this->filtroContoDeposito === 'solo_conto_deposito') {
+            $query->where('articoli.codice', 'like', $prefix)
+                ->whereNotNull('articoli.conto_deposito_corrente_id')
+                ->where('articoli.quantita_in_deposito', '>', 0);
+
+            return;
+        }
+
+        $query->where(function ($q) use ($prefix) {
+            $q->where('articoli.categoria_merceologica_id', $this->categoriaId);
+
+            if ($this->filtroContoDeposito === 'tutti') {
+                $q->orWhere(function ($cdQ) use ($prefix) {
+                    $cdQ->where('articoli.codice', 'like', $prefix)
+                        ->whereNotNull('articoli.conto_deposito_corrente_id')
+                        ->where('articoli.quantita_in_deposito', '>', 0);
+                });
+            }
+        });
+
+        if ($this->filtroContoDeposito === 'solo_reale') {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.conto_deposito_corrente_id')
+                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
             });
         }
     }

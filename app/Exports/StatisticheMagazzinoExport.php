@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Articolo;
+use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -29,7 +30,8 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             'giacenza',
             'categoriaMerceologica',
             'sede',
-            'fatturaDettaglio.fattura.fornitore'
+            'fatturaDettaglio.fattura.fornitore',
+            'ddtDettaglio.ddt.fornitore'
         ])
         ->whereHas('giacenza', function ($q) {
             if ($this->filtri['soloGiacenti'] ?? true) {
@@ -43,13 +45,53 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             });
         }
 
-        if (!empty($this->filtri['categoriaId'])) {
-            $query->where('categoria_merceologica_id', $this->filtri['categoriaId']);
+        $categoriaId = $this->filtri['categoriaId'] ?? null;
+        $filtroContoDeposito = $this->filtri['filtroContoDeposito'] ?? 'tutti';
+
+        if (!empty($categoriaId)) {
+            $prefix = $categoriaId . '-%';
+
+            if ($filtroContoDeposito === 'solo_conto_deposito') {
+                $query->where('codice', 'like', $prefix)
+                    ->whereNotNull('conto_deposito_corrente_id')
+                    ->where('quantita_in_deposito', '>', 0);
+            } else {
+                $query->where(function ($q) use ($categoriaId, $filtroContoDeposito, $prefix) {
+                    $q->where('categoria_merceologica_id', $categoriaId);
+
+                    if ($filtroContoDeposito === 'tutti') {
+                        $q->orWhere(function ($cdQ) use ($prefix) {
+                            $cdQ->where('codice', 'like', $prefix)
+                                ->whereNotNull('conto_deposito_corrente_id')
+                                ->where('quantita_in_deposito', '>', 0);
+                        });
+                    }
+                });
+
+                if ($filtroContoDeposito === 'solo_reale') {
+                    $query->where(function ($q) {
+                        $q->whereNull('conto_deposito_corrente_id')
+                            ->orWhere('quantita_in_deposito', '<=', 0);
+                    });
+                }
+            }
+        } elseif ($filtroContoDeposito === 'solo_reale') {
+            $query->where(function ($q) {
+                $q->whereNull('conto_deposito_corrente_id')
+                    ->orWhere('quantita_in_deposito', '<=', 0);
+            });
+        } elseif ($filtroContoDeposito === 'solo_conto_deposito') {
+            $query->whereNotNull('conto_deposito_corrente_id')
+                ->where('quantita_in_deposito', '>', 0);
         }
 
         if (!empty($this->filtri['fornitoreId'])) {
-            $query->whereHas('fatturaDettaglio.fattura', function ($q) {
-                $q->where('fornitore_id', $this->filtri['fornitoreId']);
+            $query->where(function ($q) {
+                $q->whereHas('fatturaDettaglio.fattura', function ($subQ) {
+                    $subQ->where('fornitore_id', $this->filtri['fornitoreId']);
+                })->orWhereHas('ddtDettaglio.ddt', function ($subQ) {
+                    $subQ->where('fornitore_id', $this->filtri['fornitoreId']);
+                });
             });
         }
 
@@ -64,6 +106,23 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             $query->where(function ($q) {
                 $q->whereNull('prezzo_acquisto')
                   ->orWhere('prezzo_acquisto', 0);
+            });
+        }
+
+        if (!empty($this->filtri['dataDocumentoCaricoPrimaDi'])) {
+            $dataLimite = Carbon::parse($this->filtri['dataDocumentoCaricoPrimaDi'])->format('Y-m-d');
+
+            $query->where(function ($q) use ($dataLimite) {
+                $q->whereHas('fatturaDettaglio.fattura', function ($subQ) use ($dataLimite) {
+                    $subQ->whereDate('data_documento', '<', $dataLimite);
+                })->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($dataLimite) {
+                    $subQ->whereDate('data_documento', '<', $dataLimite);
+                })->orWhere(function ($subQ) use ($dataLimite) {
+                    $subQ->whereDate('data_carico', '<', $dataLimite)
+                        ->whereHas('ddtDettaglio.ddt', function ($ddtQ) {
+                            $ddtQ->where('numero', 'like', 'LEGACY-%');
+                        });
+                });
             });
         }
 
