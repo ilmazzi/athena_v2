@@ -1384,7 +1384,9 @@ class ArticoliTable extends Component
                 }
 
                 if (!str_contains($search, '-')) {
-                    $q->orWhere($codiceColumn, 'like', '%-' . $normalizedCode);
+                    // Match both the exact family code and generated split suffixes like 5-30304-2.
+                    $q->orWhere($codiceColumn, 'like', '%-' . $normalizedCode)
+                        ->orWhere($codiceColumn, 'like', '%-' . $normalizedCode . '-%');
                 }
             });
 
