@@ -28,6 +28,21 @@ class Articolo extends Model
 {
     use SoftDeletes, FiltersBySede;
 
+    /**
+     * Common mojibake fragments found in migrated legacy descriptions.
+     */
+    private const DISPLAY_ENCODING_REPLACEMENTS = [
+        'Ôé¼' => '€',
+        'â‚¬' => '€',
+        'Â€' => '€',
+        'Ã©' => 'é',
+        'Ã¨' => 'è',
+        'Ã ' => 'à',
+        'Ã¹' => 'ù',
+        'Ã¬' => 'ì',
+        'Ã²' => 'ò',
+    ];
+
     protected static function booted(): void
     {
         if (!app()->runningInConsole()) {
@@ -93,6 +108,16 @@ class Articolo extends Model
         'conto_deposito_corrente_id',
         'quantita_in_deposito',
     ];
+
+    public function getDescrizioneAttribute($value): ?string
+    {
+        return $this->normalizeDisplayEncoding($value);
+    }
+
+    public function getDescrizioneEstesaAttribute($value): ?string
+    {
+        return $this->normalizeDisplayEncoding($value);
+    }
     
     protected $casts = [
         'peso_lordo' => 'decimal:2',
@@ -192,6 +217,19 @@ class Articolo extends Model
     public function giacenza(): HasOne
     {
         return $this->hasOne(Giacenza::class, 'articolo_id');
+    }
+
+    private function normalizeDisplayEncoding($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return str_replace(
+            array_keys(self::DISPLAY_ENCODING_REPLACEMENTS),
+            array_values(self::DISPLAY_ENCODING_REPLACEMENTS),
+            (string) $value
+        );
     }
     
     /**
