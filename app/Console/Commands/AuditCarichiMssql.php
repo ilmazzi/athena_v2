@@ -69,6 +69,7 @@ class AuditCarichiMssql extends Command
         $exact = [];
         $mismatch = [];
         $missing = [];
+        $illegalSplits = [];
 
         $query = DB::table('articoli')
             ->select(
@@ -86,22 +87,32 @@ class AuditCarichiMssql extends Command
             $query->whereNull('deleted_at');
         }
 
-        $query->chunk(1000, function ($rows) use (&$exact, &$mismatch, &$missing, $mssqlByBase, $onlyProblematic) {
+        $query->chunk(1000, function ($rows) use (&$exact, &$mismatch, &$missing, &$illegalSplits, $mssqlByBase, $onlyProblematic) {
             foreach ($rows as $row) {
-                $baseCode = trim((string) ($row->codice_base ?: $row->codice));
+                $codice = trim((string) $row->codice);
+                $baseCode = $this->resolveMysqlBaseCode($codice, $row->codice_base ?? null);
+                $prefix = $this->extractPrefix($codice);
                 $mysqlNumero = $this->normalizeDocumentNumber($row->numero_documento_carico ?? null);
                 $mysqlData = $this->normalizeDate($row->data_carico ?? null);
 
                 $payload = [
                     'articolo_id' => (int) $row->id,
-                    'codice' => (string) $row->codice,
+                    'codice' => $codice,
                     'codice_base' => (string) ($row->codice_base ?? ''),
                     'base_code_match' => $baseCode,
+                    'prefix' => $prefix,
                     'descrizione_mysql' => trim((string) ($row->descrizione ?? '')),
                     'mysql_numero_documento' => $mysqlNumero,
                     'mysql_data_carico' => $mysqlData,
                     'deleted_at' => $row->deleted_at,
                 ];
+
+                if ($this->isIllegalSplit($codice, $prefix, $row->codice_base ?? null)) {
+                    $illegalSplits[] = $payload + [
+                        'status' => 'illegal_split_for_prefix',
+                    ];
+                    continue;
+                }
 
                 $mssql = $mssqlByBase[$baseCode] ?? null;
                 if ($mssql === null) {
@@ -141,6 +152,7 @@ class AuditCarichiMssql extends Command
         $files = [];
         $files['missing_in_mssql'] = $this->writeCsv($root, "missing_in_mssql_{$timestamp}.csv", $missing);
         $files['mismatch'] = $this->writeCsv($root, "mismatch_carichi_{$timestamp}.csv", $mismatch);
+        $files['illegal_splits'] = $this->writeCsv($root, "illegal_splits_{$timestamp}.csv", $illegalSplits);
         $files['mssql_duplicates'] = $this->writeCsv($root, "mssql_basecode_duplicates_{$timestamp}.csv", $mssqlDuplicates);
         if (!$onlyProblematic) {
             $files['match'] = $this->writeCsv($root, "match_carichi_{$timestamp}.csv", $exact);
@@ -153,6 +165,7 @@ class AuditCarichiMssql extends Command
                 'match' => count($exact),
                 'mismatch' => count($mismatch),
                 'missing_in_mssql' => count($missing),
+                'illegal_splits' => count($illegalSplits),
                 'mssql_basecode_duplicates' => count($mssqlDuplicates),
             ],
             'files' => $files,
@@ -167,6 +180,7 @@ class AuditCarichiMssql extends Command
                 ['Match', count($exact)],
                 ['Mismatch', count($mismatch)],
                 ['Missing in MSSQL', count($missing)],
+                ['Illegal splits', count($illegalSplits)],
                 ['MSSQL duplicate base_code', count($mssqlDuplicates)],
             ]
         );
@@ -187,6 +201,52 @@ class AuditCarichiMssql extends Command
         }
 
         return null;
+    }
+
+    private function extractPrefix(string $codice): ?int
+    {
+        if (!preg_match('/^(\d+)-/', $codice, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function resolveMysqlBaseCode(string $codice, ?string $codiceBase): string
+    {
+        $explicitBase = trim((string) ($codiceBase ?? ''));
+        $prefix = $this->extractPrefix($codice);
+
+        if ($prefix === 5) {
+            if ($explicitBase !== '') {
+                return $explicitBase;
+            }
+
+            if (preg_match('/^5-\d+-\d+$/', $codice)) {
+                $parts = explode('-', $codice);
+                return $parts[0] . '-' . $parts[1];
+            }
+        }
+
+        return $explicitBase !== '' ? $explicitBase : $codice;
+    }
+
+    private function isIllegalSplit(string $codice, ?int $prefix, ?string $codiceBase): bool
+    {
+        if (!in_array($prefix, [2, 3, 20], true)) {
+            return false;
+        }
+
+        if (preg_match('/^\d+-\d+-\d+$/', $codice) === 1) {
+            return true;
+        }
+
+        $explicitBase = trim((string) ($codiceBase ?? ''));
+        if ($explicitBase === '') {
+            return false;
+        }
+
+        return $explicitBase !== $codice;
     }
 
     private function mssqlViewExists(string $viewName): bool
