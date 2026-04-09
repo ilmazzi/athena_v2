@@ -262,6 +262,18 @@ class ScaricoMagazzino extends Component
         $this->showModalConferma = false;
     }
 
+    public function rimuoviArticoloSelezionato($articoloId)
+    {
+        $this->articoliSelezionati = array_values(array_diff($this->articoliSelezionati, [$articoloId]));
+        unset($this->quantitaArticoli[$articoloId]);
+        $this->updateSelezionaTuttiState();
+    }
+
+    public function svuotaSelezione()
+    {
+        $this->reset(['articoliSelezionati', 'selezionaTutti', 'quantitaArticoli']);
+    }
+
 
 
     /**
@@ -295,11 +307,29 @@ class ScaricoMagazzino extends Component
         return $query;
     }
 
+    public function getArticoliSelezionatiDettaglioProperty()
+    {
+        if (empty($this->articoliSelezionati)) {
+            return collect();
+        }
+
+        $articoli = Articolo::with(['sede', 'giacenza', 'categoriaMerceologica'])
+            ->whereIn('id', $this->articoliSelezionati)
+            ->get()
+            ->keyBy('id');
+
+        return collect($this->articoliSelezionati)
+            ->map(fn ($articoloId) => $articoli->get($articoloId))
+            ->filter()
+            ->values();
+    }
+
     public function render()
     {
         $articoli = $this->getArticoliQuery()
             ->orderBy('codice')
             ->paginate($this->perPage);
+        $articoliSelezionatiDettaglio = $this->articoliSelezionatiDettaglio;
 
         // Aggiorna stato "seleziona tutti" per la pagina corrente
         $this->updateSelezionaTuttiState();
@@ -330,7 +360,7 @@ class ScaricoMagazzino extends Component
             'in_pagina' => $articoli->count(),
         ];
 
-        return view('livewire.scarico-magazzino', compact('articoli', 'categorie', 'sedi', 'stats'));
+        return view('livewire.scarico-magazzino', compact('articoli', 'articoliSelezionatiDettaglio', 'categorie', 'sedi', 'stats'));
     }
 }
 

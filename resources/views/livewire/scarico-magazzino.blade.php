@@ -106,6 +106,82 @@
                             </div>
                         </div>
 
+                        @if($articoliSelezionatiDettaglio->isNotEmpty())
+                            <div class="card border-primary bg-primary-subtle mb-4">
+                                <div class="card-header bg-transparent border-primary d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div>
+                                        <h6 class="mb-1 text-primary">Articoli già selezionati</h6>
+                                        <small class="text-muted">Restano visibili qui mentre continui la ricerca nella tabella sotto.</small>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-primary">{{ $articoliSelezionatiDettaglio->count() }} selezionati</span>
+                                        <button class="btn btn-sm btn-outline-danger" wire:click="svuotaSelezione">
+                                            <iconify-icon icon="solar:trash-bin-trash-bold" class="me-1"></iconify-icon>
+                                            Svuota selezione
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Codice</th>
+                                                    <th>Descrizione</th>
+                                                    <th>Magazzino</th>
+                                                    <th>Sede</th>
+                                                    <th class="text-center">Giacenza</th>
+                                                    <th class="text-center">Q.tà da scaricare</th>
+                                                    <th class="text-end">Prezzo</th>
+                                                    <th class="text-center">Azioni</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($articoliSelezionatiDettaglio as $articoloSelezionato)
+                                                    <tr>
+                                                        <td class="fw-semibold">{{ $articoloSelezionato->codice }}</td>
+                                                        <td>
+                                                            <div class="fw-semibold">{{ Str::limit($articoloSelezionato->descrizione, 45) }}</div>
+                                                            @if($articoloSelezionato->materiale)
+                                                                <small class="text-muted">{{ $articoloSelezionato->materiale }}</small>
+                                                            @endif
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-secondary">{{ $articoloSelezionato->categoriaMerceologica->nome ?? 'N/A' }}</span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-info">{{ $articoloSelezionato->sede->nome ?? 'N/A' }}</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="fw-semibold text-success">{{ $articoloSelezionato->giacenza->quantita_residua ?? 0 }}</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            @if(($articoloSelezionato->giacenza->quantita_residua ?? 0) > 1)
+                                                                <input type="number"
+                                                                       class="form-control form-control-sm mx-auto"
+                                                                       wire:model.live="quantitaArticoli.{{ $articoloSelezionato->id }}"
+                                                                       min="1"
+                                                                       max="{{ $articoloSelezionato->giacenza->quantita_residua ?? 1 }}"
+                                                                       style="width: 90px;">
+                                                            @else
+                                                                <span class="badge bg-success">Completo</span>
+                                                            @endif
+                                                        </td>
+                                                        <td class="text-end fw-semibold">€{{ number_format($articoloSelezionato->prezzo_acquisto ?? 0, 2) }}</td>
+                                                        <td class="text-center">
+                                                            <button class="btn btn-sm btn-outline-danger" wire:click="rimuoviArticoloSelezionato({{ $articoloSelezionato->id }})">
+                                                                <iconify-icon icon="solar:trash-bin-trash-bold"></iconify-icon>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         <!-- Tabella Articoli -->
                         <div class="table-responsive">
                             <table class="table table-hover">
@@ -316,10 +392,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach($articoliSelezionati as $articoloId)
-                                        @php
-                                            $articolo = $articoli->firstWhere('id', $articoloId);
-                                        @endphp
+                                    @foreach($articoliSelezionatiDettaglio as $articolo)
                                         @if($articolo)
                                             <tr>
                                                 <td>
@@ -333,13 +406,13 @@
                                                 </td>
                                                 <td>
                                                     <input type="number" class="form-control form-control-sm" 
-                                                           wire:model.live="quantitaArticoli.{{ $articoloId }}"
+                                                           wire:model.live="quantitaArticoli.{{ $articolo->id }}"
                                                            min="1" max="{{ $articolo->giacenza->quantita_residua ?? 1 }}"
                                                            style="width: 80px;">
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-secondary">
-                                                        {{ ($articolo->giacenza->quantita_residua ?? 0) - ($quantitaArticoli[$articoloId] ?? 1) }}
+                                                        {{ ($articolo->giacenza->quantita_residua ?? 0) - ($quantitaArticoli[$articolo->id] ?? 1) }}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -394,4 +467,3 @@ document.addEventListener('change', function(e) {
 
 // Le selezioni vengono mantenute automaticamente da Livewire
 </script>
-
