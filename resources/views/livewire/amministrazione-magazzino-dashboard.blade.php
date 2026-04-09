@@ -167,21 +167,27 @@
         <div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 mb-4">
             <span class="small text-muted fw-semibold me-2">Filtri attivi:</span>
             @if($sedeId)
-                @php($sedeLabel = optional($sedi->firstWhere('id', $sedeId))->nome ?? ('Sede ' . $sedeId))
+                @php
+                    $sedeLabel = optional($sedi->firstWhere('id', $sedeId))->nome ?? ('Sede ' . $sedeId);
+                @endphp
                 <button class="btn btn-sm btn-outline-primary" wire:click="clearSedeFilter">
                     Sede: {{ $sedeLabel }}
                     <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
                 </button>
             @endif
             @if($fornitoreId)
-                @php($fornitoreLabel = optional($fornitori->firstWhere('id', $fornitoreId))->ragione_sociale ?? $fornitoreId)
+                @php
+                    $fornitoreLabel = optional($fornitori->firstWhere('id', $fornitoreId))->ragione_sociale ?? $fornitoreId;
+                @endphp
                 <button class="btn btn-sm btn-outline-primary" wire:click="clearFornitoreFilter">
                     Fornitore: {{ $fornitoreLabel }}
                     <iconify-icon icon="solar:close-circle-bold" class="ms-1"></iconify-icon>
                 </button>
             @endif
             @if($categoriaId)
-                @php($categoriaLabel = optional($categorie->firstWhere('id', $categoriaId))->nome ?? ('Categoria ' . $categoriaId))
+                @php
+                    $categoriaLabel = optional($categorie->firstWhere('id', $categoriaId))->nome ?? ('Categoria ' . $categoriaId);
+                @endphp
                 <button class="btn btn-sm btn-outline-primary" wire:click="clearCategoriaFilter">
                     Categoria: {{ $categoriaLabel }}
                     @if($filtroContoDeposito === 'solo_reale')
