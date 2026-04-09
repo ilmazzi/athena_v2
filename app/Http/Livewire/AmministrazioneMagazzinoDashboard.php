@@ -35,7 +35,7 @@ class AmministrazioneMagazzinoDashboard extends Component
 {
     use WithPagination;
 
-    private const STATISTICHE_CACHE_VERSION = 'v3';
+    private const STATISTICHE_CACHE_VERSION = 'v4';
 
     // Filtri
     public $sedeId = '';
@@ -257,9 +257,10 @@ class AmministrazioneMagazzinoDashboard extends Component
     private function buildStatistichePayload(): array
     {
         $globali = $this->getStatisticheGlobali();
+        $includeDistribuzioneFisica = (bool) $this->categoriaId;
 
         return array_merge($globali, [
-            'per_sede' => $this->viewStatistiche === 'sede' ? $this->getStatistichePerSede() : [],
+            'per_sede' => ($this->viewStatistiche === 'sede' || $includeDistribuzioneFisica) ? $this->getStatistichePerSede() : [],
             'per_fornitore' => $this->viewStatistiche === 'fornitore' ? $this->getStatistichePerFornitore() : [],
             'per_categoria' => $this->viewStatistiche === 'categoria' ? $this->getStatistichePerCategoria() : [],
             'per_marca' => $this->viewStatistiche === 'marca' ? $this->getStatistichePerMarca() : [],

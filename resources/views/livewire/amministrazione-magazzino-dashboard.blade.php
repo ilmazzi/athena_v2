@@ -339,6 +339,60 @@
             @endif
         </div>
         <div class="card-body">
+            @if($categoriaId && !empty($statistiche['per_sede']))
+                @php
+                    $distribuzionePerSede = collect($statistiche['per_sede']);
+                @endphp
+                <div class="mb-4 p-3 bg-light rounded border">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div>
+                            <h6 class="mb-1 fw-bold">Distribuzione Fisica Del Magazzino</h6>
+                            <small class="text-muted">
+                                Gli articoli continuano a contare nel magazzino logico selezionato, ma qui vedi dove sono dislocati fisicamente.
+                            </small>
+                        </div>
+                        <span class="badge bg-light-primary text-primary">
+                            {{ $distribuzionePerSede->count() }} sedi coinvolte
+                        </span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Ubicazione fisica</th>
+                                    <th class="text-end">Articoli</th>
+                                    <th class="text-end">Quantità</th>
+                                    <th class="text-end">Valorizzazione</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($distribuzionePerSede as $sedeDistribuzione)
+                                    <tr>
+                                        <td><strong>{{ $sedeDistribuzione['nome'] }}</strong></td>
+                                        <td class="text-end">{{ number_format($sedeDistribuzione['articoli'], 0, ',', '.') }}</td>
+                                        <td class="text-end">{{ number_format($sedeDistribuzione['quantita'], 0, ',', '.') }}</td>
+                                        <td class="text-end">
+                                            <strong class="text-success">€{{ number_format($sedeDistribuzione['valore'], 2, ',', '.') }}</strong>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <th>TOTALE DISTRIBUITO</th>
+                                    <th class="text-end">{{ number_format($distribuzionePerSede->sum('articoli'), 0, ',', '.') }}</th>
+                                    <th class="text-end">{{ number_format($distribuzionePerSede->sum('quantita'), 0, ',', '.') }}</th>
+                                    <th class="text-end">
+                                        <strong class="text-success">€{{ number_format($distribuzionePerSede->sum('valore'), 2, ',', '.') }}</strong>
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
             @if($viewStatistiche == 'sede')
                 <div class="table-responsive">
                     <table class="table table-hover">
