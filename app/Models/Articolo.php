@@ -54,10 +54,10 @@ class Articolo extends Model
                         $q->where($table . '.sede_id', $sedeId)
                           ->orWhereExists(function($sub) use ($sedeId, $table){
                               $sub->selectRaw(1)
-                                  ->from('giacenze_sedi')
-                                  ->whereColumn('giacenze_sedi.articolo_id', $table.'.id')
-                                  ->where('giacenze_sedi.sede_id', $sedeId)
-                                  ->where('giacenze_sedi.quantita_residua', '>', 0);
+                                  ->from('giacenze')
+                                  ->whereColumn('giacenze.articolo_id', $table.'.id')
+                                  ->where('giacenze.sede_id', $sedeId)
+                                  ->where('giacenze.quantita_residua', '>', 0);
                           });
                     });
                 }

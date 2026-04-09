@@ -2,19 +2,16 @@
 
 namespace App\Services;
 
-use App\Domain\Magazzino\Exceptions\GiacenzaInsufficienteException;
-use App\Models\Giacenza;
 use App\Models\Articolo;
+use App\Models\Giacenza;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Service per gestione giacenze
- * 
-     * Business Rules:
-     * - Una giacenza per coppia Articolo + Categoria
- * - Mai quantità negative
- * - Decremento aggiorna stato articolo se quantità = 0
- * - NO data_scarico (solo stato)
+ * Service per gestione giacenze.
+ *
+ * Regola di dominio:
+ * - `quantita` = quantita caricata storica
+ * - `quantita_residua` = disponibilita operativa
  */
 class GiacenzaService
 {
@@ -23,15 +20,6 @@ class GiacenzaService
     ) {
     }
 
-    /**
-     * Crea giacenza per articolo (1:1)
-     * 
-     * @param int $articoloId
-     * @param int $magazzinoId
-     * @param int $quantita
-     * @param string|null $scaffale
-     * @return Giacenza
-     */
     public function creaGiacenza(
         int $articoloId,
         int $magazzinoId,
@@ -39,52 +27,41 @@ class GiacenzaService
         ?string $scaffale = null
     ): Giacenza {
         return DB::transaction(function () use ($articoloId, $magazzinoId, $quantita, $scaffale) {
-            // Verifica che non esista già
             $esistente = Giacenza::where('articolo_id', $articoloId)
                 ->where('categoria_merceologica_id', $magazzinoId)
                 ->first();
+
             if ($esistente) {
-                throw new \LogicException("Giacenza già esistente per articolo ID {$articoloId}");
+                throw new \LogicException("Giacenza gia esistente per articolo ID {$articoloId}");
             }
-            
-            // Crea giacenza
+
             return Giacenza::create([
                 'articolo_id' => $articoloId,
                 'categoria_merceologica_id' => $magazzinoId,
                 'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoId),
                 'quantita' => $quantita,
+                'quantita_iniziale' => $quantita,
+                'quantita_residua' => $quantita,
                 'scaffale' => $scaffale,
                 'ultimo_movimento_at' => now(),
             ]);
         });
     }
-    
-    /**
-     * Incrementa giacenza (carico)
-     * 
-     * @param int $articoloId
-     * @param int $quantita
-     * @return Giacenza
-     */
+
     public function incrementa(int $articoloId, int $quantita = 1): Giacenza
     {
         return DB::transaction(function () use ($articoloId, $quantita) {
             $giacenza = Giacenza::where('articolo_id', $articoloId)
                 ->lockForUpdate()
                 ->firstOrFail();
-            
+
             $giacenza->incrementa($quantita);
-            
+
             return $giacenza->fresh();
         });
     }
-    
+
     /**
-     * Decrementa giacenza (scarico/vendita)
-     * 
-     * @param int $articoloId
-     * @param int $quantita
-     * @return Giacenza
      * @throws GiacenzaInsufficienteException
      */
     public function decrementa(int $articoloId, int $quantita = 1): Giacenza
@@ -93,59 +70,38 @@ class GiacenzaService
             $giacenza = Giacenza::where('articolo_id', $articoloId)
                 ->lockForUpdate()
                 ->firstOrFail();
-            
+
             $giacenza->decrementa($quantita);
-            
+
             return $giacenza->fresh();
         });
     }
-    
-    /**
-     * Verifica disponibilità giacenza
-     * 
-     * @param int $articoloId
-     * @param int $quantita
-     * @return bool
-     */
+
     public function verificaDisponibilita(int $articoloId, int $quantita = 1): bool
     {
         $giacenza = Giacenza::where('articolo_id', $articoloId)->first();
-        
+
         if (!$giacenza) {
             return false;
         }
-        
+
         return $giacenza->hasDisponibilita($quantita);
     }
-    
-    /**
-     * Ottieni quantità disponibile per articolo
-     * 
-     * @param int $articoloId
-     * @return int
-     */
+
     public function getQuantitaDisponibile(int $articoloId): int
     {
         $giacenza = Giacenza::where('articolo_id', $articoloId)->first();
-        
-        return $giacenza ? $giacenza->quantita : 0;
+
+        return $giacenza ? (int) ($giacenza->quantita_residua ?? $giacenza->quantita ?? 0) : 0;
     }
-    
-    /**
-     * Trasferisci giacenza tra magazzini
-     * 
-     * @param int $articoloId
-     * @param int $magazzinoDestinazioneId
-     * @param int $quantita
-     * @return Giacenza Nuova giacenza nel magazzino destinazione
-     */
+
     public function trasferisci(
         int $articoloId,
         int $magazzinoDestinazioneId,
         int $quantita = 1
     ): Giacenza {
         $articolo = Articolo::findOrFail($articoloId);
-        
+
         return $this->trasferisciDaA(
             $articoloId,
             $articolo->categoria_merceologica_id,
@@ -155,13 +111,8 @@ class GiacenzaService
     }
 
     /**
-     * Trasferisci giacenza tra magazzini specificando origine e destinazione
-     * 
-     * @param int $articoloId
-     * @param int $magazzinoOrigineId
-     * @param int $magazzinoDestinazioneId
-     * @param int $quantita
-     * @return Giacenza
+     * Trasferisce l'articolo tra magazzini aggiornando la collocazione,
+     * senza alterare la quantita storica caricata.
      */
     public function trasferisciDaA(
         int $articoloId,
@@ -170,58 +121,47 @@ class GiacenzaService
         int $quantita = 1
     ): Giacenza {
         return DB::transaction(function () use ($articoloId, $magazzinoOrigineId, $magazzinoDestinazioneId, $quantita) {
-            $giacenzaOrigine = Giacenza::where('articolo_id', $articoloId)
+            $giacenza = Giacenza::where('articolo_id', $articoloId)
                 ->where('categoria_merceologica_id', $magazzinoOrigineId)
                 ->lockForUpdate()
                 ->firstOrFail();
-            
-            $giacenzaOrigine->decrementa($quantita);
-            
-            $giacenzaDestinazione = Giacenza::where('categoria_merceologica_id', $magazzinoDestinazioneId)
-                ->where('articolo_id', $articoloId)
-                ->first();
-            
-            if ($giacenzaDestinazione) {
-                $giacenzaDestinazione->incrementa($quantita);
-                if (!$giacenzaDestinazione->magazzino_logico) {
-                    $giacenzaDestinazione->update([
-                        'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
-                    ]);
-                }
-            } else {
-                $giacenzaDestinazione = $this->creaGiacenza(
-                    $articoloId,
-                    $magazzinoDestinazioneId,
-                    $quantita
+
+            if (!$giacenza->hasDisponibilita($quantita)) {
+                $disponibile = (int) ($giacenza->quantita_residua ?? $giacenza->quantita ?? 0);
+
+                throw new GiacenzaInsufficienteException(
+                    "Giacenza insufficiente per articolo {$articoloId}: richiesti {$quantita}, disponibili {$disponibile}"
                 );
             }
-            
-            Articolo::find($articoloId)->update([
+
+            $magazzinoLogicoDestinazione = $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId);
+
+            $giacenza->update([
                 'categoria_merceologica_id' => $magazzinoDestinazioneId,
-                'magazzino_logico' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
+                'magazzino_logico' => $magazzinoLogicoDestinazione,
+                'ultimo_movimento_at' => now(),
             ]);
-            
-            return $giacenzaDestinazione;
+
+            Articolo::findOrFail($articoloId)->update([
+                'categoria_merceologica_id' => $magazzinoDestinazioneId,
+                'magazzino_logico' => $magazzinoLogicoDestinazione,
+            ]);
+
+            return $giacenza->fresh();
         });
     }
-    
-    /**
-     * Ottieni report giacenze per magazzino
-     * 
-     * @param int $magazzinoId
-     * @return array
-     */
+
     public function reportGiacenzeMagazzino(int $magazzinoId): array
     {
         $giacenze = Giacenza::where('categoria_merceologica_id', $magazzinoId)
             ->with('articolo')
             ->disponibili()
             ->get();
-        
+
         return [
             'totale_articoli' => $giacenze->count(),
-            'valore_totale' => $giacenze->sum(fn($g) => $g->articolo->prezzo_acquisto * $g->quantita),
-            'quantita_totale' => $giacenze->sum('quantita'),
+            'valore_totale' => $giacenze->sum(fn ($g) => ($g->articolo->prezzo_acquisto ?? 0) * ($g->quantita_residua ?? 0)),
+            'quantita_totale' => $giacenze->sum(fn ($g) => (int) ($g->quantita_residua ?? $g->quantita ?? 0)),
             'giacenze' => $giacenze,
         ];
     }

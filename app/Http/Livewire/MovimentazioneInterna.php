@@ -276,7 +276,6 @@ class MovimentazioneInterna extends Component
                     if ($magazzinoOrigineId <= 0) {
                         throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                     }
-                    $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
@@ -313,7 +312,6 @@ class MovimentazioneInterna extends Component
                         if ($magazzinoOrigineId <= 0) {
                             throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                         }
-                        $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $componente->quantita,
@@ -384,88 +382,12 @@ class MovimentazioneInterna extends Component
             return (int) $giacenza->categoria_merceologica_id;
         }
 
-        $giacenzaSede = \App\Models\GiacenzaSede::where('articolo_id', $articolo->id)
-            ->where('sede_id', $sedeId)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->first();
-
-        $giacenzaFallback = \App\Models\Giacenza::where('articolo_id', $articolo->id)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->orderByDesc('quantita_residua')
-            ->first();
-
-        if ($giacenzaFallback) {
-            if (!$giacenzaFallback->sede_id || $giacenzaFallback->sede_id !== $sedeId) {
-                $giacenzaFallback->update(['sede_id' => $sedeId]);
-            }
-            if (!$giacenzaFallback->categoria_merceologica_id) {
-                \Log::warning('⚠️ Giacenza fallback senza categoria', [
-                    'articolo_id' => $articolo->id,
-                    'sede_id' => $sedeId,
-                    'giacenza_id' => $giacenzaFallback->id,
-                ]);
-                $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
-                $giacenzaFallback->update(['categoria_merceologica_id' => $categoriaId]);
-                return (int) $categoriaId;
-            }
-            return (int) $giacenzaFallback->categoria_merceologica_id;
-        }
-
         $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
         if (!$categoriaId) {
             throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
         }
 
         return (int) $categoriaId;
-    }
-
-    private function syncGiacenzaOrigineDaSede(int $articoloId, int $sedeId, int $categoriaId): void
-    {
-        $giacenzaSede = \App\Models\GiacenzaSede::where('articolo_id', $articoloId)
-            ->where('sede_id', $sedeId)
-            ->first();
-        if (!$giacenzaSede) {
-            return;
-        }
-
-        $quantita = max($giacenzaSede->quantita_residua ?? 0, $giacenzaSede->quantita ?? 0);
-        if ($quantita <= 0) {
-            return;
-        }
-
-        $giacenza = \App\Models\Giacenza::where('articolo_id', $articoloId)
-            ->where('categoria_merceologica_id', $categoriaId)
-            ->first();
-
-        if ($giacenza) {
-            $disponibile = $giacenza->quantita_residua ?? $giacenza->quantita ?? 0;
-            if ($disponibile >= $quantita) {
-                return;
-            }
-            $giacenza->update([
-                'sede_id' => $sedeId,
-                'quantita' => $quantita,
-                'quantita_residua' => $quantita,
-                'ultimo_movimento_at' => now(),
-            ]);
-            return;
-        }
-
-        \App\Models\Giacenza::create([
-            'articolo_id' => $articoloId,
-            'categoria_merceologica_id' => $categoriaId,
-            'sede_id' => $sedeId,
-            'quantita' => $quantita,
-            'quantita_iniziale' => $quantita,
-            'quantita_residua' => $quantita,
-            'ultimo_movimento_at' => now(),
-        ]);
     }
     
     public function getTotaleSelezionati(): int
