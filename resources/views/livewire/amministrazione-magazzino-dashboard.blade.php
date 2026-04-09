@@ -129,6 +129,14 @@
                     <input type="date" class="form-control" wire:model.live="dataDocumentoCaricoPrimaDi">
                 </div>
                 <div class="col-md-2">
+                    <label class="form-label small fw-semibold">Conto deposito</label>
+                    <select class="form-select" wire:model.live="filtroContoDeposito">
+                        <option value="tutti">Tutti</option>
+                        <option value="solo_reale">Solo magazzino reale</option>
+                        <option value="solo_conto_deposito">Solo conto deposito</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label small fw-semibold">Opzioni</label>
                     <div class="d-flex gap-2">
                         <div class="form-check">
@@ -145,7 +153,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-md-2 d-flex align-items-end gap-2">
+                <div class="col-md-1 d-flex align-items-end gap-2">
                     <button class="btn btn-light w-100" wire:click="resetFiltri">
                         <iconify-icon icon="solar:refresh-bold" class="me-1"></iconify-icon>
                         Reset
@@ -249,16 +257,16 @@
                         Per Categoria
                     </button>
                 </li>
-                @if(!empty($statistiche['per_marca']) && count($statistiche['per_marca']) > 0)
-                    <li class="nav-item">
-                        <button class="nav-link @if($viewStatistiche == 'marca') active @endif" 
-                                wire:click="$set('viewStatistiche', 'marca')" 
-                                type="button">
-                            Per Marca
+                <li class="nav-item">
+                    <button class="nav-link @if($viewStatistiche == 'marca') active @endif" 
+                            wire:click="$set('viewStatistiche', 'marca')" 
+                            type="button">
+                        Per Marca
+                        @if(!empty($statistiche['per_marca']))
                             <span class="badge bg-light-primary text-primary ms-1">{{ count($statistiche['per_marca']) }}</span>
-                        </button>
-                    </li>
-                @endif
+                        @endif
+                    </button>
+                </li>
             </ul>
         </div>
         <div class="card-body">
@@ -298,7 +306,7 @@
                                 <tr style="cursor: pointer;" 
                                     wire:click="filtraPerSede('{{ $sedeId }}')"
                                     class="hover-row"
-                                    title="Clicca per vedere gli articoli di questa sede">
+                                    title="Clicca per applicare questo filtro">
                                     <td>
                                         <strong>{{ $sedeData['nome'] }}</strong>
                                         <iconify-icon icon="solar:arrow-right-bold" class="text-muted ms-1 small"></iconify-icon>
@@ -382,7 +390,7 @@
                                 <tr style="cursor: pointer;" 
                                     wire:click="filtraPerFornitore('{{ $fornitoreId }}')"
                                     class="hover-row"
-                                    title="Clicca per vedere gli articoli di questo fornitore">
+                                    title="Clicca per applicare questo filtro">
                                     <td>
                                         <strong>{{ $fornitoreData['nome'] }}</strong>
                                         <iconify-icon icon="solar:arrow-right-bold" class="text-muted ms-1 small"></iconify-icon>
@@ -461,7 +469,7 @@
                                 <tr style="cursor: pointer;" 
                                     wire:click="filtraPerCategoria('{{ $categoriaId }}')"
                                     class="hover-row"
-                                    title="Clicca per vedere gli articoli di questa categoria">
+                                    title="Clicca per applicare questo filtro">
                                     <td>
                                         <strong>{{ $categoriaData['nome'] }}</strong>
                                         <iconify-icon icon="solar:arrow-right-bold" class="text-muted ms-1 small"></iconify-icon>
@@ -545,7 +553,7 @@
                                 <tr style="cursor: pointer;" 
                                     wire:click="filtraPerMarca('{{ $marcaId }}')"
                                     class="hover-row"
-                                    title="Clicca per vedere gli articoli di questa marca">
+                                    title="Clicca per applicare questo filtro">
                                     <td>
                                         <strong>{{ $marcaData['nome'] }}</strong>
                                         <iconify-icon icon="solar:arrow-right-bold" class="text-muted ms-1 small"></iconify-icon>
@@ -620,39 +628,20 @@
         </div>
     </div>
 
-    {{-- Tabella Articoli --}}
-    <div class="card" id="articoli-table" wire:ignore.self>
-        <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <h6 class="card-title mb-0">
-                    <iconify-icon icon="solar:box-bold" class="me-2"></iconify-icon>
-                    Articoli Giacenti
-                    @if($articoli->total() > 0)
-                        <span class="badge bg-light-primary text-primary ms-2">{{ $articoli->total() }}</span>
-                    @endif
-                    @if(count($articoliSelezionati) > 0)
-                        <span class="badge bg-success ms-2">{{ count($articoliSelezionati) }} selezionati</span>
-                    @endif
-                </h6>
-                <div class="d-flex gap-2">
-                    @if(count($articoliSelezionati) > 0)
-                        <button class="btn btn-outline-secondary btn-sm" wire:click="deselezionaTuttiArticoli">
-                            <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
-                            Deseleziona Tutti
-                        </button>
-                    @endif
-                    <button class="btn btn-primary btn-sm" 
-                            wire:click="apriFatturaModal"
-                            @if(empty($articoliSelezionati)) disabled @endif>
-                        <iconify-icon icon="solar:document-add-bold" class="me-1"></iconify-icon>
-                        Nuova Fattura Acquisto
-                        @if(count($articoliSelezionati) > 0)
-                            <span class="badge bg-light text-dark ms-1">{{ count($articoliSelezionati) }}</span>
-                        @endif
-                    </button>
-                </div>
+    <div class="card mb-4">
+        <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+            <div>
+                <h6 class="fw-bold mb-1">Dashboard alleggerita</h6>
+                <p class="text-muted mb-0">
+                    Questa pagina mostra solo statistiche aggregate. Per il dettaglio articolo per articolo usa la pagina dedicata agli articoli di magazzino.
+                </p>
+            </div>
+            <div class="text-lg-end">
+                <span class="badge bg-light-primary text-primary px-3 py-2">Caricamento ottimizzato</span>
             </div>
         </div>
+    </div>
+    {{--
         <div class="card-body">
             @if($articoli->count() > 0)
                 <div class="table-responsive">
@@ -811,6 +800,7 @@
         </div>
     </div>
 
+    --}}
     {{-- Modal Fattura Acquisto --}}
     @if($showFatturaModal)
         <div class="modal fade show d-block" style="z-index: 1055;" tabindex="-1" role="dialog" wire:key="modal-fattura">
@@ -1111,17 +1101,4 @@
         }
     </style>
 
-    <script>
-        document.addEventListener('livewire:initialized', () => {
-            Livewire.on('scroll-to-articles', () => {
-                setTimeout(() => {
-                    const element = document.getElementById('articoli-table');
-                    if (element) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                }, 300);
-            });
-        });
-    </script>
 </div>
-

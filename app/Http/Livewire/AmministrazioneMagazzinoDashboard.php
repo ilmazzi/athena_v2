@@ -34,6 +34,8 @@ class AmministrazioneMagazzinoDashboard extends Component
 {
     use WithPagination;
 
+    private const STATISTICHE_CACHE_VERSION = 'v2';
+
     // Filtri
     public $sedeId = '';
     public $fornitoreId = '';
@@ -41,6 +43,7 @@ class AmministrazioneMagazzinoDashboard extends Component
     public $marcaId = ''; // Per future implementazioni marche
     public $search = '';
     public $dataDocumentoCaricoPrimaDi = '';
+    public $filtroContoDeposito = 'tutti'; // 'tutti', 'solo_reale', 'solo_conto_deposito'
     public $soloSenzaCosto = false;
     public $soloGiacenti = true;
 
@@ -96,6 +99,7 @@ class AmministrazioneMagazzinoDashboard extends Component
         'categoriaId' => ['except' => ''],
         'search' => ['except' => ''],
         'dataDocumentoCaricoPrimaDi' => ['except' => ''],
+        'filtroContoDeposito' => ['except' => 'tutti'],
         'sortArticoliField' => ['except' => 'codice'],
         'sortArticoliDirection' => ['except' => 'asc'],
         'soloSenzaCosto' => ['except' => false],
@@ -153,125 +157,9 @@ class AmministrazioneMagazzinoDashboard extends Component
             return $cached['data'] ?? [];
         }
 
-        $stats = [
-            'totale_articoli' => 0,
-            'totale_valore' => 0,
-            'totale_quantita' => 0,
-            'articoli_senza_costo' => 0,
-            'valore_senza_costo' => 0,
-            'per_sede' => [],
-            'per_fornitore' => [],
-            'per_categoria' => [],
-            'per_marca' => [],
-        ];
+        $stats = $this->buildStatistichePayload();
 
-        // Query base articoli con gli stessi filtri della tabella (processata a chunk per evitare OOM)
-        $articoliQuery = Articolo::with([
-            'giacenza',
-            'giacenza.sede',
-            'categoriaMerceologica',
-            'fatturaDettaglio.fattura.fornitore',
-            'ddtDettaglio.ddt.fornitore'
-        ]);
-        $this->applyFiltriArticoli($articoliQuery);
-
-        $articoliQuery->orderBy('id')->chunk(1000, function ($articoli) use (&$stats) {
-            foreach ($articoli as $articolo) {
-                $qta = $articolo->giacenza->quantita_residua ?? 0;
-                $costo = $articolo->prezzo_acquisto ?? 0;
-                $valore = $qta * $costo;
-
-                $stats['totale_articoli']++;
-                $stats['totale_quantita'] += $qta;
-                
-                if ($costo > 0) {
-                    $stats['totale_valore'] += $valore;
-                } else {
-                    $stats['articoli_senza_costo']++;
-                }
-
-                // Per sede
-                $sedeId = $articolo->giacenza->sede_id ?? 'n/a';
-                if (!isset($stats['per_sede'][$sedeId])) {
-                    $stats['per_sede'][$sedeId] = [
-                        'nome' => $articolo->giacenza->sede->nome ?? 'N/A',
-                        'articoli' => 0,
-                        'quantita' => 0,
-                        'valore' => 0,
-                    ];
-                }
-                $stats['per_sede'][$sedeId]['articoli']++;
-                $stats['per_sede'][$sedeId]['quantita'] += $qta;
-                $stats['per_sede'][$sedeId]['valore'] += $valore;
-
-                // Per fornitore - preferisci fattura, altrimenti DDT
-                $fornitore = $articolo->fatturaDettaglio->first()?->fattura?->fornitore 
-                            ?? $articolo->ddtDettaglio->first()?->ddt?->fornitore;
-                $fornitoreId = $fornitore ? $fornitore->id : 'n/a';
-                $fornitoreNome = $fornitore ? $fornitore->ragione_sociale : 'Senza Fornitore';
-                
-                if (!isset($stats['per_fornitore'][$fornitoreId])) {
-                    $stats['per_fornitore'][$fornitoreId] = [
-                        'nome' => $fornitoreNome,
-                        'articoli' => 0,
-                        'quantita' => 0,
-                        'valore' => 0,
-                    ];
-                }
-                $stats['per_fornitore'][$fornitoreId]['articoli']++;
-                $stats['per_fornitore'][$fornitoreId]['quantita'] += $qta;
-                $stats['per_fornitore'][$fornitoreId]['valore'] += $valore;
-
-                // Per categoria
-                $categoriaId = $articolo->categoria_merceologica_id ?? 'n/a';
-                if (!isset($stats['per_categoria'][$categoriaId])) {
-                    $stats['per_categoria'][$categoriaId] = [
-                        'nome' => $articolo->categoriaMerceologica->nome ?? 'N/A',
-                        'articoli' => 0,
-                        'quantita' => 0,
-                        'valore' => 0,
-                    ];
-                }
-                $stats['per_categoria'][$categoriaId]['articoli']++;
-                $stats['per_categoria'][$categoriaId]['quantita'] += $qta;
-                $stats['per_categoria'][$categoriaId]['valore'] += $valore;
-
-                // Per marca (estratto da caratteristiche JSON)
-                $marca = null;
-                if ($articolo->caratteristiche) {
-                    $caratteristiche = is_string($articolo->caratteristiche) 
-                        ? json_decode($articolo->caratteristiche, true) 
-                        : $articolo->caratteristiche;
-                    
-                    if (is_array($caratteristiche)) {
-                        // Cerca 'marca' o 'brand' nelle caratteristiche (case insensitive)
-                        $marca = $caratteristiche['marca'] ?? $caratteristiche['Marca'] ?? 
-                                 $caratteristiche['brand'] ?? $caratteristiche['Brand'] ?? null;
-                    }
-                }
-                
-                $marcaId = $marca ? strtolower(trim($marca)) : 'n/a';
-                $marcaNome = $marca ? trim($marca) : 'Senza Marca';
-                
-                if (!isset($stats['per_marca'][$marcaId])) {
-                    $stats['per_marca'][$marcaId] = [
-                        'nome' => $marcaNome,
-                        'articoli' => 0,
-                        'quantita' => 0,
-                        'valore' => 0,
-                    ];
-                }
-                $stats['per_marca'][$marcaId]['articoli']++;
-                $stats['per_marca'][$marcaId]['quantita'] += $qta;
-                $stats['per_marca'][$marcaId]['valore'] += $valore;
-            }
-        });
-
-        $this->statisticheCachedAt = now()->format('d/m/Y H:i');
-        Cache::put($cacheKey, [
-            'cached_at' => $this->statisticheCachedAt,
-            'data' => $stats,
-        ], now()->addMinutes(15));
+        $this->storeStatisticheInCache($cacheKey, $stats);
 
         return $stats;
     }
@@ -282,14 +170,18 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     public function resetFiltri()
     {
-        $this->reset(['sedeId', 'fornitoreId', 'categoriaId', 'search', 'dataDocumentoCaricoPrimaDi', 'soloSenzaCosto']);
+        $this->reset(['sedeId', 'fornitoreId', 'categoriaId', 'search', 'dataDocumentoCaricoPrimaDi', 'filtroContoDeposito', 'soloSenzaCosto']);
         $this->soloGiacenti = true;
     }
 
     public function refreshStatistiche()
     {
-        Cache::forget($this->getStatisticheCacheKey());
-        $this->statisticheCachedAt = null;
+        foreach ($this->getStatisticheCacheKeysForCurrentFilters() as $cacheKey) {
+            Cache::forget($cacheKey);
+        }
+
+        $stats = $this->buildStatistichePayload();
+        $this->storeStatisticheInCache($this->getStatisticheCacheKey(), $stats);
     }
 
     public function ordinaArticoli($campo)
@@ -304,18 +196,338 @@ class AmministrazioneMagazzinoDashboard extends Component
         $this->resetPage();
     }
 
-    private function getStatisticheCacheKey(): string
+    private function getStatisticheCacheKey(?string $view = null): string
     {
         return 'amministrazione_magazzino_statistiche_' . md5(json_encode([
+            'version' => self::STATISTICHE_CACHE_VERSION,
+            'viewStatistiche' => $view ?? $this->viewStatistiche,
             'sedeId' => $this->sedeId,
             'fornitoreId' => $this->fornitoreId,
             'categoriaId' => $this->categoriaId,
             'marcaId' => $this->marcaId,
             'search' => $this->search,
             'dataDocumentoCaricoPrimaDi' => $this->dataDocumentoCaricoPrimaDi,
+            'filtroContoDeposito' => $this->filtroContoDeposito,
             'soloSenzaCosto' => (bool) $this->soloSenzaCosto,
             'soloGiacenti' => (bool) $this->soloGiacenti,
         ]));
+    }
+
+    private function getStatisticheCacheKeysForCurrentFilters(): array
+    {
+        return collect(['globale', 'sede', 'fornitore', 'categoria', 'marca'])
+            ->map(fn ($view) => $this->getStatisticheCacheKey($view))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function storeStatisticheInCache(string $cacheKey, array $stats): void
+    {
+        $this->statisticheCachedAt = now()->format('d/m/Y H:i:s');
+
+        Cache::put($cacheKey, [
+            'cached_at' => $this->statisticheCachedAt,
+            'data' => $stats,
+        ], now()->addMinutes(15));
+    }
+
+    private function buildStatistichePayload(): array
+    {
+        $globali = $this->getStatisticheGlobali();
+
+        return array_merge($globali, [
+            'per_sede' => $this->viewStatistiche === 'sede' ? $this->getStatistichePerSede() : [],
+            'per_fornitore' => $this->viewStatistiche === 'fornitore' ? $this->getStatistichePerFornitore() : [],
+            'per_categoria' => $this->viewStatistiche === 'categoria' ? $this->getStatistichePerCategoria() : [],
+            'per_marca' => $this->viewStatistiche === 'marca' ? $this->getStatistichePerMarca() : [],
+        ]);
+    }
+
+    private function getStatisticheGlobali(): array
+    {
+        $row = $this->buildStatisticheBaseQuery()
+            ->selectRaw('COUNT(DISTINCT articoli.id) as totale_articoli')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as totale_quantita')
+            ->selectRaw('COALESCE(SUM(CASE WHEN COALESCE(articoli.prezzo_acquisto, 0) > 0 THEN giacenze.quantita_residua * articoli.prezzo_acquisto ELSE 0 END), 0) as totale_valore')
+            ->selectRaw('COALESCE(SUM(CASE WHEN COALESCE(articoli.prezzo_acquisto, 0) <= 0 THEN 1 ELSE 0 END), 0) as articoli_senza_costo')
+            ->first();
+
+        return [
+            'totale_articoli' => (int) ($row->totale_articoli ?? 0),
+            'totale_valore' => (float) ($row->totale_valore ?? 0),
+            'totale_quantita' => (float) ($row->totale_quantita ?? 0),
+            'articoli_senza_costo' => (int) ($row->articoli_senza_costo ?? 0),
+            'valore_senza_costo' => 0,
+        ];
+    }
+
+    private function getStatistichePerSede(): array
+    {
+        $rows = $this->buildStatisticheBaseQuery()
+            ->leftJoin('sedi', 'sedi.id', '=', 'giacenze.sede_id')
+            ->selectRaw("COALESCE(CAST(giacenze.sede_id AS CHAR), 'n/a') as gruppo_id")
+            ->selectRaw("COALESCE(sedi.nome, 'N/A') as nome")
+            ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as quantita')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua * COALESCE(articoli.prezzo_acquisto, 0)), 0) as valore')
+            ->groupBy('giacenze.sede_id', 'sedi.nome')
+            ->get();
+
+        return $this->mapStatisticheRows($rows);
+    }
+
+    private function getStatistichePerCategoria(): array
+    {
+        $rows = $this->buildStatisticheBaseQuery()
+            ->leftJoin('categorie_merceologiche', 'categorie_merceologiche.id', '=', 'articoli.categoria_merceologica_id')
+            ->selectRaw("COALESCE(CAST(articoli.categoria_merceologica_id AS CHAR), 'n/a') as gruppo_id")
+            ->selectRaw("COALESCE(categorie_merceologiche.nome, 'N/A') as nome")
+            ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as quantita')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua * COALESCE(articoli.prezzo_acquisto, 0)), 0) as valore')
+            ->groupBy('articoli.categoria_merceologica_id', 'categorie_merceologiche.nome')
+            ->get();
+
+        return $this->mapStatisticheRows($rows);
+    }
+
+    private function getStatistichePerFornitore(): array
+    {
+        $fornitoreIdSql = $this->getFornitoreIdSql();
+        $fornitoreNomeSql = $this->getFornitoreNomeSql();
+
+        $rows = $this->buildStatisticheBaseQuery()
+            ->selectRaw($fornitoreIdSql . ' as gruppo_id')
+            ->selectRaw($fornitoreNomeSql . ' as nome')
+            ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as quantita')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua * COALESCE(articoli.prezzo_acquisto, 0)), 0) as valore')
+            ->groupBy(DB::raw($fornitoreIdSql), DB::raw($fornitoreNomeSql))
+            ->get();
+
+        return $this->mapStatisticheRows($rows);
+    }
+
+    private function getStatistichePerMarca(): array
+    {
+        $marcaKeySql = $this->getMarcaKeySql();
+        $marcaNomeSql = $this->getMarcaNomeSql();
+
+        $rows = $this->buildStatisticheBaseQuery()
+            ->selectRaw($marcaKeySql . ' as gruppo_id')
+            ->selectRaw($marcaNomeSql . ' as nome')
+            ->selectRaw('COUNT(DISTINCT articoli.id) as articoli')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua), 0) as quantita')
+            ->selectRaw('COALESCE(SUM(giacenze.quantita_residua * COALESCE(articoli.prezzo_acquisto, 0)), 0) as valore')
+            ->groupBy(DB::raw($marcaKeySql), DB::raw($marcaNomeSql))
+            ->get();
+
+        return $this->mapStatisticheRows($rows);
+    }
+
+    private function mapStatisticheRows($rows): array
+    {
+        $mapped = [];
+
+        foreach ($rows as $row) {
+            $mapped[(string) $row->gruppo_id] = [
+                'nome' => $row->nome,
+                'articoli' => (int) $row->articoli,
+                'quantita' => (float) $row->quantita,
+                'valore' => (float) $row->valore,
+            ];
+        }
+
+        return $mapped;
+    }
+
+    private function buildStatisticheBaseQuery()
+    {
+        $query = DB::table('articoli')
+            ->join('giacenze', 'giacenze.articolo_id', '=', 'articoli.id')
+            ->whereNull('articoli.deleted_at');
+
+        if ($this->soloGiacenti) {
+            $query->where('giacenze.quantita_residua', '>', 0);
+        }
+
+        if ($this->sedeId) {
+            $query->where('giacenze.sede_id', $this->sedeId);
+        }
+
+        if ($this->categoriaId) {
+            $query->where('articoli.categoria_merceologica_id', $this->categoriaId);
+        }
+
+        if ($this->soloSenzaCosto) {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.prezzo_acquisto')
+                    ->orWhere('articoli.prezzo_acquisto', 0);
+            });
+        }
+
+        if ($this->search) {
+            $search = trim((string) $this->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('articoli.codice', 'like', '%' . $search . '%')
+                    ->orWhere('articoli.descrizione', 'like', '%' . $search . '%');
+            });
+        }
+
+        if ($this->filtroContoDeposito === 'solo_reale') {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.conto_deposito_corrente_id')
+                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
+            });
+        } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
+            $query->whereNotNull('articoli.conto_deposito_corrente_id')
+                ->where('articoli.quantita_in_deposito', '>', 0);
+        }
+
+        if ($this->fornitoreId !== null && $this->fornitoreId !== '') {
+            if ($this->fornitoreId === 'n/a') {
+                $query->whereRaw('NOT EXISTS (
+                    SELECT 1
+                    FROM fatture_dettagli fd
+                    INNER JOIN fatture f ON f.id = fd.fattura_id AND f.deleted_at IS NULL
+                    WHERE fd.articolo_id = articoli.id
+                )')
+                ->whereRaw('NOT EXISTS (
+                    SELECT 1
+                    FROM ddt_dettagli dd
+                    INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                    WHERE dd.articolo_id = articoli.id
+                )');
+            } else {
+                $fornitoreId = (int) $this->fornitoreId;
+                $query->where(function ($q) use ($fornitoreId) {
+                    $q->whereRaw('EXISTS (
+                        SELECT 1
+                        FROM fatture_dettagli fd
+                        INNER JOIN fatture f ON f.id = fd.fattura_id AND f.deleted_at IS NULL
+                        WHERE fd.articolo_id = articoli.id
+                          AND f.fornitore_id = ?
+                    )', [$fornitoreId])
+                    ->orWhereRaw('EXISTS (
+                        SELECT 1
+                        FROM ddt_dettagli dd
+                        INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                        WHERE dd.articolo_id = articoli.id
+                          AND d.fornitore_id = ?
+                    )', [$fornitoreId]);
+                });
+            }
+        }
+
+        if ($this->marcaId !== null && $this->marcaId !== '') {
+            if ($this->marcaId === 'n/a') {
+                $query->whereRaw($this->getMarcaKeySql() . " = 'n/a'");
+            } else {
+                $query->whereRaw($this->getMarcaKeySql() . ' = ?', [strtolower(trim((string) $this->marcaId))]);
+            }
+        }
+
+        if ($this->dataDocumentoCaricoPrimaDi) {
+            $dataLimite = Carbon::parse($this->dataDocumentoCaricoPrimaDi)->format('Y-m-d');
+
+            $query->where(function ($q) use ($dataLimite) {
+                $q->whereRaw('EXISTS (
+                    SELECT 1
+                    FROM fatture_dettagli fd
+                    INNER JOIN fatture f ON f.id = fd.fattura_id AND f.deleted_at IS NULL
+                    WHERE fd.articolo_id = articoli.id
+                      AND DATE(f.data_documento) < ?
+                )', [$dataLimite])
+                ->orWhereRaw('EXISTS (
+                    SELECT 1
+                    FROM ddt_dettagli dd
+                    INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                    WHERE dd.articolo_id = articoli.id
+                      AND DATE(d.data_documento) < ?
+                )', [$dataLimite])
+                ->orWhereRaw('DATE(articoli.data_carico) < ?
+                    AND EXISTS (
+                        SELECT 1
+                        FROM ddt_dettagli dd
+                        INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                        WHERE dd.articolo_id = articoli.id
+                          AND d.numero LIKE ?
+                    )', [$dataLimite, 'LEGACY-%']);
+            });
+        }
+
+        return $query;
+    }
+
+    private function getFornitoreIdSql(): string
+    {
+        return "COALESCE(
+            CAST((
+                SELECT f.fornitore_id
+                FROM fatture_dettagli fd
+                INNER JOIN fatture f ON f.id = fd.fattura_id AND f.deleted_at IS NULL
+                WHERE fd.articolo_id = articoli.id
+                ORDER BY f.id ASC
+                LIMIT 1
+            ) AS CHAR),
+            CAST((
+                SELECT d.fornitore_id
+                FROM ddt_dettagli dd
+                INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                WHERE dd.articolo_id = articoli.id
+                ORDER BY d.id ASC
+                LIMIT 1
+            ) AS CHAR),
+            'n/a'
+        )";
+    }
+
+    private function getFornitoreNomeSql(): string
+    {
+        return "COALESCE(
+            (
+                SELECT fornitori.ragione_sociale
+                FROM fatture_dettagli fd
+                INNER JOIN fatture f ON f.id = fd.fattura_id AND f.deleted_at IS NULL
+                INNER JOIN fornitori ON fornitori.id = f.fornitore_id
+                WHERE fd.articolo_id = articoli.id
+                ORDER BY f.id ASC
+                LIMIT 1
+            ),
+            (
+                SELECT fornitori.ragione_sociale
+                FROM ddt_dettagli dd
+                INNER JOIN ddt d ON d.id = dd.ddt_id AND d.deleted_at IS NULL
+                INNER JOIN fornitori ON fornitori.id = d.fornitore_id
+                WHERE dd.articolo_id = articoli.id
+                ORDER BY d.id ASC
+                LIMIT 1
+            ),
+            'Senza Fornitore'
+        )";
+    }
+
+    private function getMarcaKeySql(): string
+    {
+        return "COALESCE(
+            NULLIF(LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.marca')))), ''),
+            NULLIF(LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.Marca')))), ''),
+            NULLIF(LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.brand')))), ''),
+            NULLIF(LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.Brand')))), ''),
+            'n/a'
+        )";
+    }
+
+    private function getMarcaNomeSql(): string
+    {
+        return "COALESCE(
+            NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.marca'))), ''),
+            NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.Marca'))), ''),
+            NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.brand'))), ''),
+            NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(articoli.caratteristiche, '$.Brand'))), ''),
+            'Senza Marca'
+        )";
     }
 
     private function applyFiltriArticoli($query): void
@@ -386,8 +598,25 @@ class AmministrazioneMagazzinoDashboard extends Component
                     $subQ->whereDate('data_documento', '<', $dataLimite);
                 })->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($dataLimite) {
                     $subQ->whereDate('data_documento', '<', $dataLimite);
+                })->orWhere(function ($subQ) use ($dataLimite) {
+                    // I DDT legacy sintetici possono accorpare articoli con date storiche diverse:
+                    // in quel caso il riferimento corretto resta la data_carico dell'articolo.
+                    $subQ->whereDate('articoli.data_carico', '<', $dataLimite)
+                        ->whereHas('ddtDettaglio.ddt', function ($ddtQ) {
+                            $ddtQ->where('numero', 'like', 'LEGACY-%');
+                        });
                 });
             });
+        }
+
+        if ($this->filtroContoDeposito === 'solo_reale') {
+            $query->where(function ($q) {
+                $q->whereNull('articoli.conto_deposito_corrente_id')
+                    ->orWhere('articoli.quantita_in_deposito', '<=', 0);
+            });
+        } elseif ($this->filtroContoDeposito === 'solo_conto_deposito') {
+            $query->whereNotNull('articoli.conto_deposito_corrente_id')
+                ->where('articoli.quantita_in_deposito', '>', 0);
         }
 
         if ($this->soloSenzaCosto) {
@@ -607,26 +836,17 @@ class AmministrazioneMagazzinoDashboard extends Component
     public function filtraPerSede($sedeId)
     {
         $this->sedeId = $sedeId;
-        $this->resetPage();
-        // Scroll alla tabella articoli
-        $this->dispatch('scroll-to-articles');
     }
 
     public function filtraPerFornitore($fornitoreId)
     {
         // Imposta il filtro fornitore (può essere un ID numerico o 'n/a')
         $this->fornitoreId = $fornitoreId;
-        $this->resetPage();
-        // Scroll alla tabella articoli
-        $this->dispatch('scroll-to-articles');
     }
 
     public function filtraPerCategoria($categoriaId)
     {
         $this->categoriaId = $categoriaId;
-        $this->resetPage();
-        // Scroll alla tabella articoli
-        $this->dispatch('scroll-to-articles');
     }
 
     public function getStatisticheOrdinateProperty()
@@ -716,9 +936,6 @@ class AmministrazioneMagazzinoDashboard extends Component
     {
         // Se marcaId è 'n/a', cerca articoli senza marca
         $this->marcaId = $marcaId;
-        $this->resetPage();
-        // Scroll alla tabella articoli
-        $this->dispatch('scroll-to-articles');
     }
 
     public function chiudiFatturaModal()
@@ -908,6 +1125,7 @@ class AmministrazioneMagazzinoDashboard extends Component
             'categoriaId' => $this->categoriaId,
             'search' => $this->search,
             'dataDocumentoCaricoPrimaDi' => $this->dataDocumentoCaricoPrimaDi,
+            'filtroContoDeposito' => $this->filtroContoDeposito,
             'soloSenzaCosto' => $this->soloSenzaCosto,
             'soloGiacenti' => $this->soloGiacenti,
         ];
@@ -964,7 +1182,6 @@ class AmministrazioneMagazzinoDashboard extends Component
     public function render()
     {
         return view('livewire.amministrazione-magazzino-dashboard', [
-            'articoli' => $this->articoliGiacenti,
             'statistiche' => $this->statisticheOrdinate,
             'statisticheConfronto' => $this->statisticheConfronto,
             'sedi' => $this->sedi,
