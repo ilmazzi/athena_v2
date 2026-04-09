@@ -118,7 +118,10 @@ class Giacenza extends Model
             throw new \InvalidArgumentException("Quantita deve essere positiva, ricevuto: {$quantita}");
         }
 
-        $disponibile = max($this->quantita_residua ?? 0, $this->quantita ?? 0);
+        $disponibile = $this->quantita_residua;
+        if (is_null($disponibile)) {
+            $disponibile = $this->quantita ?? 0;
+        }
         if ($disponibile < $quantita) {
             throw GiacenzaInsufficienteException::forArticolo(
                 $this->articolo_id,
@@ -143,7 +146,10 @@ class Giacenza extends Model
 
     public function hasDisponibilita(int $quantita = 1): bool
     {
-        $disponibile = max($this->quantita_residua ?? 0, $this->quantita ?? 0);
+        $disponibile = $this->quantita_residua;
+        if (is_null($disponibile)) {
+            $disponibile = $this->quantita ?? 0;
+        }
 
         return $disponibile >= $quantita;
     }

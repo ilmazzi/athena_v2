@@ -79,12 +79,10 @@ class ArticoloSplitService
                 'note' => $giacenza->note,
             ]);
 
-            $nuovaQuantita = max(0, (int) $giacenza->quantita - $quantita);
             $residuaBase = $giacenza->quantita_residua ?? $giacenza->quantita;
             $nuovaResidua = max(0, (int) $residuaBase - $quantita);
 
             $giacenza->update([
-                'quantita' => $nuovaQuantita,
                 'quantita_residua' => $nuovaResidua,
                 'ultimo_movimento_at' => now(),
             ]);
