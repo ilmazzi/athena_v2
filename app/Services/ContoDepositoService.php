@@ -523,25 +523,29 @@ class ContoDepositoService
                 
                 $costoUnitario = $movimentoInvio ? $movimentoInvio->costo_unitario : ($articolo->costo_totale ?? 0);
 
+                $articoloDaRendere = $articolo;
+                if ($quantitaDaRestituire < $quantitaDisponibile) {
+                    $articoloDaRendere = $this->splitArticoloPerResoDeposito(
+                        $contoDeposito,
+                        $articolo,
+                        $quantitaDaRestituire
+                    );
+                }
+
                 // Crea movimento reso
                 $movimento = MovimentoDeposito::creaReso(
                     $contoDeposito,
-                    $articolo,
+                    $articoloDaRendere,
                     $quantitaDaRestituire,
                     $costoUnitario,
                     null,
-                    "Reso manuale articolo {$articolo->codice}"
+                    "Reso manuale articolo {$articoloDaRendere->codice}"
                 );
 
-                // Aggiorna quantità in deposito dell'articolo
-                $this->ripristinaArticoloDaDeposito($contoDeposito, $articolo);
-                
-                // Se quantità = 0, rimuovi il deposito corrente
-                
-                
-                // Ripristina magazzino originale se deposito inter-società (sempre, anche se reso parziale)
-                
-                
+                $this->ripristinaArticoloDaDeposito($contoDeposito, $articoloDaRendere);
+                $articolo->refresh();
+                $articolo->aggiornaQuantitaInDeposito();
+
                 $movimentiReso->push($movimento);
                 
                 // Invia notifica reso solo se deposito inter-società
@@ -736,6 +740,86 @@ class ContoDepositoService
         $articolo->save();
         $articolo->refresh();
         $articolo->aggiornaQuantitaInDeposito();
+    }
+
+    private function splitArticoloPerResoDeposito(ContoDeposito $contoDeposito, Articolo $articolo, int $quantita): Articolo
+    {
+        $figlio = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
+
+        $figlio->update([
+            'conto_deposito_corrente_id' => $contoDeposito->id,
+        ]);
+
+        $this->riallocaMovimentiIngressoDeposito($contoDeposito, $articolo, $figlio, $quantita);
+
+        $articolo->refresh();
+        $articolo->aggiornaQuantitaInDeposito();
+        $figlio->refresh();
+        $figlio->aggiornaQuantitaInDeposito();
+
+        return $figlio;
+    }
+
+    private function riallocaMovimentiIngressoDeposito(
+        ContoDeposito $contoDeposito,
+        Articolo $articoloOrigine,
+        Articolo $articoloFiglio,
+        int $quantita
+    ): void {
+        $movimentiIngresso = $contoDeposito->movimenti()
+            ->where('articolo_id', $articoloOrigine->id)
+            ->whereIn('tipo_movimento', ['invio', 'rimando'])
+            ->orderBy('data_movimento')
+            ->orderBy('id')
+            ->get();
+
+        $disponibile = (int) $movimentiIngresso->sum('quantita');
+        if ($disponibile < $quantita) {
+            throw new \RuntimeException(
+                "Movimenti di ingresso insufficienti per riallocare il reso parziale di {$articoloOrigine->codice}"
+            );
+        }
+
+        $rimanenteDaRiallocare = $quantita;
+
+        foreach ($movimentiIngresso as $movimentoIngresso) {
+            if ($rimanenteDaRiallocare <= 0) {
+                break;
+            }
+
+            $quantitaMovimento = (int) $movimentoIngresso->quantita;
+            if ($quantitaMovimento <= 0) {
+                continue;
+            }
+
+            if ($quantitaMovimento <= $rimanenteDaRiallocare) {
+                $movimentoIngresso->update([
+                    'articolo_id' => $articoloFiglio->id,
+                ]);
+                $rimanenteDaRiallocare -= $quantitaMovimento;
+                continue;
+            }
+
+            $movimentoFiglio = $movimentoIngresso->replicate();
+            $movimentoFiglio->articolo_id = $articoloFiglio->id;
+            $movimentoFiglio->quantita = $rimanenteDaRiallocare;
+            $movimentoFiglio->costo_totale = $rimanenteDaRiallocare * (float) $movimentoIngresso->costo_unitario;
+            $movimentoFiglio->save();
+
+            $nuovaQuantitaOrigine = $quantitaMovimento - $rimanenteDaRiallocare;
+            $movimentoIngresso->update([
+                'quantita' => $nuovaQuantitaOrigine,
+                'costo_totale' => $nuovaQuantitaOrigine * (float) $movimentoIngresso->costo_unitario,
+            ]);
+
+            $rimanenteDaRiallocare = 0;
+        }
+
+        if ($rimanenteDaRiallocare > 0) {
+            throw new \RuntimeException(
+                "Impossibile completare la riallocazione dei movimenti di ingresso per {$articoloOrigine->codice}"
+            );
+        }
     }
 
     /**
