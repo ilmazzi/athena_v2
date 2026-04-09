@@ -498,7 +498,7 @@ class GestioneFornitori extends Component
                 a.sede_id = {$userSedeId}
                 OR EXISTS (
                     SELECT 1
-                    FROM giacenze_sedi gs
+                    FROM giacenze gs
                     WHERE gs.articolo_id = a.id
                       AND gs.sede_id = {$userSedeId}
                       AND gs.quantita_residua > 0

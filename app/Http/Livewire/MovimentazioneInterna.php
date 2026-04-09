@@ -267,7 +267,7 @@ class MovimentazioneInterna extends Component
                         throw new \Exception("L'articolo {$articolo->codice} è in conto deposito e non può essere movimentato.");
                     }
 
-                    $giacenzaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+                    $giacenzaDisponibile = $articolo->giacenza?->quantita_residua ?? ($articolo->giacenza?->quantita ?? 0);
                     if ($quantita < $giacenzaDisponibile) {
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }

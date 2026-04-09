@@ -92,7 +92,11 @@ class GiacenzaService
     {
         $giacenza = Giacenza::where('articolo_id', $articoloId)->first();
 
-        return $giacenza ? (int) ($giacenza->quantita_residua ?? $giacenza->quantita ?? 0) : 0;
+        if (!$giacenza) {
+            return 0;
+        }
+
+        return (int) ($giacenza->quantita_residua ?? ($giacenza->quantita ?? 0));
     }
 
     public function trasferisci(
@@ -127,7 +131,7 @@ class GiacenzaService
                 ->firstOrFail();
 
             if (!$giacenza->hasDisponibilita($quantita)) {
-                $disponibile = (int) ($giacenza->quantita_residua ?? $giacenza->quantita ?? 0);
+                $disponibile = (int) ($giacenza->quantita_residua ?? ($giacenza->quantita ?? 0));
 
                 throw new GiacenzaInsufficienteException(
                     "Giacenza insufficiente per articolo {$articoloId}: richiesti {$quantita}, disponibili {$disponibile}"
@@ -161,7 +165,7 @@ class GiacenzaService
         return [
             'totale_articoli' => $giacenze->count(),
             'valore_totale' => $giacenze->sum(fn ($g) => ($g->articolo->prezzo_acquisto ?? 0) * ($g->quantita_residua ?? 0)),
-            'quantita_totale' => $giacenze->sum(fn ($g) => (int) ($g->quantita_residua ?? $g->quantita ?? 0)),
+            'quantita_totale' => $giacenze->sum(fn ($g) => (int) ($g->quantita_residua ?? ($g->quantita ?? 0))),
             'giacenze' => $giacenze,
         ];
     }

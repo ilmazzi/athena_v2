@@ -121,7 +121,7 @@ class ContoDepositoService
         $costoUnitario = $costoUnitario ?? $articolo->prezzo_acquisto ?? 0;
 
         return DB::transaction(function () use ($contoDeposito, $articolo, $quantita, $costoUnitario) {
-            $qtaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+            $qtaDisponibile = $articolo->giacenza?->quantita_residua ?? ($articolo->giacenza?->quantita ?? 0);
             if ($quantita < $qtaDisponibile) {
                 $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
             }
@@ -150,8 +150,8 @@ class ContoDepositoService
                 }
             }
 
-            // Se deposito inter-società, muovi quantità tra giacenze_sedi
-            // SALVA il magazzino originale nei dettagli del movimento
+            // Se deposito inter-societa, sposta la collocazione canonica senza toccare la residua
+            // e salva il magazzino originale nei dettagli del movimento
             $magazzinoOriginaleId = $articolo->categoria_merceologica_id;
             $magazzinoOriginaleLogico = $articolo->magazzino_logico
                 ?? app(MagazzinoLogicoService::class)->resolveFromCategoriaId($magazzinoOriginaleId);
