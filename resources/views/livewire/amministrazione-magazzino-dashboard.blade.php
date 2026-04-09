@@ -275,7 +275,395 @@
         </div>
     </div>
 
-    {{-- Tabs Statistiche --}}
+    {{-- Dashboard Analitica --}}
+    @php
+        $viewOptions = [
+            'globale' => ['label' => 'Sintesi', 'icon' => 'solar:chart-square-bold'],
+            'sede' => ['label' => 'Distribuzione fisica', 'icon' => 'solar:buildings-2-bold'],
+            'categoria' => ['label' => 'Magazzini logici', 'icon' => 'solar:box-bold'],
+            'fornitore' => ['label' => 'Fornitori', 'icon' => 'solar:users-group-rounded-bold'],
+            'marca' => ['label' => 'Marche', 'icon' => 'solar:tag-bold'],
+        ];
+        $dimensionLabels = [
+            'globale' => 'Sintesi del perimetro attuale',
+            'sede' => 'Distribuzione fisica degli articoli',
+            'categoria' => 'Magazzini logici / categorie',
+            'fornitore' => 'Ripartizione per fornitore',
+            'marca' => 'Ripartizione per marca',
+        ];
+        $dimensionDescriptions = [
+            'globale' => 'Vista sintetica per capire subito il perimetro corrente e i punti da approfondire.',
+            'sede' => 'Qui vedi dove sono fisicamente dislocati gli articoli, senza perdere il legame col magazzino logico di appartenenza.',
+            'categoria' => 'Questa vista confronta i magazzini logici e aiuta a riconciliare i totali.',
+            'fornitore' => 'Serve a capire chi pesa di più sul valore del magazzino.',
+            'marca' => 'Utile per individuare rapidamente i brand con più valore o quantità in giacenza.',
+        ];
+        $categoriaCorrente = $categoriaId ? optional($categorie->firstWhere('id', $categoriaId)) : null;
+        $sedeCorrente = $sedeId ? optional($sedi->firstWhere('id', $sedeId)) : null;
+        $fornitoreCorrente = $fornitoreId ? optional($fornitori->firstWhere('id', $fornitoreId)) : null;
+        $distribuzionePerSede = collect($statistiche['per_sede'] ?? [])->values();
+        $statisticheOrdinate = $this->statisticheOrdinate;
+        $fornitoriVisibili = $this->fornitoriVisibili;
+        $marcheVisibili = $this->marcheVisibili;
+        $totaleFornitori = count($statistiche['per_fornitore'] ?? []);
+        $totaleMarche = count($statistiche['per_marca'] ?? []);
+        $dimensioneItems = match ($viewStatistiche) {
+            'sede' => collect($statisticheOrdinate['per_sede'] ?? [])->values(),
+            'categoria' => collect($statisticheOrdinate['per_categoria'] ?? [])->values(),
+            'fornitore' => collect($fornitoriVisibili)->values(),
+            'marca' => collect($marcheVisibili)->values(),
+            default => collect(),
+        };
+        $focusTitle = $categoriaCorrente?->nome
+            ?? $fornitoreCorrente?->ragione_sociale
+            ?? ($sedeCorrente?->nome ? ('Ubicazione ' . $sedeCorrente->nome) : 'Vista completa');
+        $focusModeLabel = match ($filtroContoDeposito) {
+            'solo_reale' => 'Solo magazzino reale',
+            'solo_conto_deposito' => 'Solo conto deposito',
+            default => 'Reale + conto deposito',
+        };
+    @endphp
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="d-flex flex-column flex-xl-row justify-content-between gap-4 mb-4">
+                <div>
+                    <div class="text-uppercase text-muted small fw-semibold mb-2">Dashboard operativa</div>
+                    <h4 class="fw-bold mb-2">Controllo magazzino logico e distribuzione fisica</h4>
+                    <p class="text-muted mb-0">
+                        Il valore resta attribuito al magazzino di origine. La dislocazione fisica ti aiuta a vedere dove si trovano gli articoli senza perdere il totale logico.
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-start justify-content-xl-end">
+                    @foreach($viewOptions as $viewKey => $viewMeta)
+                        <button type="button"
+                                wire:click="$set('viewStatistiche', '{{ $viewKey }}')"
+                                class="btn {{ $viewStatistiche === $viewKey ? 'btn-primary' : 'btn-light border' }}">
+                            <iconify-icon icon="{{ $viewMeta['icon'] }}" class="me-1"></iconify-icon>
+                            {{ $viewMeta['label'] }}
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-xl-4">
+                    <div class="border rounded-3 h-100 p-3 bg-light-subtle">
+                        <div class="small text-uppercase text-muted fw-semibold mb-2">Perimetro attivo</div>
+                        <div class="fw-bold fs-5 mb-2">{{ $focusTitle }}</div>
+                        <div class="d-flex flex-wrap gap-2">
+                            @if($categoriaCorrente)
+                                <span class="badge bg-light-primary text-primary">{{ $categoriaCorrente->nome }}</span>
+                            @endif
+                            @if($sedeCorrente)
+                                <span class="badge bg-light-info text-info">Ubicazione: {{ $sedeCorrente->nome }}</span>
+                            @endif
+                            @if($fornitoreCorrente)
+                                <span class="badge bg-light-warning text-warning">{{ $fornitoreCorrente->ragione_sociale }}</span>
+                            @endif
+                            @if($marcaId)
+                                <span class="badge bg-light-secondary text-secondary">Marca: {{ $marcaId }}</span>
+                            @endif
+                            <span class="badge bg-light-success text-success">{{ $focusModeLabel }}</span>
+                        </div>
+                        @if($categoriaId && $sedeId)
+                            <p class="small text-muted mb-0 mt-3">
+                                L'ubicazione fisica segmenta la distribuzione interna, ma il totale continua a far capo al magazzino logico selezionato.
+                            </p>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-2">
+                    <div class="border rounded-3 h-100 p-3">
+                        <div class="small text-uppercase text-muted fw-semibold mb-2">Articoli nel perimetro</div>
+                        <div class="fw-bold fs-4">{{ number_format($statistiche['totale_articoli'] ?? 0, 0, ',', '.') }}</div>
+                        <div class="small text-muted mt-2">Conta logica coerente con i filtri attivi.</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-2">
+                    <div class="border rounded-3 h-100 p-3">
+                        <div class="small text-uppercase text-muted fw-semibold mb-2">Quantità totali</div>
+                        <div class="fw-bold fs-4">{{ number_format($statistiche['totale_quantita'] ?? 0, 0, ',', '.') }}</div>
+                        <div class="small text-muted mt-2">Somma delle giacenze residue nel perimetro corrente.</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-2">
+                    <div class="border rounded-3 h-100 p-3">
+                        <div class="small text-uppercase text-muted fw-semibold mb-2">Valorizzazione</div>
+                        <div class="fw-bold fs-4 text-success">€{{ number_format($statistiche['totale_valore'] ?? 0, 2, ',', '.') }}</div>
+                        <div class="small text-muted mt-2">Valore economico del perimetro logico selezionato.</div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-xl-2">
+                    <div class="border rounded-3 h-100 p-3">
+                        <div class="small text-uppercase text-muted fw-semibold mb-2">Senza costo</div>
+                        <div class="fw-bold fs-4 text-warning">{{ number_format($statistiche['articoli_senza_costo'] ?? 0, 0, ',', '.') }}</div>
+                        <div class="small text-muted mt-2">Lista rapida degli articoli da verificare.</div>
+                    </div>
+                </div>
+            </div>
+
+            @if($categoriaId && $distribuzionePerSede->isNotEmpty())
+                <div class="border rounded-3 p-3 p-lg-4 bg-light-subtle mb-4">
+                    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
+                        <div>
+                            <div class="small text-uppercase text-muted fw-semibold mb-2">Distribuzione fisica</div>
+                            <h5 class="fw-bold mb-1">Dove si trovano gli articoli di {{ $categoriaCorrente?->nome ?? 'questo magazzino' }}</h5>
+                            <p class="text-muted mb-0">Il magazzino resta unico a livello logico; qui vedi soltanto la sua distribuzione tra sedi e ubicazioni operative.</p>
+                        </div>
+                        <div class="text-lg-end">
+                            <div class="small text-muted">Sedi coinvolte</div>
+                            <div class="fw-bold fs-4">{{ number_format($distribuzionePerSede->count(), 0, ',', '.') }}</div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        @foreach($distribuzionePerSede as $sedeDistribuzione)
+                            <div class="col-md-6 col-xl-4">
+                                <div class="border bg-white rounded-3 p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                        <div>
+                                            <div class="fw-bold">{{ $sedeDistribuzione['nome'] }}</div>
+                                            <div class="small text-muted">Ubicazione fisica</div>
+                                        </div>
+                                        @if(filled($sedeDistribuzione['id'] ?? null))
+                                            <button type="button" class="btn btn-sm btn-outline-primary" wire:click="filtraPerSede('{{ $sedeDistribuzione['id'] }}')">
+                                                Filtra
+                                            </button>
+                                        @endif
+                                    </div>
+                                    <div class="row g-2 small">
+                                        <div class="col-4">
+                                            <div class="text-muted">Articoli</div>
+                                            <div class="fw-semibold">{{ number_format($sedeDistribuzione['articoli'], 0, ',', '.') }}</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-muted">Quantità</div>
+                                            <div class="fw-semibold">{{ number_format($sedeDistribuzione['quantita'], 0, ',', '.') }}</div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-muted">Valore</div>
+                                            <div class="fw-semibold text-success">€{{ number_format($sedeDistribuzione['valore'], 2, ',', '.') }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            <div class="row g-4">
+                <div class="col-xl-8">
+                    <div class="border rounded-3 h-100">
+                        <div class="p-3 p-lg-4 border-bottom">
+                            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                                <div>
+                                    <div class="small text-uppercase text-muted fw-semibold mb-2">Vista attiva</div>
+                                    <h5 class="fw-bold mb-1">{{ $dimensionLabels[$viewStatistiche] ?? 'Analisi' }}</h5>
+                                    <p class="text-muted mb-0">{{ $dimensionDescriptions[$viewStatistiche] ?? '' }}</p>
+                                </div>
+                                @if(in_array($viewStatistiche, ['fornitore', 'marca']))
+                                    <div class="ms-lg-auto" style="min-width: 280px;">
+                                        <label class="form-label small fw-semibold">{{ $viewStatistiche === 'fornitore' ? 'Cerca fornitore' : 'Cerca marca' }}</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">
+                                                <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
+                                            </span>
+                                            <input type="text"
+                                                   class="form-control"
+                                                   wire:model.live.debounce.300ms="searchStatistiche"
+                                                   placeholder="{{ $viewStatistiche === 'fornitore' ? 'Cerca fornitore...' : 'Cerca marca...' }}">
+                                            @if($searchStatistiche)
+                                                <button class="btn btn-outline-secondary" wire:click="$set('searchStatistiche', '')" type="button">
+                                                    <iconify-icon icon="solar:close-circle-bold"></iconify-icon>
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="p-3 p-lg-4">
+                            @if($viewStatistiche === 'globale')
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="border rounded-3 p-3 h-100">
+                                            <div class="small text-uppercase text-muted fw-semibold mb-2">Valore totale</div>
+                                            <div class="fw-bold fs-2 text-success">€{{ number_format($statistiche['totale_valore'] ?? 0, 2, ',', '.') }}</div>
+                                            <div class="small text-muted mt-2">Valore del perimetro corrente con i filtri applicati.</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="border rounded-3 p-3 h-100">
+                                            <div class="small text-uppercase text-muted fw-semibold mb-2">Qualità del dato</div>
+                                            <div class="d-flex justify-content-between py-2 border-bottom">
+                                                <span>Articoli con costo</span>
+                                                <strong>{{ number_format(($statistiche['totale_articoli'] ?? 0) - ($statistiche['articoli_senza_costo'] ?? 0), 0, ',', '.') }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between py-2 border-bottom">
+                                                <span>Articoli senza costo</span>
+                                                <strong class="text-warning">{{ number_format($statistiche['articoli_senza_costo'] ?? 0, 0, ',', '.') }}</strong>
+                                            </div>
+                                            <div class="d-flex justify-content-between pt-2">
+                                                <span>Quantità residue</span>
+                                                <strong>{{ number_format($statistiche['totale_quantita'] ?? 0, 0, ',', '.') }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th class="user-select-none" style="cursor: pointer;" wire:click="ordinaStatistiche('nome')">
+                                                    {{ $viewStatistiche === 'sede' ? 'Ubicazione fisica' : ($viewStatistiche === 'categoria' ? 'Magazzino logico' : ($viewStatistiche === 'fornitore' ? 'Fornitore' : 'Marca')) }}
+                                                    @if($sortStatisticheField == 'nome')
+                                                        <iconify-icon icon="solar:{{ $sortStatisticheDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                                    @endif
+                                                </th>
+                                                <th class="text-end user-select-none" style="cursor: pointer;" wire:click="ordinaStatistiche('articoli')">
+                                                    Articoli
+                                                    @if($sortStatisticheField == 'articoli')
+                                                        <iconify-icon icon="solar:{{ $sortStatisticheDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                                    @endif
+                                                </th>
+                                                <th class="text-end user-select-none" style="cursor: pointer;" wire:click="ordinaStatistiche('quantita')">
+                                                    Quantità
+                                                    @if($sortStatisticheField == 'quantita')
+                                                        <iconify-icon icon="solar:{{ $sortStatisticheDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                                    @endif
+                                                </th>
+                                                <th class="text-end user-select-none" style="cursor: pointer;" wire:click="ordinaStatistiche('valore')">
+                                                    Valorizzazione
+                                                    @if($sortStatisticheField == 'valore')
+                                                        <iconify-icon icon="solar:{{ $sortStatisticheDirection == 'asc' ? 'alt-arrow-up' : 'alt-arrow-down' }}-bold" class="text-primary"></iconify-icon>
+                                                    @endif
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($dimensioneItems as $dimensioneItem)
+                                                @php
+                                                    $filterTarget = $dimensioneItem['id'] ?? null;
+                                                @endphp
+                                                <tr
+                                                    @if($viewStatistiche === 'sede' && filled($filterTarget))
+                                                        wire:click="filtraPerSede('{{ $filterTarget }}')" class="hover-row" style="cursor: pointer;"
+                                                    @elseif($viewStatistiche === 'categoria' && filled($filterTarget))
+                                                        wire:click="filtraPerCategoria('{{ $filterTarget }}')" class="hover-row" style="cursor: pointer;"
+                                                    @elseif($viewStatistiche === 'fornitore' && filled($filterTarget))
+                                                        wire:click="filtraPerFornitore('{{ $filterTarget }}')" class="hover-row" style="cursor: pointer;"
+                                                    @elseif($viewStatistiche === 'marca' && filled($filterTarget))
+                                                        wire:click="filtraPerMarca('{{ $filterTarget }}')" class="hover-row" style="cursor: pointer;"
+                                                    @endif
+                                                >
+                                                    <td>
+                                                        <div class="fw-semibold">{{ $dimensioneItem['nome'] }}</div>
+                                                        <div class="small text-muted">
+                                                            @if($viewStatistiche === 'sede')
+                                                                Segmentazione fisica del perimetro selezionato
+                                                            @elseif($viewStatistiche === 'categoria')
+                                                                Vista per magazzino logico
+                                                            @elseif($viewStatistiche === 'fornitore')
+                                                                Fornitore attivo nella valorizzazione corrente
+                                                            @else
+                                                                Marca presente nel perimetro corrente
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-end">{{ number_format($dimensioneItem['articoli'], 0, ',', '.') }}</td>
+                                                    <td class="text-end">{{ number_format($dimensioneItem['quantita'], 0, ',', '.') }}</td>
+                                                    <td class="text-end">
+                                                        <strong class="text-success">€{{ number_format($dimensioneItem['valore'], 2, ',', '.') }}</strong>
+                                                    </td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-4">
+                                                        Nessun dato disponibile per questa vista con i filtri attuali.
+                                                    </td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            @if($viewStatistiche === 'fornitore' && $totaleFornitori > $limiteFornitori && empty($searchStatistiche))
+                                                <tr>
+                                                    <td colspan="4" class="text-center py-3">
+                                                        <button class="btn btn-sm btn-outline-primary" wire:click="toggleMostraTuttiFornitori">
+                                                            @if($mostraTuttiFornitori)
+                                                                <iconify-icon icon="solar:double-alt-arrow-up-bold" class="me-1"></iconify-icon>
+                                                                Mostra meno ({{ $limiteFornitori }} fornitori)
+                                                            @else
+                                                                <iconify-icon icon="solar:double-alt-arrow-down-bold" class="me-1"></iconify-icon>
+                                                                Mostra tutti ({{ $totaleFornitori }} fornitori)
+                                                            @endif
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                            @if($viewStatistiche === 'marca' && $totaleMarche > $limiteMarche && empty($searchStatistiche))
+                                                <tr>
+                                                    <td colspan="4" class="text-center py-3">
+                                                        <button class="btn btn-sm btn-outline-primary" wire:click="toggleMostraTutteMarche">
+                                                            @if($mostraTutteMarche)
+                                                                <iconify-icon icon="solar:double-alt-arrow-up-bold" class="me-1"></iconify-icon>
+                                                                Mostra meno ({{ $limiteMarche }} marche)
+                                                            @else
+                                                                <iconify-icon icon="solar:double-alt-arrow-down-bold" class="me-1"></iconify-icon>
+                                                                Mostra tutte ({{ $totaleMarche }} marche)
+                                                            @endif
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                            @if($viewStatistiche !== 'globale')
+                                                <tr>
+                                                    <th>TOTALE VISTA</th>
+                                                    <th class="text-end">{{ number_format($this->totaliVistaCorrente['articoli'], 0, ',', '.') }}</th>
+                                                    <th class="text-end">{{ number_format($this->totaliVistaCorrente['quantita'], 0, ',', '.') }}</th>
+                                                    <th class="text-end">
+                                                        <strong class="text-success">€{{ number_format($this->totaliVistaCorrente['valore'], 2, ',', '.') }}</strong>
+                                                    </th>
+                                                </tr>
+                                            @endif
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-4">
+                    <div class="border rounded-3 h-100">
+                        <div class="p-3 p-lg-4 border-bottom">
+                            <div class="small text-uppercase text-muted fw-semibold mb-2">Come leggere la dashboard</div>
+                            <h5 class="fw-bold mb-1">Guida rapida operativa</h5>
+                            <p class="text-muted mb-0">Questa pagina è pensata per aiutarti a riconciliare, capire e ripulire il magazzino senza perdere il contesto.</p>
+                        </div>
+                        <div class="p-3 p-lg-4">
+                            <div class="border rounded-3 p-3 mb-3 bg-light-subtle">
+                                <div class="fw-semibold mb-1">1. Parti dal magazzino logico</div>
+                                <div class="small text-muted">Seleziona una categoria per capire il valore vero del magazzino di appartenenza, senza confonderlo con gli spostamenti interni.</div>
+                            </div>
+                            <div class="border rounded-3 p-3 mb-3 bg-light-subtle">
+                                <div class="fw-semibold mb-1">2. Controlla la distribuzione fisica</div>
+                                <div class="small text-muted">Usa la distribuzione per sede per vedere dove sono finiti gli articoli: Lecco, Jolly o altre ubicazioni operative.</div>
+                            </div>
+                            <div class="border rounded-3 p-3 mb-3 bg-light-subtle">
+                                <div class="fw-semibold mb-1">3. Scendi per fornitore o marca</div>
+                                <div class="small text-muted">Quando un totale non torna, queste viste ti aiutano a trovare rapidamente il blocco che genera lo scostamento.</div>
+                            </div>
+                            <div class="border rounded-3 p-3 bg-light-subtle">
+                                <div class="fw-semibold mb-1">4. Usa i filtri attivi come breadcrumb</div>
+                                <div class="small text-muted">Puoi sempre risalire togliendo un filtro alla volta, senza restare bloccato in una vista poco leggibile.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @if(false)
     <div class="card mb-4">
         <div class="card-header">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -750,6 +1138,7 @@
             @endif
         </div>
     </div>
+    @endif
 
     <div class="card mb-4">
         <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
