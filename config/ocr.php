@@ -43,7 +43,10 @@ return [
     'processing' => [
         'dpi' => 300, // DPI per conversione PDF → Immagine
         'format' => 'png', // Formato immagine
-        'timeout' => 120, // Timeout in secondi
+        'timeout' => env('OCR_TIMEOUT', 180), // Timeout Tesseract per singola immagine
+        'request_timeout' => env('OCR_REQUEST_TIMEOUT', 300), // Timeout complessivo richiesta OCR
+        'prefer_native_pdf_text' => env('OCR_PREFER_NATIVE_PDF_TEXT', true), // Usa pdftotext se disponibile
+        'min_native_text_length' => env('OCR_NATIVE_TEXT_MIN_LENGTH', 200), // Lunghezza minima per fidarsi del testo nativo
     ],
 
     /*
@@ -175,4 +178,3 @@ return [
     ],
 
 ];
-

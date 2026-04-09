@@ -50,6 +50,15 @@ class OcrService
      */
     public function processPdf(UploadedFile $file, string $tipo): OcrDocument
     {
+        $requestTimeout = (int) config('ocr.processing.request_timeout', 300);
+        if ($requestTimeout > 0) {
+            @ini_set('max_execution_time', (string) $requestTimeout);
+            @ini_set('default_socket_timeout', (string) $requestTimeout);
+            if (function_exists('set_time_limit')) {
+                @set_time_limit($requestTimeout);
+            }
+        }
+
         // 1. Salva PDF
         $pdfPath = $this->storePdf($file);
         $this->currentPdfPath = $pdfPath;
@@ -65,10 +74,25 @@ class OcrService
 
         try {
             // 3. Converti PDF → Immagini
-            $imagePaths = $this->convertPdfToImages($pdfPath);
-            
-            // 4. Estrai testo con OCR
-            $rawText = $this->extractTextFromImages($imagePaths);
+            $imagePaths = [];
+            $rawText = '';
+            $rawTextSource = 'ocr';
+            $pdfText = null;
+
+            if (config('ocr.processing.prefer_native_pdf_text', true)) {
+                $pdfText = $this->extractTextFromPdf($pdfPath);
+                $minNativeTextLength = (int) config('ocr.processing.min_native_text_length', 200);
+
+                if (is_string($pdfText) && mb_strlen(trim($pdfText)) >= $minNativeTextLength) {
+                    $rawText = $pdfText;
+                    $rawTextSource = 'pdf_text';
+                }
+            }
+
+            if ($rawText === '') {
+                $imagePaths = $this->convertPdfToImages($pdfPath);
+                $rawText = $this->extractTextFromImages($imagePaths);
+            }
             $this->currentProfile = $this->profileDetector->detect($rawText, $tipo);
             
             // 5. Struttura dati estratti
@@ -82,7 +106,11 @@ class OcrService
             
             // 8. Aggiorna OcrDocument
             $ocrDocument->update([
-                'ocr_raw_data' => ['text' => $rawText],
+                'ocr_raw_data' => [
+                    'text' => $rawText,
+                    'source' => $rawTextSource,
+                    'native_text_available' => !empty($pdfText),
+                ],
                 'ocr_structured_data' => $structuredData,
                 'confidence_score' => $confidenceScore,
                 'status' => 'completed',
@@ -95,7 +123,9 @@ class OcrService
             }
             
             // 8. Cleanup immagini temporanee
-            $this->cleanupImages($imagePaths);
+            if (!empty($imagePaths)) {
+                $this->cleanupImages($imagePaths);
+            }
             
         } catch (\Exception $e) {
             $ocrDocument->update([
