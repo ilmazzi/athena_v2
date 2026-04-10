@@ -207,7 +207,18 @@ class MovimentazioneInternaNew extends Component
             $query->where(function($q) {
                 $q->where('codice', 'like', "%{$this->search}%")
                   ->orWhere('codice_base', 'like', "%{$this->search}%")
-                  ->orWhere('descrizione', 'like', "%{$this->search}%");
+                  ->orWhere('descrizione', 'like', "%{$this->search}%")
+                  ->orWhereHas('prodottoFinitoRecord', function ($pfQ) {
+                      $pfQ->where('codice', 'like', "%{$this->search}%")
+                          ->orWhere('descrizione', 'like', "%{$this->search}%");
+                  })
+                  ->orWhereHas('componentiUtilizzatoIn.prodottoFinito', function ($pfQ) {
+                      $pfQ->where('stato', 'completato')
+                          ->where(function ($subPfQ) {
+                              $subPfQ->where('codice', 'like', "%{$this->search}%")
+                                  ->orWhere('descrizione', 'like', "%{$this->search}%");
+                          });
+                  });
             });
         }
         
