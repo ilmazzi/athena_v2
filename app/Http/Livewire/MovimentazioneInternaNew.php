@@ -13,6 +13,7 @@ use App\Services\ArticoloSplitService;
 use App\Services\MagazzinoLogicoService;
 use App\Domain\Magazzino\DTOs\MovimentazioneDTO;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Livewire Component per Movimentazioni Interne tra Sedi
@@ -184,7 +185,8 @@ class MovimentazioneInternaNew extends Component
                         ->orderByDesc('quantita')
                         ->orderByDesc('id');
                 },
-                'prodottoFinitoRecord.componentiArticoli.articolo'
+                'prodottoFinitoRecord.componentiArticoli.articolo',
+                'componentiUtilizzatoIn.prodottoFinito.componentiArticoli.articolo'
             ])
             ->whereHas('giacenze', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId)
@@ -208,15 +210,41 @@ class MovimentazioneInternaNew extends Component
             });
         }
         
-        $articoli = $query->orderByRaw("COALESCE(codice_base, codice)")->paginate(20);
+        $articoli = $query->orderByRaw("COALESCE(codice_base, codice)")->get();
 
-        $articoli->getCollection()->transform(function (Articolo $articolo) {
+        $items = collect();
+        $seenPf = [];
+
+        foreach ($articoli as $articolo) {
             $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
 
-            return $articolo;
-        });
+            $pf = $this->resolvePfForMovimentazione($articolo);
 
-        return $articoli;
+            if ($pf) {
+                if (isset($seenPf[$pf->id])) {
+                    continue;
+                }
+
+                $seenPf[$pf->id] = true;
+                $articolo->codice = $pf->codice ?? $articolo->codice;
+                $articolo->descrizione = $pf->descrizione ?? $articolo->descrizione;
+                $articolo->setRelation('prodottoFinitoRecord', $pf);
+            }
+
+            $items->push($articolo);
+        }
+
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 20;
+        $currentItems = $items->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        return new LengthAwarePaginator(
+            $currentItems,
+            $items->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
     }
     
     
@@ -230,7 +258,12 @@ class MovimentazioneInternaNew extends Component
             unset($this->articoliSelezionati[$articoloId]);
         } else {
             $articolo = Articolo::withoutGlobalScope('user_sede')
-                ->with(['giacenze', 'categoriaMerceologica', 'prodottoFinitoRecord.componentiArticoli.articolo'])
+                ->with([
+                    'giacenze',
+                    'categoriaMerceologica',
+                    'prodottoFinitoRecord.componentiArticoli.articolo',
+                    'componentiUtilizzatoIn.prodottoFinito.componentiArticoli.articolo',
+                ])
                 ->findOrFail($articoloId);
             $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
             
@@ -249,7 +282,7 @@ class MovimentazioneInternaNew extends Component
                 return;
             }
             
-            $pfRecord = $articolo->prodottoFinitoRecord;
+            $pfRecord = $this->resolvePfForMovimentazione($articolo);
             $isPf = (bool) $pfRecord;
             $componenti = [];
             if ($isPf) {
@@ -267,12 +300,13 @@ class MovimentazioneInternaNew extends Component
                 'articolo_id' => $articoloId,
                 'quantita' => 1,
                 'max_quantita' => $isPf ? min(1, $quantitaDisponibile) : $quantitaDisponibile,
-                'codice' => $articolo->codice,
-                'descrizione' => $articolo->descrizione,
+                'codice' => $isPf ? ($pfRecord->codice ?? $articolo->codice) : $articolo->codice,
+                'descrizione' => $isPf ? ($pfRecord->descrizione ?? $articolo->descrizione) : $articolo->descrizione,
                 'categoria' => $this->labelMagazzinoLogico($articolo->magazzino_logico),
                 'in_vetrina' => $articolo->isInVetrina(),
                 'warning_vetrina' => $articolo->isInVetrina() ? "Articolo in vetrina - sarà rimosso automaticamente" : null,
                 'is_pf' => $isPf,
+                'prodotto_finito_id' => $isPf ? $pfRecord->id : null,
                 'componenti' => $componenti,
             ];
             
@@ -365,10 +399,10 @@ class MovimentazioneInternaNew extends Component
                     $quantita = (int) ($articoloData['quantita'] ?? 1);
                     
                     if (!empty($articoloData['is_pf'])) {
-                        $pf = $articolo->prodottoFinito()
+                        $pf = \App\Models\ProdottoFinito::query()
                             ->withTrashed()
                             ->with('componentiArticoli.articolo')
-                            ->first();
+                            ->find($articoloData['prodotto_finito_id'] ?? null);
                         if (!$pf) {
                             \Log::error('❌ PF non collegato correttamente, fallback a movimentazione articolo', [
                                 'articolo_id' => $articolo->id,
@@ -677,6 +711,29 @@ class MovimentazioneInternaNew extends Component
                 ->get();
 
         return $giacenze->first();
+    }
+
+    private function resolvePfForMovimentazione(Articolo $articolo): ?\App\Models\ProdottoFinito
+    {
+        if ($articolo->relationLoaded('prodottoFinitoRecord') && $articolo->prodottoFinitoRecord) {
+            return $articolo->prodottoFinitoRecord;
+        }
+
+        if ($articolo->relationLoaded('componentiUtilizzatoIn')) {
+            foreach ($articolo->componentiUtilizzatoIn as $componente) {
+                $pf = $componente->relationLoaded('prodottoFinito') ? $componente->prodottoFinito : null;
+                if ($pf && $pf->stato === 'completato') {
+                    return $pf;
+                }
+            }
+        }
+
+        return $articolo->componentiUtilizzatoIn()
+            ->with('prodottoFinito.componentiArticoli.articolo')
+            ->whereHas('prodottoFinito', function ($q) {
+                $q->where('stato', 'completato');
+            })
+            ->first()?->prodottoFinito;
     }
     
     public function getTotaleSelezionati(): int
