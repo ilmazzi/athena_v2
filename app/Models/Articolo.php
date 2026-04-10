@@ -75,6 +75,7 @@ class Articolo extends Model
         'categoria_merceologica_id',
         'magazzino_logico',
         'sede_id',
+        'fornitore_id',
         'prodotto_finito_id',
         'articolo_padre_id',
         'split_index',
@@ -169,6 +170,11 @@ class Articolo extends Model
     public function sede(): BelongsTo
     {
         return $this->belongsTo(Sede::class, 'sede_id');
+    }
+
+    public function fornitore(): BelongsTo
+    {
+        return $this->belongsTo(Fornitore::class, 'fornitore_id');
     }
     
     

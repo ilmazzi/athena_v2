@@ -1558,13 +1558,7 @@ class ArticoliTable extends Component
         $query = $this->articoliBaseQuery();
 
         if ($this->prezziFornitoreId) {
-            $query->where(function ($q) {
-                $q->whereHas('ddtDettaglio.ddt', function($subQ) {
-                    $subQ->where('fornitore_id', $this->prezziFornitoreId);
-                })->orWhereHas('fatturaDettaglio.fattura', function($subQ) {
-                    $subQ->where('fornitore_id', $this->prezziFornitoreId);
-                });
-            });
+            $query->where('articoli.fornitore_id', $this->prezziFornitoreId);
         }
 
         $value = trim((string) $this->prezziMatchValue);
@@ -1758,15 +1752,11 @@ class ArticoliTable extends Component
     private function applyFornitoreVisibilityFilter($query, $fornitoreId, bool $qualifiedColumns = false): void
     {
         $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
+        $fornitoreColumn = $qualifiedColumns ? 'articoli.fornitore_id' : 'fornitore_id';
 
-        $query->where(function ($q) use ($fornitoreId, $codiceColumn) {
+        $query->where(function ($q) use ($fornitoreId, $codiceColumn, $fornitoreColumn) {
             $q->where($codiceColumn, 'like', '9-%')
-                ->orWhereHas('ddtDettaglio.ddt', function($subQ) use ($fornitoreId) {
-                    $subQ->where('fornitore_id', $fornitoreId);
-                })
-                ->orWhereHas('fatturaDettaglio.fattura', function($subQ) use ($fornitoreId) {
-                    $subQ->where('fornitore_id', $fornitoreId);
-                });
+                ->orWhere($fornitoreColumn, $fornitoreId);
         });
     }
 
