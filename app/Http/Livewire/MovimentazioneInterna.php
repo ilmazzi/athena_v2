@@ -103,7 +103,8 @@ class MovimentazioneInterna extends Component
             return collect();
         }
 
-        $query = Articolo::with([
+        $query = Articolo::withoutGlobalScope('user_sede')
+            ->with([
                 'categoriaMerceologica',
                 'giacenze' => function ($q) {
                     $q->where('sede_id', $this->sedeOrigineId)
@@ -181,7 +182,9 @@ class MovimentazioneInterna extends Component
         if (isset($this->articoliSelezionati[$articoloId])) {
             unset($this->articoliSelezionati[$articoloId]);
         } else {
-            $articolo = Articolo::with('giacenze')->findOrFail($articoloId);
+            $articolo = Articolo::withoutGlobalScope('user_sede')
+                ->with('giacenze')
+                ->findOrFail($articoloId);
             $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
             
             // Verifica se in conto deposito
@@ -277,7 +280,8 @@ class MovimentazioneInterna extends Component
                 
                 // Movimenta articoli selezionati
                 foreach ($this->articoliSelezionati as $articoloData) {
-                    $articolo = Articolo::findOrFail($articoloData['articolo_id']);
+                    $articolo = Articolo::withoutGlobalScope('user_sede')
+                        ->findOrFail($articoloData['articolo_id']);
                     $quantita = (int) $articoloData['quantita'];
                     
                     // Verifica finale prima della movimentazione

@@ -171,7 +171,8 @@ class MovimentazioneInternaNew extends Component
             return collect();
         }
 
-        $query = Articolo::with([
+        $query = Articolo::withoutGlobalScope('user_sede')
+            ->with([
                 'categoriaMerceologica',
                 'giacenze' => function ($q) {
                     $q->where('sede_id', $this->sedeOrigineId)
@@ -229,7 +230,9 @@ class MovimentazioneInternaNew extends Component
         if (isset($this->articoliSelezionati[$articoloId])) {
             unset($this->articoliSelezionati[$articoloId]);
         } else {
-            $articolo = Articolo::with(['giacenze', 'categoriaMerceologica', 'prodottoFinito.componentiArticoli.articolo'])->findOrFail($articoloId);
+            $articolo = Articolo::withoutGlobalScope('user_sede')
+                ->with(['giacenze', 'categoriaMerceologica', 'prodottoFinito.componentiArticoli.articolo'])
+                ->findOrFail($articoloId);
             $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
             
             // Verifica se in conto deposito
@@ -331,7 +334,8 @@ class MovimentazioneInternaNew extends Component
 
                 $articoloCampione = null;
                 if (!empty($this->articoliSelezionati)) {
-                    $articoloCampione = Articolo::findOrFail(reset($this->articoliSelezionati)['articolo_id']);
+                    $articoloCampione = Articolo::withoutGlobalScope('user_sede')
+                        ->findOrFail(reset($this->articoliSelezionati)['articolo_id']);
                 }
 
                 if (!$articoloCampione) {
@@ -356,7 +360,8 @@ class MovimentazioneInternaNew extends Component
 
                 // Movimenta articoli selezionati
                 foreach ($this->articoliSelezionati as $articoloData) {
-                    $articolo = Articolo::findOrFail($articoloData['articolo_id']);
+                    $articolo = Articolo::withoutGlobalScope('user_sede')
+                        ->findOrFail($articoloData['articolo_id']);
                     $quantita = (int) ($articoloData['quantita'] ?? 1);
                     
                     if (!empty($articoloData['is_pf'])) {
