@@ -619,7 +619,12 @@ class MovimentazioneInternaNew extends Component
 
     private function syncSedeGiacenza(int $articoloId, int $sedeId): void
     {
-        $giacenza = Giacenza::where('articolo_id', $articoloId)->first();
+        // In presenza di dati legacy/duplicati, scegliamo la giacenza "attiva" (residua piu alta)
+        // per evitare di spostare una riga vuota e far risultare l'articolo "scaricato".
+        $giacenza = Giacenza::where('articolo_id', $articoloId)
+            ->orderByDesc('quantita_residua')
+            ->orderByDesc('quantita')
+            ->first();
         if ($giacenza) {
             $giacenza->update(['sede_id' => $sedeId]);
         }
