@@ -7,6 +7,7 @@ use App\Models\Movimentazione;
 use App\Models\MovimentazioneDettaglio;
 use App\Models\Articolo;
 use App\Models\Giacenza;
+use App\Models\Sede;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -65,7 +66,14 @@ class MovimentazioneService
             $this->spostaArticoloTraSedi($dto);
             
             // Registra movimentazione
-            $movimentazione = Movimentazione::create($dto->toModelArray());
+            $movimentazione = Movimentazione::create($this->buildMovimentazionePayload(
+                magazzinoOrigineId: $dto->magazzinoOrigineId,
+                magazzinoDestinazioneId: $dto->magazzinoDestinazioneId,
+                dataMovimentazione: $dto->dataMovimentazione,
+                note: $dto->note,
+                sedeOrigineId: $dto->sedeOrigineId,
+                sedeDestinazioneId: $dto->sedeDestinazioneId,
+            ));
 
             // Registra dettaglio articolo per ricerche/storico
             MovimentazioneDettaglio::create([
@@ -76,7 +84,14 @@ class MovimentazioneService
                 'note' => $dto->note,
             ]);
             
-            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa']);
+            return $movimentazione->fresh([
+                'dettagli.articolo',
+                'magazzinoPartenza',
+                'magazzinoDestinazione',
+                'sedePartenza',
+                'sedeDestinazione',
+                'creataDa',
+            ]);
         });
     }
 
@@ -84,6 +99,8 @@ class MovimentazioneService
         int $magazzinoOrigineId,
         int $magazzinoDestinazioneId,
         string $dataMovimentazione,
+        ?int $sedeOrigineId = null,
+        ?int $sedeDestinazioneId = null,
         ?string $note = null,
         ?string $trasportoMezzo = null,
         ?string $aspettoBeni = null,
@@ -92,8 +109,10 @@ class MovimentazioneService
     ): Movimentazione {
         return Movimentazione::create([
             'magazzino_partenza_id' => $magazzinoOrigineId,
+            'sede_partenza_id' => $sedeOrigineId ?? $this->resolveSedeFromCategoriaId($magazzinoOrigineId),
             'magazzino_logico_partenza' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoOrigineId),
             'magazzino_destinazione_id' => $magazzinoDestinazioneId,
+            'sede_destinazione_id' => $sedeDestinazioneId ?? $this->resolveSedeFromCategoriaId($magazzinoDestinazioneId),
             'magazzino_logico_destinazione' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
             'data_movimentazione' => $dataMovimentazione,
             'note' => $note,
@@ -151,7 +170,14 @@ class MovimentazioneService
                 ]);
             }
             
-            return $movimentazione->fresh(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa']);
+            return $movimentazione->fresh([
+                'dettagli.articolo',
+                'magazzinoPartenza',
+                'magazzinoDestinazione',
+                'sedePartenza',
+                'sedeDestinazione',
+                'creataDa',
+            ]);
         });
     }
 
@@ -203,13 +229,55 @@ class MovimentazioneService
             sedeOrigineId: $dto->sedeOrigineId
         );
     }
+
+    private function buildMovimentazionePayload(
+        int $magazzinoOrigineId,
+        int $magazzinoDestinazioneId,
+        string $dataMovimentazione,
+        ?string $note = null,
+        ?int $sedeOrigineId = null,
+        ?int $sedeDestinazioneId = null,
+    ): array {
+        return [
+            'magazzino_partenza_id' => $magazzinoOrigineId,
+            'sede_partenza_id' => $sedeOrigineId ?? $this->resolveSedeFromCategoriaId($magazzinoOrigineId),
+            'magazzino_logico_partenza' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoOrigineId),
+            'magazzino_destinazione_id' => $magazzinoDestinazioneId,
+            'sede_destinazione_id' => $sedeDestinazioneId ?? $this->resolveSedeFromCategoriaId($magazzinoDestinazioneId),
+            'magazzino_logico_destinazione' => $this->magazzinoLogicoService->resolveFromCategoriaId($magazzinoDestinazioneId),
+            'data_movimentazione' => $dataMovimentazione,
+            'note' => $note,
+            'numero_documento' => $this->generateNumeroDocumento(),
+            'creata_da' => Auth::id(),
+        ];
+    }
+
+    private function resolveSedeFromCategoriaId(?int $categoriaId): ?int
+    {
+        if (!$categoriaId) {
+            return null;
+        }
+
+        return Sede::query()
+            ->select('sedi.id')
+            ->join('categorie_merceologiche', 'categorie_merceologiche.sede_id', '=', 'sedi.id')
+            ->where('categorie_merceologiche.id', $categoriaId)
+            ->value('sedi.id');
+    }
     
     /**
      * Ottieni storico movimentazioni per articolo
      */
     public function getStoricoArticolo(int $articoloId): \Illuminate\Database\Eloquent\Collection
     {
-        return Movimentazione::with(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione', 'creataDa'])
+        return Movimentazione::with([
+                'dettagli.articolo',
+                'magazzinoPartenza',
+                'magazzinoDestinazione',
+                'sedePartenza',
+                'sedeDestinazione',
+                'creataDa',
+            ])
             ->whereHas('dettagli', function ($q) use ($articoloId) {
                 $q->where('articolo_id', $articoloId);
             })
@@ -225,7 +293,13 @@ class MovimentazioneService
         ?\DateTime $da = null,
         ?\DateTime $a = null
     ): \Illuminate\Database\Eloquent\Collection {
-        $query = Movimentazione::with(['dettagli.articolo', 'magazzinoPartenza', 'magazzinoDestinazione'])
+        $query = Movimentazione::with([
+                'dettagli.articolo',
+                'magazzinoPartenza',
+                'magazzinoDestinazione',
+                'sedePartenza',
+                'sedeDestinazione',
+            ])
             ->delMagazzino($magazzinoId);
         
         if ($da && $a) {

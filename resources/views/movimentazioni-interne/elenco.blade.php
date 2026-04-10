@@ -2,7 +2,6 @@
 
 @section('content')
 <div class="container-fluid">
-    <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
@@ -23,7 +22,6 @@
         </div>
     </div>
 
-    <!-- Filtri -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('movimentazioni-interne.elenco') }}" class="row g-3 align-items-end">
@@ -72,7 +70,6 @@
         </div>
     </div>
 
-    <!-- Tabella -->
     <div class="card">
         <div class="card-body">
             @if($movimentazioni->count() > 0)
@@ -108,12 +105,8 @@
                                             {{ ucfirst($movimentazione->stato ?? 'bozza') }}
                                         </span>
                                     </td>
-                                    <td>
-                                        {{ $movimentazione->magazzinoPartenza?->nome_completo ?? '—' }}
-                                    </td>
-                                    <td>
-                                        {{ $movimentazione->magazzinoDestinazione?->nome_completo ?? '—' }}
-                                    </td>
+                                    <td>{{ $movimentazione->luogo_partenza_display }}</td>
+                                    <td>{{ $movimentazione->luogo_destinazione_display }}</td>
                                     <td>
                                         <span class="badge bg-light-primary text-primary">
                                             {{ $movimentazione->dettagli_distinct_count ?? $movimentazione->dettagli_count }}

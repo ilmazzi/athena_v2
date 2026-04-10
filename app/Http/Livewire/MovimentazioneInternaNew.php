@@ -326,6 +326,8 @@ class MovimentazioneInternaNew extends Component
                     $magazzinoOrigineId,
                     $magazzinoDestinazioneId,
                     $this->dataMovimentazione,
+                    (int) $this->sedeOrigineId,
+                    (int) $this->sedeDestinazioneId,
                     $this->noteMovimentazione,
                     $this->trasportoMezzo,
                     $this->aspettoBeni,

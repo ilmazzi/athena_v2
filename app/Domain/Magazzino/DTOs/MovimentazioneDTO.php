@@ -26,13 +26,13 @@ class MovimentazioneDTO
     public function toModelArray(): array
     {
         return [
-            'articolo_id' => $this->articoloId,
-            'quantita' => $this->quantita,
-            'magazzino_origine_id' => $this->magazzinoOrigineId,
+            'magazzino_partenza_id' => $this->magazzinoOrigineId,
+            'sede_partenza_id' => $this->sedeOrigineId,
             'magazzino_destinazione_id' => $this->magazzinoDestinazioneId,
+            'sede_destinazione_id' => $this->sedeDestinazioneId,
             'data_movimentazione' => $this->dataMovimentazione,
             'note' => $this->note,
-            'user_id' => auth()->id() ?? 1, // Default user ID se non autenticato
+            'creata_da' => auth()->id() ?? 1,
             'numero_documento' => $this->generateNumeroDocumento(),
         ];
     }
