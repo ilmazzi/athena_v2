@@ -320,8 +320,8 @@ class MovimentazioneInternaNew extends Component
                     throw new \Exception('Nessun articolo valido per la movimentazione.');
                 }
 
-                $magazzinoOrigineId = $articoloCampione->categoria_merceologica_id;
-                $magazzinoDestinazioneId = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloCampione);
+                $magazzinoOrigineId = (int) $articoloCampione->categoria_merceologica_id;
+                $magazzinoDestinazioneId = $magazzinoOrigineId;
 
                 $movimentazioneMaster = $movimentazioneService->creaMovimentazioneMaster(
                     $magazzinoOrigineId,
@@ -353,12 +353,11 @@ class MovimentazioneInternaNew extends Component
                                 'sede_destinazione_id' => $this->sedeDestinazioneId,
                             ]);
                         } else {
-                        $destCategoriaResult = $this->getPfCategoriaBySede($this->sedeDestinazioneId);
                         if (!$articolo->giacenza || $articolo->giacenza->quantita_residua <= 0) {
                             throw new \Exception("Il PF {$articolo->codice} non ha giacenza disponibile per movimentazione.");
                         }
 
-                        $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articolo);
+                        $magazzinoOrigineId = (int) $articolo->categoria_merceologica_id;
                         if ($magazzinoOrigineId <= 0) {
                             throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                         }
@@ -367,27 +366,20 @@ class MovimentazioneInternaNew extends Component
                             articoloId: $articolo->id,
                             quantita: $articoloData['quantita'] ?? 1,
                             magazzinoOrigineId: $magazzinoOrigineId,
-                            magazzinoDestinazioneId: $destCategoriaResult,
+                            magazzinoDestinazioneId: $magazzinoOrigineId,
                             dataMovimentazione: $this->dataMovimentazione,
                             note: "Spostamento PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
-                            prodottoFinitoId: $pf->id
+                            prodottoFinitoId: $pf->id,
+                            sedeOrigineId: (int) $this->sedeOrigineId,
+                            sedeDestinazioneId: (int) $this->sedeDestinazioneId
                         );
                         $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
                         $totaleMovimentazioni++;
 
-                        $articolo->update([
-                            'sede_id' => $this->sedeDestinazioneId,
-                            'categoria_merceologica_id' => $destCategoriaResult,
-                            'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($destCategoriaResult),
-                        ]);
-                        $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
-                        $pf->update(['magazzino_id' => $destCategoriaResult]);
-
                         foreach ($pf->componentiArticoli as $componente) {
                             $articoloComponente = $componente->articolo;
-                            $destCategoria = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articoloComponente);
 
-                            $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articoloComponente);
+                            $magazzinoOrigineId = (int) $articoloComponente->categoria_merceologica_id;
                             if ($magazzinoOrigineId <= 0) {
                                 throw new \Exception("Categoria origine non valida per articolo {$articoloComponente->id} (sede {$this->sedeOrigineId}).");
                             }
@@ -396,15 +388,15 @@ class MovimentazioneInternaNew extends Component
                                 articoloId: $articoloComponente->id,
                                 quantita: $componente->quantita,
                                 magazzinoOrigineId: $magazzinoOrigineId,
-                                magazzinoDestinazioneId: $destCategoria,
+                                magazzinoDestinazioneId: $magazzinoOrigineId,
                                 dataMovimentazione: $this->dataMovimentazione,
                                 note: "Spostamento componente PF {$pf->codice} | {$pf->descrizione}" . ($this->noteMovimentazione ? " - {$this->noteMovimentazione}" : ''),
-                                prodottoFinitoId: $pf->id
+                                prodottoFinitoId: $pf->id,
+                                sedeOrigineId: (int) $this->sedeOrigineId,
+                                sedeDestinazioneId: (int) $this->sedeDestinazioneId
                             );
                             $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
                             $totaleMovimentazioni++;
-                            $articoloComponente->update(['sede_id' => $this->sedeDestinazioneId]);
-                            $this->syncSedeGiacenza($articoloComponente->id, $this->sedeDestinazioneId);
                         }
 
                         continue;
@@ -421,7 +413,7 @@ class MovimentazioneInternaNew extends Component
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }
 
-                    $magazzinoOrigineId = $this->trovaCategoriaOrigineDaSedeCompat($this->sedeOrigineId, $articolo);
+                    $magazzinoOrigineId = (int) $articolo->categoria_merceologica_id;
                     if ($magazzinoOrigineId <= 0) {
                         throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                     }
@@ -430,9 +422,11 @@ class MovimentazioneInternaNew extends Component
                         articoloId: $articolo->id,
                         quantita: $quantita,
                         magazzinoOrigineId: $magazzinoOrigineId,
-                        magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
+                        magazzinoDestinazioneId: $magazzinoOrigineId,
                         dataMovimentazione: $this->dataMovimentazione,
-                        note: $this->noteMovimentazione
+                        note: $this->noteMovimentazione,
+                        sedeOrigineId: (int) $this->sedeOrigineId,
+                        sedeDestinazioneId: (int) $this->sedeDestinazioneId
                     );
                     
                     $movimentazioneService->eseguiMovimentazioneDettaglio($movimentazioneMaster, $dto);
@@ -447,14 +441,7 @@ class MovimentazioneInternaNew extends Component
                         \Log::info("Articolo {$articolo->codice} rimosso dalla vetrina per movimentazione");
                     }
                     
-                    // Sposta l'articolo nella nuova sede
-                    $categoriaDestinazioneId = $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo);
-                    $articolo->update([
-                        'sede_id' => $this->sedeDestinazioneId,
-                        'categoria_merceologica_id' => $categoriaDestinazioneId,
-                        'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaDestinazioneId),
-                    ]);
-                    $this->syncSedeGiacenza($articolo->id, $this->sedeDestinazioneId);
+                    $articolo->refresh();
                 }
                 
                 

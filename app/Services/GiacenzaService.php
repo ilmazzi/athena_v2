@@ -204,13 +204,60 @@ class GiacenzaService
             return $giacenzaDestinazione;
         });
     }
-    
     /**
-     * Ottieni report giacenze per magazzino
-     * 
-     * @param int $magazzinoId
-     * @return array
+     * Sposta fisicamente l'articolo tra sedi senza alterare magazzino logico,
+     * categoria merceologica o disponibilita operativa.
      */
+    public function spostaSede(
+        int $articoloId,
+        int $sedeDestinazioneId,
+        int $quantita = 1,
+        ?int $sedeOrigineId = null
+    ): Giacenza {
+        return DB::transaction(function () use ($articoloId, $sedeDestinazioneId, $quantita, $sedeOrigineId) {
+            $giacenza = Giacenza::where('articolo_id', $articoloId)
+                ->when($sedeOrigineId, function ($query) use ($sedeOrigineId) {
+                    $query->where('sede_id', $sedeOrigineId);
+                })
+                ->where(function ($q) {
+                    $q->where('quantita_residua', '>', 0)
+                        ->orWhere('quantita', '>', 0);
+                })
+                ->orderByDesc('quantita_residua')
+                ->orderByDesc('quantita')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$giacenza) {
+                $giacenza = Giacenza::where('articolo_id', $articoloId)
+                    ->orderByDesc('quantita_residua')
+                    ->orderByDesc('quantita')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            }
+
+            if (!$giacenza->hasDisponibilita($quantita)) {
+                $disponibile = (int) ($giacenza->quantita_residua ?? ($giacenza->quantita ?? 0));
+
+                throw new GiacenzaInsufficienteException(
+                    "Giacenza insufficiente per articolo {$articoloId}: richiesti {$quantita}, disponibili {$disponibile}"
+                );
+            }
+
+            $giacenza->update([
+                'sede_id' => $sedeDestinazioneId,
+                'ubicazione_id' => null,
+                'ultimo_movimento_at' => now(),
+            ]);
+
+            Articolo::findOrFail($articoloId)->update([
+                'sede_id' => $sedeDestinazioneId,
+            ]);
+
+            return $giacenza->fresh();
+        });
+    }
+
     public function reportGiacenzeMagazzino(int $magazzinoId): array
     {
         $giacenze = Giacenza::where('categoria_merceologica_id', $magazzinoId)
