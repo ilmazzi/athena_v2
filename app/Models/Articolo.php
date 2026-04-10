@@ -179,6 +179,17 @@ class Articolo extends Model
     {
         return $this->belongsTo(ProdottoFinito::class, 'prodotto_finito_id');
     }
+
+    /**
+     * Relazione esplicita al PF assemblato da questo articolo.
+     *
+     * Serve quando l'accessor legacy `prodottoFinito` verrebbe interpretato
+     * come "PF in cui questo articolo e usato come componente".
+     */
+    public function prodottoFinitoRecord(): BelongsTo
+    {
+        return $this->belongsTo(ProdottoFinito::class, 'prodotto_finito_id');
+    }
     
     /**
      * Utente che ha assemblato (se prodotto finito)

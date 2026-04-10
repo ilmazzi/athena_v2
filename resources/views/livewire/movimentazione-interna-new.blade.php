@@ -168,10 +168,10 @@
                                 <td><strong>{{ $articolo->codice }}</strong></td>
                                 <td>
                                     {{ Str::limit($articolo->descrizione, 50) }}
-                                    @if($articolo->prodottoFinito && $articolo->prodottoFinito->componentiArticoli->isNotEmpty())
+                                    @if($articolo->prodottoFinitoRecord && $articolo->prodottoFinitoRecord->componentiArticoli->isNotEmpty())
                                         <div class="small text-muted mt-1">
                                             <strong>Componenti:</strong>
-                                            @foreach($articolo->prodottoFinito->componentiArticoli as $componente)
+                                            @foreach($articolo->prodottoFinitoRecord->componentiArticoli as $componente)
                                                 <div>
                                                     • {{ $componente->articolo->codice ?? 'N/A' }} - {{ Str::limit($componente->articolo->descrizione ?? 'N/A', 30) }}
                                                     (x{{ $componente->quantita }})

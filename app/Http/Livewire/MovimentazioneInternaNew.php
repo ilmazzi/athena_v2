@@ -185,7 +185,7 @@ class MovimentazioneInternaNew extends Component
                         ->orderByDesc('quantita')
                         ->orderByDesc('id');
                 },
-                'prodottoFinito.componentiArticoli.articolo'
+                'prodottoFinitoRecord.componentiArticoli.articolo'
             ])
             ->whereHas('giacenze', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId)
@@ -231,7 +231,7 @@ class MovimentazioneInternaNew extends Component
             unset($this->articoliSelezionati[$articoloId]);
         } else {
             $articolo = Articolo::withoutGlobalScope('user_sede')
-                ->with(['giacenze', 'categoriaMerceologica', 'prodottoFinito.componentiArticoli.articolo'])
+                ->with(['giacenze', 'categoriaMerceologica', 'prodottoFinitoRecord.componentiArticoli.articolo'])
                 ->findOrFail($articoloId);
             $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
             
@@ -250,10 +250,11 @@ class MovimentazioneInternaNew extends Component
                 return;
             }
             
-            $isPf = (bool) $articolo->prodottoFinito;
+            $pfRecord = $articolo->prodottoFinitoRecord;
+            $isPf = (bool) $pfRecord;
             $componenti = [];
             if ($isPf) {
-                $componenti = $articolo->prodottoFinito->componentiArticoli->map(function ($componente) {
+                $componenti = $pfRecord->componentiArticoli->map(function ($componente) {
                     return [
                         'articolo_id' => $componente->articolo_id,
                         'codice' => $componente->articolo->codice ?? 'N/A',
