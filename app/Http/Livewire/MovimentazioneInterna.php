@@ -280,9 +280,11 @@ class MovimentazioneInterna extends Component
                         articoloId: $articolo->id,
                         quantita: $quantita,
                         magazzinoOrigineId: $magazzinoOrigineId,
-                        magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
+                        magazzinoDestinazioneId: $magazzinoOrigineId,
                         dataMovimentazione: $this->dataMovimentazione,
-                        note: $this->noteMovimentazione
+                        note: $this->noteMovimentazione,
+                        sedeOrigineId: (int) $this->sedeOrigineId,
+                        sedeDestinazioneId: (int) $this->sedeDestinazioneId
                     );
                     
                     $ultimaMovimentazione = $movimentazioneService->eseguiMovimentazione($dto);
@@ -297,8 +299,7 @@ class MovimentazioneInterna extends Component
                         \Log::info("Articolo {$articolo->codice} rimosso dalla vetrina per movimentazione");
                     }
                     
-                    // Sposta l'articolo nella nuova sede
-                    $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
+                    $articolo->refresh();
                 }
                 
                 // Movimenta prodotti finiti (sposta tutti i componenti)
@@ -316,16 +317,17 @@ class MovimentazioneInterna extends Component
                             articoloId: $articolo->id,
                             quantita: $componente->quantita,
                             magazzinoOrigineId: $magazzinoOrigineId,
-                            magazzinoDestinazioneId: $this->trovaCategoriaDaSede($this->sedeDestinazioneId, $articolo),
+                            magazzinoDestinazioneId: $magazzinoOrigineId,
                             dataMovimentazione: $this->dataMovimentazione,
-                            note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}"
+                            note: "Spostamento componente PF {$pf->codice} - {$this->noteMovimentazione}",
+                            sedeOrigineId: (int) $this->sedeOrigineId,
+                            sedeDestinazioneId: (int) $this->sedeDestinazioneId
                         );
                         
                         $ultimaMovimentazione = $movimentazioneService->eseguiMovimentazione($dto);
                         $totaleMovimentazioni++;
                         
-                        // Sposta l'articolo componente nella nuova sede
-                        $articolo->update(['sede_id' => $this->sedeDestinazioneId]);
+                        $articolo->refresh();
                     }
                 }
                 

@@ -15,6 +15,8 @@ class MovimentazioneDTO
         public readonly string $dataMovimentazione,
         public readonly ?string $note = null,
         public readonly ?int $prodottoFinitoId = null,
+        public readonly ?int $sedeOrigineId = null,
+        public readonly ?int $sedeDestinazioneId = null,
     ) {
     }
 
@@ -54,7 +56,6 @@ class MovimentazioneDTO
             && $this->quantita > 0
             && $this->magazzinoOrigineId > 0
             && $this->magazzinoDestinazioneId > 0
-            && $this->magazzinoOrigineId !== $this->magazzinoDestinazioneId
             && !empty($this->dataMovimentazione);
     }
 }

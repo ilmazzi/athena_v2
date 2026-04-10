@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Auth;
  * Service per gestione movimentazioni tra magazzini
  * 
  * Business Rules:
- * - Trasferimenti tra sedi
- * - Decrementa giacenza origine
- * - Incrementa giacenza destinazione
+ * - Trasferimenti interni tra sedi fisiche
+ * - Mantiene invariati magazzino logico, categoria merceologica e quantita residua
+ * - Aggiorna solo la collocazione operativa (sede/ubicazione)
  * - Traccia storico completo
  */
 class MovimentazioneService
@@ -31,9 +31,9 @@ class MovimentazioneService
      * Esegui movimentazione tra magazzini
      * 
      * Workflow:
-     * 1. Decrementa giacenza magazzino origine
-     * 2. Incrementa/crea giacenza magazzino destinazione
-     * 3. Aggiorna magazzino_id dell'articolo
+     * 1. Verifica disponibilita operativa nella sede origine
+     * 2. Sposta fisicamente la giacenza nella sede destinazione
+     * 3. Mantiene invariati magazzino/categoria di business
      * 4. Registra movimentazione
      * 
      * @param MovimentazioneDTO $dto
@@ -45,10 +45,7 @@ class MovimentazioneService
             // Verifica articolo esiste
             $articolo = Articolo::findOrFail($dto->articoloId);
             
-            // Verifica giacenza origine sufficiente
-            $giacenzaOrigine = Giacenza::where('articolo_id', $dto->articoloId)
-                ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
-                ->first();
+            $giacenzaOrigine = $this->resolveGiacenzaOrigine($dto);
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
                 \Log::error('❌ Giacenza insufficiente (movimentazione)', [
                     'articolo_id' => $dto->articoloId,
@@ -65,13 +62,7 @@ class MovimentazioneService
                 );
             }
             
-            // Trasferisci giacenza dalla categoria origine a destinazione
-            $this->giacenzaService->trasferisciDaA(
-                $dto->articoloId,
-                $dto->magazzinoOrigineId,
-                $dto->magazzinoDestinazioneId,
-                $dto->quantita
-            );
+            $this->spostaArticoloTraSedi($dto);
             
             // Registra movimentazione
             $movimentazione = Movimentazione::create($dto->toModelArray());
@@ -120,9 +111,7 @@ class MovimentazioneService
         return DB::transaction(function () use ($movimentazione, $dto) {
             $articolo = Articolo::findOrFail($dto->articoloId);
             
-            $giacenzaOrigine = Giacenza::where('articolo_id', $dto->articoloId)
-                ->where('categoria_merceologica_id', $dto->magazzinoOrigineId)
-                ->first();
+            $giacenzaOrigine = $this->resolveGiacenzaOrigine($dto);
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
                 \Log::error('❌ Giacenza insufficiente (movimentazione dettaglio)', [
                     'articolo_id' => $dto->articoloId,
@@ -139,12 +128,7 @@ class MovimentazioneService
                 );
             }
             
-            $this->giacenzaService->trasferisciDaA(
-                $dto->articoloId,
-                $dto->magazzinoOrigineId,
-                $dto->magazzinoDestinazioneId,
-                $dto->quantita
-            );
+            $this->spostaArticoloTraSedi($dto);
             
             $dettaglio = MovimentazioneDettaglio::where('movimentazione_id', $movimentazione->id)
                 ->where('articolo_id', $dto->articoloId)
@@ -191,6 +175,33 @@ class MovimentazioneService
         }
 
         return $prefix . str_pad((string) $progressivo, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function resolveGiacenzaOrigine(MovimentazioneDTO $dto): ?Giacenza
+    {
+        return Giacenza::where('articolo_id', $dto->articoloId)
+            ->when($dto->sedeOrigineId, function ($query) use ($dto) {
+                $query->where('sede_id', $dto->sedeOrigineId);
+            }, function ($query) use ($dto) {
+                $query->where('categoria_merceologica_id', $dto->magazzinoOrigineId);
+            })
+            ->orderByDesc('quantita_residua')
+            ->orderByDesc('quantita')
+            ->first();
+    }
+
+    private function spostaArticoloTraSedi(MovimentazioneDTO $dto): void
+    {
+        if (!$dto->sedeDestinazioneId) {
+            throw new \DomainException("Sede destinazione mancante per articolo ID {$dto->articoloId}");
+        }
+
+        $this->giacenzaService->spostaSede(
+            articoloId: $dto->articoloId,
+            sedeDestinazioneId: $dto->sedeDestinazioneId,
+            quantita: $dto->quantita,
+            sedeOrigineId: $dto->sedeOrigineId
+        );
     }
     
     /**
