@@ -117,7 +117,6 @@ class MovimentazioneInterna extends Component
                         ->orderByDesc('id');
                 }
             ])
-            ->where('stato', 'disponibile')
             ->whereHas('giacenze', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId)
                     ->where(function ($subQ) {
