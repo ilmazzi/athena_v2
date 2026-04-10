@@ -354,14 +354,27 @@ class MovimentazioneInterna extends Component
      */
     private function trovaCategoriaDaSede($sedeId, $articolo)
     {
-        // Cerca categoria con stesso nome nella sede destinazione
-        $categoria = CategoriaMerceologica::where('sede_id', $sedeId)
-            ->where('nome', $articolo->categoriaMerceologica->nome)
-            ->first();
-            
-        // Se non esiste, prendi la prima categoria della sede
+        $magazzinoCode = $this->resolveArticoloMagazzinoCode($articolo);
+
+        $categoria = CategoriaMerceologica::withoutGlobalScopes()
+            ->where('sede_id', $sedeId)
+            ->get()
+            ->first(function ($candidate) use ($magazzinoCode, $articolo) {
+                if ($magazzinoCode && $this->resolveMagazzinoCodeFromCategoria($candidate) === $magazzinoCode) {
+                    return true;
+                }
+
+                return $candidate->nome === $articolo->categoriaMerceologica->nome;
+            });
+
         if (!$categoria) {
-            $categoria = CategoriaMerceologica::where('sede_id', $sedeId)->first();
+            $categoria = CategoriaMerceologica::withoutGlobalScopes()
+                ->where('sede_id', $sedeId)
+                ->first();
+        }
+
+        if (!$categoria) {
+            throw new \Exception("Nessuna categoria disponibile nella sede {$sedeId}.");
         }
         
         return $categoria->id;
@@ -388,6 +401,51 @@ class MovimentazioneInterna extends Component
         }
 
         return (int) $categoriaId;
+    }
+
+    private function resolveArticoloMagazzinoCode(Articolo $articolo): ?int
+    {
+        if (!empty($articolo->magazzino_logico)) {
+            return (int) $articolo->magazzino_logico;
+        }
+
+        $giacenza = \App\Models\Giacenza::where('articolo_id', $articolo->id)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                  ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if (!empty($giacenza?->magazzino_logico)) {
+            return (int) $giacenza->magazzino_logico;
+        }
+
+        return $this->resolveMagazzinoCodeFromCategoria($articolo->categoriaMerceologica);
+    }
+
+    private function resolveMagazzinoCodeFromCategoria(?CategoriaMerceologica $categoria): ?int
+    {
+        if (!$categoria) {
+            return null;
+        }
+
+        $codice = trim((string) $categoria->codice);
+        $nome = trim((string) $categoria->nome);
+
+        if ($codice !== '' && ctype_digit($codice)) {
+            return (int) $codice;
+        }
+
+        if ($codice !== '' && preg_match('/(?:MAG|MAGAZZINO)\s*([0-9]+)/i', $codice, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if ($nome !== '' && preg_match('/MAGAZZINO\s*([0-9]+)/i', $nome, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
     }
     
     public function getTotaleSelezionati(): int
