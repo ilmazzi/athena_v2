@@ -194,8 +194,9 @@
         if (preg_match('/^MOV-\d{4}-(\d+)$/', $numeroDocumento, $matches)) {
             $numeroProgressivo = ltrim($matches[1], '0') ?: '1';
         }
-        $sedeOrigine = $movimentazione->magazzinoPartenza?->sede;
-        $sedeDestinazione = $movimentazione->magazzinoDestinazione?->sede;
+        $canInferSedeFromCategorie = $movimentazione->magazzino_partenza_id !== $movimentazione->magazzino_destinazione_id;
+        $sedeOrigine = $movimentazione->sedePartenza ?? ($canInferSedeFromCategorie ? $movimentazione->magazzinoPartenza?->sede : null);
+        $sedeDestinazione = $movimentazione->sedeDestinazione ?? ($canInferSedeFromCategorie ? $movimentazione->magazzinoDestinazione?->sede : null);
         $mittenteLuogo = $movimentazione->magazzinoPartenza;
         $destinatarioLuogo = $movimentazione->magazzinoDestinazione;
         $mittente = $sedeOrigine ?? $mittenteLuogo;
@@ -420,7 +421,7 @@
             </div>
             @if($sedeOrigine?->societa || $mittenteLuogo?->nome)
                 <div style="font-size: 9px; margin-bottom: 5px;">
-                    Sede: {{ $mittenteLuogo?->nome ?? $sedeOrigine?->nome }}
+                    Sede: {{ $sedeOrigine?->nome ?? $mittenteLuogo?->nome }}
                 </div>
             @endif
             @if($mittenteIndirizzo)
@@ -466,7 +467,7 @@
             </div>
             @if($sedeDestinazione?->societa || $destinatarioLuogo?->nome)
                 <div style="font-size: 9px; margin-bottom: 5px;">
-                    Sede: {{ $destinatarioLuogo?->nome ?? $sedeDestinazione?->nome }}
+                    Sede: {{ $sedeDestinazione?->nome ?? $destinatarioLuogo?->nome }}
                 </div>
             @endif
             @if($destinatarioIndirizzo)

@@ -36,6 +36,8 @@ class MovimentazioneInternaController extends Controller
 
         $query = Movimentazione::query()
             ->with([
+                'sedePartenza.societa',
+                'sedeDestinazione.societa',
                 'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
                 'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
                 'creataDa',
@@ -66,7 +68,9 @@ class MovimentazioneInternaController extends Controller
         if ($request->filled('sede_id')) {
             $sedeId = (int) $request->sede_id;
             $query->where(function ($q) use ($sedeId) {
-                $q->whereHas('magazzinoPartenza', function ($q) use ($sedeId) {
+                $q->where('sede_partenza_id', $sedeId)
+                    ->orWhere('sede_destinazione_id', $sedeId)
+                    ->orWhereHas('magazzinoPartenza', function ($q) use ($sedeId) {
                     $q->withoutGlobalScope('user_sede')
                         ->where('sede_id', $sedeId);
                 })->orWhereHas('magazzinoDestinazione', function ($q) use ($sedeId) {
@@ -86,6 +90,12 @@ class MovimentazioneInternaController extends Controller
                         $q->withoutGlobalScope('user_sede')
                             ->where('codice', 'like', "%{$term}%")
                             ->orWhere('descrizione', 'like', "%{$term}%");
+                    })
+                    ->orWhereHas('sedePartenza', function ($q) use ($term) {
+                        $q->where('nome', 'like', "%{$term}%");
+                    })
+                    ->orWhereHas('sedeDestinazione', function ($q) use ($term) {
+                        $q->where('nome', 'like', "%{$term}%");
                     })
                     ->orWhereHas('magazzinoPartenza', function ($q) use ($term) {
                         $q->withoutGlobalScope('user_sede')
@@ -111,6 +121,8 @@ class MovimentazioneInternaController extends Controller
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
             'dettagli.prodottoFinito.componentiArticoli.articolo',
+            'sedePartenza.societa',
+            'sedeDestinazione.societa',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'
@@ -127,6 +139,8 @@ class MovimentazioneInternaController extends Controller
         $movimentazione = \App\Models\Movimentazione::with([
             'dettagli.articolo' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
             'dettagli.prodottoFinito.componentiArticoli.articolo',
+            'sedePartenza.societa',
+            'sedeDestinazione.societa',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede.societa'),
             'creataDa'
@@ -145,25 +159,32 @@ class MovimentazioneInternaController extends Controller
      */
     public function elimina($movimentazioneId)
     {
-        $movimentazione = Movimentazione::with(['dettagli', 'magazzinoPartenza', 'magazzinoDestinazione'])
+        $movimentazione = Movimentazione::with([
+            'dettagli',
+            'sedePartenza',
+            'sedeDestinazione',
+            'magazzinoPartenza',
+            'magazzinoDestinazione',
+        ])
             ->findOrFail($movimentazioneId);
         $giacenzaService = app(GiacenzaService::class);
 
         try {
             DB::transaction(function () use ($movimentazione, $giacenzaService) {
-                foreach ($movimentazione->dettagli as $dettaglio) {
-                    $giacenzaService->trasferisciDaA(
-                        $dettaglio->articolo_id,
-                        $movimentazione->magazzino_destinazione_id,
-                        $movimentazione->magazzino_partenza_id,
-                        $dettaglio->quantita
-                    );
+                $sedeOrigineId = $movimentazione->sede_partenza_id ?: $movimentazione->magazzinoPartenza?->sede_id;
+                $sedeDestinazioneId = $movimentazione->sede_destinazione_id ?: $movimentazione->magazzinoDestinazione?->sede_id;
 
-                    if ($movimentazione->magazzinoPartenza?->sede_id) {
-                        Articolo::whereKey($dettaglio->articolo_id)->update([
-                            'sede_id' => $movimentazione->magazzinoPartenza->sede_id,
-                        ]);
-                    }
+                if (!$sedeOrigineId || !$sedeDestinazioneId) {
+                    throw new \RuntimeException('Impossibile determinare le sedi della movimentazione da annullare.');
+                }
+
+                foreach ($movimentazione->dettagli as $dettaglio) {
+                    $giacenzaService->spostaSede(
+                        $dettaglio->articolo_id,
+                        $sedeOrigineId,
+                        $dettaglio->quantita,
+                        $sedeDestinazioneId
+                    );
                 }
 
                 $movimentazione->dettagli()->delete();

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Movimentazione - Entity per trasferimenti tra magazzini
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Movimentazione extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'movimentazioni';
     
     public $timestamps = true;
@@ -23,8 +26,10 @@ class Movimentazione extends Model
     protected $fillable = [
         'numero_documento',
         'magazzino_partenza_id',
+        'sede_partenza_id',
         'magazzino_logico_partenza',
         'magazzino_destinazione_id',
+        'sede_destinazione_id',
         'magazzino_logico_destinazione',
         'data_movimentazione',
         'data_prevista',
@@ -44,7 +49,9 @@ class Movimentazione extends Model
     protected $casts = [
         'data_movimentazione' => 'date',
         'magazzino_logico_partenza' => 'integer',
+        'sede_partenza_id' => 'integer',
         'magazzino_logico_destinazione' => 'integer',
+        'sede_destinazione_id' => 'integer',
         'data_prevista' => 'date',
         'confermata_at' => 'datetime',
         'completata_at' => 'datetime',
@@ -65,10 +72,20 @@ class Movimentazione extends Model
     {
         return $this->belongsTo(CategoriaMerceologica::class, 'magazzino_partenza_id');
     }
+
+    public function sedePartenza(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class, 'sede_partenza_id');
+    }
     
     public function magazzinoDestinazione(): BelongsTo
     {
         return $this->belongsTo(CategoriaMerceologica::class, 'magazzino_destinazione_id');
+    }
+
+    public function sedeDestinazione(): BelongsTo
+    {
+        return $this->belongsTo(Sede::class, 'sede_destinazione_id');
     }
     
     public function creataDa(): BelongsTo
@@ -159,5 +176,47 @@ class Movimentazione extends Model
     public function isCompletata(): bool
     {
         return $this->stato === 'completata';
+    }
+
+    public function getLuogoPartenzaDisplayAttribute(): string
+    {
+        return $this->formatLuogoDisplay(
+            $this->magazzino_logico_partenza,
+            $this->sedePartenza,
+            $this->magazzinoPartenza
+        );
+    }
+
+    public function getLuogoDestinazioneDisplayAttribute(): string
+    {
+        return $this->formatLuogoDisplay(
+            $this->magazzino_logico_destinazione,
+            $this->sedeDestinazione,
+            $this->magazzinoDestinazione
+        );
+    }
+
+    private function formatLuogoDisplay(
+        ?int $magazzinoLogico,
+        ?Sede $sede,
+        ?CategoriaMerceologica $categoria
+    ): string {
+        if ($magazzinoLogico && $sede) {
+            return "Magazzino {$magazzinoLogico} ({$sede->nome})";
+        }
+
+        if ($magazzinoLogico) {
+            return "Magazzino {$magazzinoLogico}";
+        }
+
+        if ($categoria?->nome) {
+            return $categoria->nome;
+        }
+
+        if ($sede?->nome) {
+            return $sede->nome;
+        }
+
+        return '—';
     }
 }

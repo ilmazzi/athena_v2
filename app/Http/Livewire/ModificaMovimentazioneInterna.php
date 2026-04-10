@@ -34,6 +34,8 @@ class ModificaMovimentazioneInterna extends Component
                 'prodottoFinito.componentiArticoli.articolo' => fn($subQ) => $subQ->withoutGlobalScopes()->withTrashed(),
             ]),
             'dettagli.prodottoFinito.componentiArticoli.articolo' => fn($q) => $q->withoutGlobalScopes()->withTrashed(),
+            'sedePartenza',
+            'sedeDestinazione',
             'magazzinoPartenza' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
             'magazzinoDestinazione' => fn($q) => $q->withoutGlobalScope('user_sede')->with('sede'),
             'creataDa',
