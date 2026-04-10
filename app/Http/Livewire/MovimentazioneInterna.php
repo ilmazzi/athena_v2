@@ -488,6 +488,17 @@ class MovimentazioneInterna extends Component
         ]);
     }
 
+    private function syncSedeGiacenza(int $articoloId, int $sedeId): void
+    {
+        $giacenza = \App\Models\Giacenza::where('articolo_id', $articoloId)
+            ->orderByDesc('quantita_residua')
+            ->orderByDesc('quantita')
+            ->first();
+        if ($giacenza) {
+            $giacenza->update(['sede_id' => $sedeId]);
+        }
+    }
+
     private function resolveArticoloMagazzinoCode(Articolo $articolo): ?int
     {
         if (!empty($articolo->magazzino_logico)) {
