@@ -483,6 +483,10 @@ class MovimentazioneInternaNew extends Component
     private function trovaCategoriaDaSede($sedeId, $articolo)
     {
         $categoriaOrigine = $articolo->categoriaMerceologica;
+        if (!$categoriaOrigine) {
+            throw new \Exception("Categoria origine non trovata per articolo {$articolo->id}.");
+        }
+
         $magazzinoCode = $this->resolveArticoloMagazzinoCode($articolo);
 
         $categoria = CategoriaMerceologica::withoutGlobalScopes()
@@ -493,9 +497,18 @@ class MovimentazioneInternaNew extends Component
             });
 
         if (!$categoria) {
-            throw new \Exception(
-                "Categoria '{$categoriaOrigine->nome}' non presente nella sede di destinazione."
-            );
+            // Nelle movimentazioni interne spostiamo l'ubicazione (sede), non il magazzino logico.
+            // Se la sede di destinazione non ha una categoria equivalente, manteniamo la categoria origine.
+            \Log::warning("Categoria di destinazione non trovata: mantengo categoria origine", [
+                'sede_destinazione_id' => $sedeId,
+                'articolo_id' => $articolo->id,
+                'articolo_codice' => $articolo->codice,
+                'magazzino_code' => $magazzinoCode,
+                'categoria_origine_id' => $categoriaOrigine->id,
+                'categoria_origine_nome' => $categoriaOrigine->nome,
+            ]);
+
+            return (int) $categoriaOrigine->id;
         }
         
         return $categoria->id;
