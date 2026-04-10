@@ -103,18 +103,26 @@ class MovimentazioneInterna extends Component
             return collect();
         }
 
-        $query = Articolo::with(['categoriaMerceologica', 'giacenza'])
+        $query = Articolo::with([
+                'categoriaMerceologica',
+                'giacenze' => function ($q) {
+                    $q->where('sede_id', $this->sedeOrigineId)
+                        ->where(function ($subQ) {
+                            $subQ->where('quantita_residua', '>', 0)
+                                ->orWhere('quantita', '>', 0);
+                        })
+                        ->orderByDesc('quantita_residua')
+                        ->orderByDesc('quantita')
+                        ->orderByDesc('id');
+                }
+            ])
             ->where('stato', 'disponibile')
-            // SOLO articoli con giacenza disponibile
-            ->whereHas('giacenza', function($q) {
-                $q->where('quantita_residua', '>', 0);
-            })
-            // Articoli della sede o con giacenza legata alla sede
-            ->where(function ($q) {
+            ->whereHas('giacenze', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId)
-                  ->orWhereHas('giacenza', function ($subQ) {
-                      $subQ->where('sede_id', $this->sedeOrigineId);
-                  });
+                    ->where(function ($subQ) {
+                        $subQ->where('quantita_residua', '>', 0)
+                            ->orWhere('quantita', '>', 0);
+                    });
             })
             // ESCLUDI articoli in conto deposito
             ->whereNull('conto_deposito_corrente_id');
@@ -131,7 +139,15 @@ class MovimentazioneInterna extends Component
             });
         }
         
-        return $query->orderByRaw("COALESCE(codice_base, codice)")->paginate(20);
+        $articoli = $query->orderByRaw("COALESCE(codice_base, codice)")->paginate(20);
+
+        $articoli->getCollection()->transform(function (Articolo $articolo) {
+            $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
+
+            return $articolo;
+        });
+
+        return $articoli;
     }
     
     public function getProdottiFinitiDisponibiliProperty()
@@ -165,7 +181,8 @@ class MovimentazioneInterna extends Component
         if (isset($this->articoliSelezionati[$articoloId])) {
             unset($this->articoliSelezionati[$articoloId]);
         } else {
-            $articolo = Articolo::with('giacenza')->findOrFail($articoloId);
+            $articolo = Articolo::with('giacenze')->findOrFail($articoloId);
+            $articolo->setRelation('giacenza', $this->resolveGiacenzaMovimentazione($articolo));
             
             // Verifica se in conto deposito
             if ($articolo->isInContoDeposito()) {
@@ -174,7 +191,8 @@ class MovimentazioneInterna extends Component
             }
             
             // Calcola quantità disponibile per movimentazione
-            $quantitaDisponibile = $articolo->getQuantitaDisponibilePerMovimentazione();
+            $quantitaDisponibile = (int) ($articolo->giacenza?->quantita_residua ?? ($articolo->giacenza?->quantita ?? 0));
+            $quantitaDisponibile = max(0, $quantitaDisponibile - (int) ($articolo->quantita_in_deposito ?? 0));
             
             if ($quantitaDisponibile <= 0) {
                 session()->flash('error', "L'articolo {$articolo->codice} non ha giacenza disponibile per movimentazione.");
@@ -499,6 +517,24 @@ class MovimentazioneInterna extends Component
         if ($giacenza) {
             $giacenza->update(['sede_id' => $sedeId]);
         }
+    }
+
+    private function resolveGiacenzaMovimentazione(Articolo $articolo): ?\App\Models\Giacenza
+    {
+        $giacenze = $articolo->relationLoaded('giacenze')
+            ? $articolo->giacenze
+            : $articolo->giacenze()
+                ->where('sede_id', $this->sedeOrigineId)
+                ->where(function ($q) {
+                    $q->where('quantita_residua', '>', 0)
+                        ->orWhere('quantita', '>', 0);
+                })
+                ->orderByDesc('quantita_residua')
+                ->orderByDesc('quantita')
+                ->orderByDesc('id')
+                ->get();
+
+        return $giacenze->first();
     }
 
     private function resolveArticoloMagazzinoCode(Articolo $articolo): ?int
