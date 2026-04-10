@@ -186,7 +186,6 @@ class MovimentazioneInternaNew extends Component
                 },
                 'prodottoFinito.componentiArticoli.articolo'
             ])
-            ->where('stato', 'disponibile')
             ->whereHas('giacenze', function($q) {
                 $q->where('sede_id', $this->sedeOrigineId)
                     ->where(function ($subQ) {
