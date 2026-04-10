@@ -483,7 +483,7 @@ class MovimentazioneInternaNew extends Component
     private function trovaCategoriaDaSede($sedeId, $articolo)
     {
         $categoriaOrigine = $articolo->categoriaMerceologica;
-        $magazzinoCode = $this->resolveMagazzinoCodeFromCategoria($categoriaOrigine);
+        $magazzinoCode = $this->resolveArticoloMagazzinoCode($articolo);
 
         $categoria = CategoriaMerceologica::withoutGlobalScopes()
             ->where('sede_id', $sedeId)
@@ -639,8 +639,7 @@ class MovimentazioneInternaNew extends Component
 
     private function trovaCategoriaCompatibilePerSede(int $sedeId, Articolo $articolo): int
     {
-        $categoriaOrigine = $articolo->categoriaMerceologica;
-        $magazzinoCode = $this->resolveMagazzinoCodeFromCategoria($categoriaOrigine);
+        $magazzinoCode = $this->resolveArticoloMagazzinoCode($articolo);
 
         if (!$magazzinoCode) {
             return 0;
@@ -714,6 +713,27 @@ class MovimentazioneInternaNew extends Component
         ]);
     }
 
+    private function resolveArticoloMagazzinoCode(Articolo $articolo): ?int
+    {
+        if (!empty($articolo->magazzino_logico)) {
+            return (int) $articolo->magazzino_logico;
+        }
+
+        $giacenza = Giacenza::where('articolo_id', $articolo->id)
+            ->where(function ($q) {
+                $q->where('quantita_residua', '>', 0)
+                    ->orWhere('quantita', '>', 0);
+            })
+            ->orderByDesc('quantita_residua')
+            ->first();
+
+        if (!empty($giacenza?->magazzino_logico)) {
+            return (int) $giacenza->magazzino_logico;
+        }
+
+        return $this->resolveMagazzinoCodeFromCategoria($articolo->categoriaMerceologica);
+    }
+
     private function getPfCategoriaBySede(int $sedeId): int
     {
         return $sedeId === 5 ? 22 : 9;
@@ -759,4 +779,3 @@ class MovimentazioneInternaNew extends Component
         ]);
     }
 }
-
