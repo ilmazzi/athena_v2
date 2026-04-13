@@ -487,6 +487,33 @@ class Articolo extends Model
         return $this->hasMany(CaricoDettaglio::class, 'articolo_id');
     }
 
+    private function firstLoadedCaricoDettaglioDocument()
+    {
+        if (!$this->relationLoaded('caricoDettagli')) {
+            return null;
+        }
+
+        return $this->caricoDettagli
+            ->sortBy('id')
+            ->map(fn ($detail) => $detail?->documento())
+            ->filter()
+            ->first();
+    }
+
+    private function firstCaricoDettaglioDocument()
+    {
+        $loadedDocument = $this->firstLoadedCaricoDettaglioDocument();
+        if ($loadedDocument) {
+            return $loadedDocument;
+        }
+
+        $detail = $this->caricoDettagli()
+            ->orderBy('id')
+            ->first();
+
+        return $detail?->documento();
+    }
+
     private function firstLoadedRelatedDocument(string $relation, string $documentRelation)
     {
         if (!$this->relationLoaded($relation)) {
@@ -514,6 +541,11 @@ class Articolo extends Model
 
     private function preferredCaricoDocument()
     {
+        $caricoDettaglioDocument = $this->firstCaricoDettaglioDocument();
+        if ($caricoDettaglioDocument) {
+            return $caricoDettaglioDocument;
+        }
+
         $fattura = $this->firstRelatedDocument('fatturaDettaglio', 'fattura');
         $ddt = $this->firstRelatedDocument('ddtDettaglio', 'ddt');
 
@@ -565,7 +597,10 @@ class Articolo extends Model
     public function getNumeroDocumentoCaricoEffettivoAttribute()
     {
         if ($this->ultimoCarico) {
-            return $this->ultimoCarico->numero_documento;
+            $numero = $this->ultimoCarico->numero ?? $this->ultimoCarico->numero_documento ?? null;
+            if ($numero !== null && trim((string) $numero) !== '') {
+                return $numero;
+            }
         }
 
         return $this->numero_documento_carico;
