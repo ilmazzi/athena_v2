@@ -741,9 +741,9 @@
                                         @if($articolo->descrizione_estesa)
                                             <br><small class="text-muted">{{ $articolo->descrizione_estesa }}</small>
                                         @endif
-                                        @if($articolo->prodottoFinito && $articolo->prodottoFinito->componentiArticoli->isNotEmpty())
+                                        @if($articolo->prodottoFinitoRecord && $articolo->prodottoFinitoRecord->componentiArticoli->isNotEmpty())
                                             @php
-                                                $componenti = $articolo->prodottoFinito->componentiArticoli
+                                                $componenti = $articolo->prodottoFinitoRecord->componentiArticoli
                                                     ->map(fn($c) => $c->articolo?->codice ?: $c->articolo?->descrizione)
                                                     ->filter()
                                                     ->take(6)
@@ -2022,6 +2022,5 @@
     @endpush
 @endonce
 </div>
-
 
 

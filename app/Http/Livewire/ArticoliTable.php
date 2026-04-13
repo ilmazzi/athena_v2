@@ -1889,7 +1889,7 @@ class ArticoliTable extends Component
             'caricoDettagli',
             'ddtDettaglio.ddt',
             'fatturaDettaglio.fattura',
-            'prodottoFinito.componentiArticoli.articolo',
+            'prodottoFinitoRecord.componentiArticoli.articolo',
             'contoDepositoCorrente.sedeDestinataria',
         ];
 
