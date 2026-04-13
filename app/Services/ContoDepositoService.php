@@ -121,7 +121,7 @@ class ContoDepositoService
         $costoUnitario = $costoUnitario ?? $articolo->prezzo_acquisto ?? 0;
 
         return DB::transaction(function () use ($contoDeposito, $articolo, $quantita, $costoUnitario) {
-            $qtaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+            $qtaDisponibile = $articolo->giacenza?->quantita_residua ?? ($articolo->giacenza?->quantita ?? 0);
             if ($quantita < $qtaDisponibile) {
                 $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
             }
@@ -150,8 +150,8 @@ class ContoDepositoService
                 }
             }
 
-            // Se deposito inter-società, muovi quantità tra giacenze_sedi
-            // SALVA il magazzino originale nei dettagli del movimento
+            // Se deposito inter-societa, sposta la collocazione canonica senza toccare la residua
+            // e salva il magazzino originale nei dettagli del movimento
             $magazzinoOriginaleId = $articolo->categoria_merceologica_id;
             $magazzinoOriginaleLogico = $articolo->magazzino_logico
                 ?? app(MagazzinoLogicoService::class)->resolveFromCategoriaId($magazzinoOriginaleId);
@@ -356,14 +356,12 @@ class ContoDepositoService
 
             // Aggiorna item
             if ($isArticolo) {
-                $item->aggiornaQuantitaInDeposito();
-                
-                // Se venduto tutto, aggiorna giacenza
-                if ($quantita >= $item->quantita_in_deposito) {
-                    $item->giacenza->update([
-                        'quantita_residua' => max(0, $item->giacenza->quantita_residua - $quantita)
-                    ]);
+                if (!$item->giacenza) {
+                    throw new \RuntimeException("Articolo {$item->codice} senza giacenza associata.");
                 }
+
+                $item->giacenza->decrementa($quantita);
+                $item->aggiornaQuantitaInDeposito();
             } else {
                 // Vendita ProdottoFinito - scaricare componenti (consumo a vendita)
                 Log::info("🏆 Vendita PF ID {$item->id}: scarico componenti...");
@@ -391,19 +389,14 @@ class ContoDepositoService
                     // Aggiorna quantità in deposito del componente
                     $articoloComponente->aggiornaQuantitaInDeposito();
                     
-                    // Aggiorna giacenza se necessario
                     if ($articoloComponente->giacenza) {
-                        $articoloComponente->giacenza->update([
-                            'quantita_residua' => max(0, $articoloComponente->giacenza->quantita_residua - $quantitaDaScaricare)
-                        ]);
+                        $articoloComponente->giacenza->decrementa($quantitaDaScaricare);
                     }
                 }
                 
                 // Scarica anche la giacenza del PF (articolo risultante) se presente
                 if ($item->articoloRisultante && $item->articoloRisultante->giacenza) {
-                    $item->articoloRisultante->giacenza->update([
-                        'quantita_residua' => max(0, $item->articoloRisultante->giacenza->quantita_residua - $quantita)
-                    ]);
+                    $item->articoloRisultante->giacenza->decrementa($quantita);
                 }
                 
                 // Marca il PF come venduto
@@ -446,18 +439,16 @@ class ContoDepositoService
             // Reso articoli rimanenti
             $articoliRimanenti = $this->getArticoliRimanentiInDeposito($contoDeposito);
             foreach ($articoliRimanenti as $articoloData) {
-                $movimento = MovimentoDeposito::create([
-                    'conto_deposito_id' => $contoDeposito->id,
-                    'articolo_id' => $articoloData['articolo']->id,
-                    'tipo_movimento' => 'reso',
-                    'quantita' => $articoloData['quantita'],
-                    'costo_unitario' => $articoloData['costo_unitario'],
-                    'costo_totale' => $articoloData['quantita'] * $articoloData['costo_unitario'],
-                    'data_movimento' => now()->toDateString(),
-                    'note' => "Reso automatico scadenza {$contoDeposito->codice}",
-                ]);
+                $movimento = MovimentoDeposito::creaReso(
+                    $contoDeposito,
+                    $articoloData['articolo'],
+                    $articoloData['quantita'],
+                    $articoloData['costo_unitario'],
+                    null,
+                    "Reso automatico scadenza {$contoDeposito->codice}"
+                );
 
-                $articoloData['articolo']->aggiornaQuantitaInDeposito();
+                $this->ripristinaArticoloDaDeposito($contoDeposito, $articoloData['articolo']);
                 $movimentiReso->push($movimento);
             }
 
@@ -475,7 +466,10 @@ class ContoDepositoService
                     'note' => "Reso automatico scadenza {$contoDeposito->codice}",
                 ]);
 
-                $pfData['prodotto_finito']->update(['in_conto_deposito' => false]);
+                $pfData['prodotto_finito']->update([
+                    'in_conto_deposito' => false,
+                    'conto_deposito_corrente_id' => null,
+                ]);
                 $movimentiReso->push($movimento);
             }
 
@@ -506,7 +500,7 @@ class ContoDepositoService
 
             // Reso articoli selezionati
             foreach ($articoli as $articoloData) {
-                $articolo = Articolo::findOrFail($articoloData['articolo_id']);
+                $articolo = Articolo::with('giacenza')->findOrFail($articoloData['articolo_id']);
                 
                 // Verifica che l'articolo sia in deposito
                 if ($articolo->conto_deposito_corrente_id !== $contoDeposito->id) {
@@ -529,76 +523,29 @@ class ContoDepositoService
                 
                 $costoUnitario = $movimentoInvio ? $movimentoInvio->costo_unitario : ($articolo->costo_totale ?? 0);
 
-                // Crea movimento reso
-                $movimento = MovimentoDeposito::create([
-                    'conto_deposito_id' => $contoDeposito->id,
-                    'articolo_id' => $articolo->id,
-                    'tipo_movimento' => 'reso',
-                    'quantita' => $quantitaDaRestituire,
-                    'costo_unitario' => $costoUnitario,
-                    'costo_totale' => $quantitaDaRestituire * $costoUnitario,
-                    'data_movimento' => now()->toDateString(),
-                    'note' => "Reso manuale articolo {$articolo->codice}",
-                    'eseguito_da' => Auth::id(),
-                ]);
+                $articoloDaRendere = $articolo;
+                if ($quantitaDaRestituire < $quantitaDisponibile) {
+                    $articoloDaRendere = $this->splitArticoloPerResoDeposito(
+                        $contoDeposito,
+                        $articolo,
+                        $quantitaDaRestituire
+                    );
+                }
 
-                // Aggiorna quantità in deposito dell'articolo
-                $articolo->quantita_in_deposito = max(0, $quantitaDisponibile - $quantitaDaRestituire);
-                
-                // Se quantità = 0, rimuovi il deposito corrente
-                if ($articolo->quantita_in_deposito == 0) {
-                    $articolo->conto_deposito_corrente_id = null;
-                }
-                
-                // Ripristina magazzino originale se deposito inter-società (sempre, anche se reso parziale)
-                if ($contoDeposito->isInterSocieta()) {
-                    // Recupera magazzino originale dal movimento di invio
-                    $movimentoInvio = $contoDeposito->movimenti()
-                        ->where('articolo_id', $articolo->id)
-                        ->where('tipo_movimento', 'invio')
-                        ->first();
-                    
-                    $magazzinoOriginaleId = null;
-                    
-                    if ($movimentoInvio && isset($movimentoInvio->dettagli['magazzino_originale_id'])) {
-                        // Usa magazzino salvato nei dettagli
-                        $magazzinoOriginaleId = $movimentoInvio->dettagli['magazzino_originale_id'];
-                        $articolo->magazzino_logico = $movimentoInvio->dettagli['magazzino_originale_logico']
-                            ?? $articolo->magazzino_logico;
-                    } else {
-                        // Fallback: trova magazzino nella sede mittente (primo disponibile)
-                        $sedeMittente = $contoDeposito->sedeMittente;
-                        if ($sedeMittente) {
-                            // Cerca magazzini attivi nella sede mittente (escludi CD)
-                            $magazzinoOriginale = $sedeMittente->categorieMerceologiche()
-                                ->where('attivo', true)
-                                ->where('codice', 'NOT LIKE', 'CD-%') // Escludi magazzini CD
-                                ->orderBy('id')
-                                ->first();
-                            
-                            if ($magazzinoOriginale) {
-                                $magazzinoOriginaleId = $magazzinoOriginale->id;
-                            }
-                        }
-                    }
-                    
-                    // Se trovato, ripristina il magazzino originale
-                    if ($magazzinoOriginaleId) {
-                        $articolo->categoria_merceologica_id = $magazzinoOriginaleId;
-                        $mittenteId = $contoDeposito->sede_mittente_id;
-                        $giacenza = Giacenza::where('articolo_id', $articolo->id)->first();
-                        if ($giacenza) {
-                            $giacenza->update([
-                                'sede_id' => $mittenteId,
-                                'categoria_merceologica_id' => $magazzinoOriginaleId,
-                                'magazzino_logico' => $articolo->magazzino_logico ?? $giacenza->magazzino_logico,
-                                'ultimo_movimento_at' => now(),
-                            ]);
-                        }
-                    }
-                }
-                
-                $articolo->save();
+                // Crea movimento reso
+                $movimento = MovimentoDeposito::creaReso(
+                    $contoDeposito,
+                    $articoloDaRendere,
+                    $quantitaDaRestituire,
+                    $costoUnitario,
+                    null,
+                    "Reso manuale articolo {$articoloDaRendere->codice}"
+                );
+
+                $this->ripristinaArticoloDaDeposito($contoDeposito, $articoloDaRendere);
+                $articolo->refresh();
+                $articolo->aggiornaQuantitaInDeposito();
+
                 $movimentiReso->push($movimento);
                 
                 // Invia notifica reso solo se deposito inter-società
@@ -742,6 +689,137 @@ class ContoDepositoService
 
             return $nuovoDeposito;
         });
+    }
+
+    private function ripristinaArticoloDaDeposito(ContoDeposito $contoDeposito, Articolo $articolo): void
+    {
+        if ($contoDeposito->isInterSocieta()) {
+            $movimentoInvio = $contoDeposito->movimenti()
+                ->where('articolo_id', $articolo->id)
+                ->where('tipo_movimento', 'invio')
+                ->first();
+
+            $magazzinoOriginaleId = null;
+            $magazzinoOriginaleLogico = $articolo->magazzino_logico;
+
+            if ($movimentoInvio && isset($movimentoInvio->dettagli['magazzino_originale_id'])) {
+                $magazzinoOriginaleId = (int) $movimentoInvio->dettagli['magazzino_originale_id'];
+                $magazzinoOriginaleLogico = $movimentoInvio->dettagli['magazzino_originale_logico']
+                    ?? $magazzinoOriginaleLogico;
+            } else {
+                $sedeMittente = $contoDeposito->sedeMittente;
+                if ($sedeMittente) {
+                    $magazzinoOriginale = $sedeMittente->categorieMerceologiche()
+                        ->where('attivo', true)
+                        ->where('codice', 'NOT LIKE', 'CD-%')
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($magazzinoOriginale) {
+                        $magazzinoOriginaleId = $magazzinoOriginale->id;
+                    }
+                }
+            }
+
+            if ($magazzinoOriginaleId) {
+                $articolo->categoria_merceologica_id = $magazzinoOriginaleId;
+                $articolo->magazzino_logico = $magazzinoOriginaleLogico;
+
+                $giacenza = Giacenza::where('articolo_id', $articolo->id)->first();
+                if ($giacenza) {
+                    $giacenza->update([
+                        'sede_id' => $contoDeposito->sede_mittente_id,
+                        'categoria_merceologica_id' => $magazzinoOriginaleId,
+                        'magazzino_logico' => $magazzinoOriginaleLogico ?? $giacenza->magazzino_logico,
+                        'ultimo_movimento_at' => now(),
+                    ]);
+                }
+            }
+        }
+
+        $articolo->save();
+        $articolo->refresh();
+        $articolo->aggiornaQuantitaInDeposito();
+    }
+
+    private function splitArticoloPerResoDeposito(ContoDeposito $contoDeposito, Articolo $articolo, int $quantita): Articolo
+    {
+        $figlio = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
+
+        $figlio->update([
+            'conto_deposito_corrente_id' => $contoDeposito->id,
+        ]);
+
+        $this->riallocaMovimentiIngressoDeposito($contoDeposito, $articolo, $figlio, $quantita);
+
+        $articolo->refresh();
+        $articolo->aggiornaQuantitaInDeposito();
+        $figlio->refresh();
+        $figlio->aggiornaQuantitaInDeposito();
+
+        return $figlio;
+    }
+
+    private function riallocaMovimentiIngressoDeposito(
+        ContoDeposito $contoDeposito,
+        Articolo $articoloOrigine,
+        Articolo $articoloFiglio,
+        int $quantita
+    ): void {
+        $movimentiIngresso = $contoDeposito->movimenti()
+            ->where('articolo_id', $articoloOrigine->id)
+            ->whereIn('tipo_movimento', ['invio', 'rimando'])
+            ->orderBy('data_movimento')
+            ->orderBy('id')
+            ->get();
+
+        $disponibile = (int) $movimentiIngresso->sum('quantita');
+        if ($disponibile < $quantita) {
+            throw new \RuntimeException(
+                "Movimenti di ingresso insufficienti per riallocare il reso parziale di {$articoloOrigine->codice}"
+            );
+        }
+
+        $rimanenteDaRiallocare = $quantita;
+
+        foreach ($movimentiIngresso as $movimentoIngresso) {
+            if ($rimanenteDaRiallocare <= 0) {
+                break;
+            }
+
+            $quantitaMovimento = (int) $movimentoIngresso->quantita;
+            if ($quantitaMovimento <= 0) {
+                continue;
+            }
+
+            if ($quantitaMovimento <= $rimanenteDaRiallocare) {
+                $movimentoIngresso->update([
+                    'articolo_id' => $articoloFiglio->id,
+                ]);
+                $rimanenteDaRiallocare -= $quantitaMovimento;
+                continue;
+            }
+
+            $movimentoFiglio = $movimentoIngresso->replicate();
+            $movimentoFiglio->articolo_id = $articoloFiglio->id;
+            $movimentoFiglio->quantita = $rimanenteDaRiallocare;
+            $movimentoFiglio->costo_totale = $rimanenteDaRiallocare * (float) $movimentoIngresso->costo_unitario;
+            $movimentoFiglio->save();
+
+            $nuovaQuantitaOrigine = $quantitaMovimento - $rimanenteDaRiallocare;
+            $movimentoIngresso->update([
+                'quantita' => $nuovaQuantitaOrigine,
+                'costo_totale' => $nuovaQuantitaOrigine * (float) $movimentoIngresso->costo_unitario,
+            ]);
+
+            $rimanenteDaRiallocare = 0;
+        }
+
+        if ($rimanenteDaRiallocare > 0) {
+            throw new \RuntimeException(
+                "Impossibile completare la riallocazione dei movimenti di ingresso per {$articoloOrigine->codice}"
+            );
+        }
     }
 
     /**

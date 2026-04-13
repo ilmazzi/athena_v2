@@ -118,7 +118,12 @@ class ArticoloService
      */
     public function findById(int $id): Articolo
     {
-        $articolo = Articolo::with(['giacenza', 'magazzino', 'ddtDettaglio.ddt.fornitore'])->find($id);
+        $articolo = Articolo::with([
+            'giacenza',
+            'magazzino',
+            'ddtDettaglio.ddt.fornitore',
+            'fatturaDettaglio.fattura.fornitore',
+        ])->find($id);
         
         if (!$articolo) {
             throw ArticoloNonTrovatoException::conId($id);
@@ -134,7 +139,12 @@ class ArticoloService
      */
     public function findByCodice(string $codice): Articolo
     {
-        $articolo = Articolo::with(['giacenza', 'magazzino', 'ddtDettaglio.ddt.fornitore'])
+        $articolo = Articolo::with([
+                'giacenza',
+                'magazzino',
+                'ddtDettaglio.ddt.fornitore',
+                'fatturaDettaglio.fattura.fornitore',
+            ])
             ->where('codice', $codice)
             ->first();
         
@@ -153,7 +163,12 @@ class ArticoloService
      */
     public function cerca(array $filtri = []): \Illuminate\Database\Eloquent\Collection
     {
-        $query = Articolo::with(['giacenza', 'magazzino', 'ddtDettaglio.ddt.fornitore']);
+        $query = Articolo::with([
+            'giacenza',
+            'magazzino',
+            'ddtDettaglio.ddt.fornitore',
+            'fatturaDettaglio.fattura.fornitore',
+        ]);
         
         if (isset($filtri['magazzino_id'])) {
             $query->inMagazzino($filtri['magazzino_id']);
@@ -173,13 +188,14 @@ class ArticoloService
         
         if (isset($filtri['fornitore_id'])) {
             $fornitoreId = (int) $filtri['fornitore_id'];
-            $query->where(function ($q) use ($fornitoreId) {
-                $q->whereHas('ddtDettaglio.ddt', function ($subQ) use ($fornitoreId) {
-                    $subQ->where('fornitore_id', $fornitoreId);
-                })->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($fornitoreId) {
-                    $subQ->where('fornitore_id', $fornitoreId);
+            $query->whereNull('prodotto_finito_id')
+                ->where(function ($q) use ($fornitoreId) {
+                    $q->whereHas('fatturaDettaglio.fattura', function ($subQ) use ($fornitoreId) {
+                        $subQ->where('fornitore_id', $fornitoreId);
+                    })->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($fornitoreId) {
+                        $subQ->where('fornitore_id', $fornitoreId);
+                    });
                 });
-            });
         }
         
         if (isset($filtri['materiale'])) {
@@ -205,7 +221,11 @@ class ArticoloService
      */
     public function getDisponibiliPerMagazzino(int $magazzinoId): \Illuminate\Database\Eloquent\Collection
     {
-        return Articolo::with(['giacenza', 'ddtDettaglio.ddt.fornitore'])
+        return Articolo::with([
+                'giacenza',
+                'ddtDettaglio.ddt.fornitore',
+                'fatturaDettaglio.fattura.fornitore',
+            ])
             ->inMagazzino($magazzinoId)
             ->disponibili()
             ->get();
@@ -254,4 +274,3 @@ class ArticoloService
         return $articolo->calcolaPrezzoVenditaSuggerito($percentualeRicarico);
     }
 }
-

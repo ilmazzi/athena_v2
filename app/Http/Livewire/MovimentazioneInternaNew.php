@@ -7,7 +7,6 @@ use Livewire\WithPagination;
 use App\Models\Sede;
 use App\Models\Articolo;
 use App\Models\Giacenza;
-use App\Models\GiacenzaSede;
 use App\Models\CategoriaMerceologica;
 use App\Services\MovimentazioneService;
 use App\Services\ArticoloSplitService;
@@ -387,7 +386,6 @@ class MovimentazioneInternaNew extends Component
                         if ($magazzinoOrigineId <= 0) {
                             throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                         }
-                        $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                         $dto = new MovimentazioneDTO(
                             articoloId: $articolo->id,
                             quantita: $articoloData['quantita'] ?? 1,
@@ -409,7 +407,6 @@ class MovimentazioneInternaNew extends Component
                             if ($magazzinoOrigineId <= 0) {
                                 throw new \Exception("Categoria origine non valida per articolo {$articoloComponente->id} (sede {$this->sedeOrigineId}).");
                             }
-                            $this->syncGiacenzaOrigineDaSede($articoloComponente->id, $this->sedeOrigineId, $magazzinoOrigineId);
                             $dto = new MovimentazioneDTO(
                                 articoloId: $articoloComponente->id,
                                 quantita: $componente->quantita,
@@ -434,7 +431,7 @@ class MovimentazioneInternaNew extends Component
                         throw new \Exception("L'articolo {$articolo->codice} è in conto deposito e non può essere movimentato.");
                     }
                     
-                    $giacenzaDisponibile = $articolo->giacenza?->quantita_residua ?? $articolo->giacenza?->quantita ?? 0;
+                    $giacenzaDisponibile = $articolo->giacenza?->quantita_residua ?? ($articolo->giacenza?->quantita ?? 0);
                     if ($quantita < $giacenzaDisponibile) {
                         $articolo = app(ArticoloSplitService::class)->splitArticolo($articolo, $quantita);
                     }
@@ -443,7 +440,6 @@ class MovimentazioneInternaNew extends Component
                     if ($magazzinoOrigineId <= 0) {
                         throw new \Exception("Categoria origine non valida per articolo {$articolo->id} (sede {$this->sedeOrigineId}).");
                     }
-                    $this->syncGiacenzaOrigineDaSede($articolo->id, $this->sedeOrigineId, $magazzinoOrigineId);
                     $dto = new MovimentazioneDTO(
                         articoloId: $articolo->id,
                         quantita: $quantita,
@@ -499,7 +495,6 @@ class MovimentazioneInternaNew extends Component
         if (!$categoriaOrigine) {
             throw new \Exception("Categoria origine non trovata per articolo {$articolo->id}.");
         }
-
         $magazzinoCode = $this->resolveArticoloMagazzinoCode($articolo);
 
         $categoria = CategoriaMerceologica::withoutGlobalScopes()
@@ -566,39 +561,6 @@ class MovimentazioneInternaNew extends Component
             return (int) $giacenza->categoria_merceologica_id;
         }
 
-        $giacenzaSede = GiacenzaSede::where('articolo_id', $articolo->id)
-            ->where('sede_id', $sedeId)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->first();
-
-        $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->orderByDesc('quantita_residua')
-            ->first();
-
-        if ($giacenzaFallback) {
-            if (!$giacenzaFallback->sede_id || $giacenzaFallback->sede_id !== $sedeId) {
-                $giacenzaFallback->update(['sede_id' => $sedeId]);
-            }
-            if (!$giacenzaFallback->categoria_merceologica_id) {
-                \Log::warning('⚠️ Giacenza fallback senza categoria', [
-                    'articolo_id' => $articolo->id,
-                    'sede_id' => $sedeId,
-                    'giacenza_id' => $giacenzaFallback->id,
-                ]);
-                $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
-                $giacenzaFallback->update(['categoria_merceologica_id' => $categoriaId]);
-                return (int) $categoriaId;
-            }
-            return (int) $giacenzaFallback->categoria_merceologica_id;
-        }
-
         $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
         if (!$categoriaId) {
             throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
@@ -628,33 +590,6 @@ class MovimentazioneInternaNew extends Component
             return $categoriaCompatibileSede;
         }
 
-        $giacenzaSede = GiacenzaSede::where('articolo_id', $articolo->id)
-            ->where('sede_id', $sedeId)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->first();
-
-        if ($giacenzaSede) {
-            $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
-            if ($categoriaId > 0) {
-                return (int) $categoriaId;
-            }
-        }
-
-        $giacenzaFallback = Giacenza::where('articolo_id', $articolo->id)
-            ->where(function ($q) {
-                $q->where('quantita_residua', '>', 0)
-                  ->orWhere('quantita', '>', 0);
-            })
-            ->orderByDesc('quantita_residua')
-            ->first();
-
-        if ($giacenzaFallback && !empty($giacenzaFallback->categoria_merceologica_id)) {
-            return (int) $giacenzaFallback->categoria_merceologica_id;
-        }
-
         $categoriaId = $this->trovaCategoriaDaSede($sedeId, $articolo);
         if (!$categoriaId) {
             throw new \Exception("Categoria origine non trovata per sede {$sedeId} e articolo {$articolo->id}.");
@@ -679,64 +614,6 @@ class MovimentazioneInternaNew extends Component
             });
 
         return $categoria?->id ? (int) $categoria->id : 0;
-    }
-
-    private function syncGiacenzaOrigineDaSede(int $articoloId, int $sedeId, int $categoriaId): void
-    {
-        $giacenzaSede = GiacenzaSede::where('articolo_id', $articoloId)
-            ->where('sede_id', $sedeId)
-            ->first();
-
-        $quantita = 0;
-        if ($giacenzaSede) {
-            $quantita = max($giacenzaSede->quantita_residua ?? 0, $giacenzaSede->quantita ?? 0);
-        } else {
-            $giacenzaFallback = Giacenza::where('articolo_id', $articoloId)
-                ->where(function ($q) {
-                    $q->where('quantita_residua', '>', 0)
-                      ->orWhere('quantita', '>', 0);
-                })
-                ->orderByDesc('quantita_residua')
-                ->first();
-
-            if ($giacenzaFallback) {
-                $quantita = max($giacenzaFallback->quantita_residua ?? 0, $giacenzaFallback->quantita ?? 0);
-            }
-        }
-
-        if ($quantita <= 0) {
-            return;
-        }
-
-        $giacenza = Giacenza::where('articolo_id', $articoloId)
-            ->where('categoria_merceologica_id', $categoriaId)
-            ->first();
-
-        if ($giacenza) {
-            $disponibile = $giacenza->quantita_residua ?? $giacenza->quantita ?? 0;
-            if ($disponibile >= $quantita) {
-                return;
-            }
-            $giacenza->update([
-                'sede_id' => $sedeId,
-                'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaId),
-                'quantita' => $quantita,
-                'quantita_residua' => $quantita,
-                'ultimo_movimento_at' => now(),
-            ]);
-            return;
-        }
-
-        Giacenza::create([
-            'articolo_id' => $articoloId,
-            'categoria_merceologica_id' => $categoriaId,
-            'magazzino_logico' => $this->resolveMagazzinoLogicoForCategoria($categoriaId),
-            'sede_id' => $sedeId,
-            'quantita' => $quantita,
-            'quantita_iniziale' => $quantita,
-            'quantita_residua' => $quantita,
-            'ultimo_movimento_at' => now(),
-        ]);
     }
 
     private function resolveArticoloMagazzinoCode(Articolo $articolo): ?int

@@ -25,7 +25,7 @@ class ArticoloSplitService
             throw new \InvalidArgumentException('Articolo senza giacenza associata.');
         }
 
-        $disponibile = $giacenza->quantita_residua ?? $giacenza->quantita ?? 0;
+        $disponibile = $giacenza->quantita_residua ?? ($giacenza->quantita ?? 0);
         if ($quantita >= $disponibile) {
             throw new \InvalidArgumentException('Quantità split deve essere inferiore alla giacenza disponibile.');
         }
@@ -79,12 +79,10 @@ class ArticoloSplitService
                 'note' => $giacenza->note,
             ]);
 
-            $nuovaQuantita = max(0, (int) $giacenza->quantita - $quantita);
-            $residuaBase = $giacenza->quantita_residua ?? $giacenza->quantita;
+            $residuaBase = $giacenza->quantita_residua ?? ($giacenza->quantita ?? 0);
             $nuovaResidua = max(0, (int) $residuaBase - $quantita);
 
             $giacenza->update([
-                'quantita' => $nuovaQuantita,
                 'quantita_residua' => $nuovaResidua,
                 'ultimo_movimento_at' => now(),
             ]);
