@@ -766,11 +766,7 @@
                                                 $referenzaJson = (is_array($articolo->caratteristiche ?? null) && !empty($articolo->caratteristiche['referenza']))
                                                     ? trim((string) $articolo->caratteristiche['referenza'])
                                                     : '';
-                                                $referenzaDoc = (string) optional(
-                                                    collect($articolo->caricoDettagli ?? [])->first(function ($row) {
-                                                        return !empty($row->referenza_fornitore);
-                                                    })
-                                                )->referenza_fornitore;
+                                                $referenzaDoc = trim((string) ($articolo->referenza_fornitore_effettiva ?? ''));
                                                 $referenzaView = $referenzaJson !== '' ? $referenzaJson : trim($referenzaDoc);
                                             @endphp
                                             <span class="ms-2 text-nowrap">
@@ -882,8 +878,8 @@
                                                             @if($inProdottoFinito && $prodottoFinito)
                                                                 <div class='text-warning mt-2'><strong>In Prodotto Finito:</strong><br>{{ $prodottoFinito->codice }}</div>
                                                             @endif
-                                                            @if($articolo->data_carico)
-                                                                <div class='text-muted small mt-2'>Caricato: {{ \Carbon\Carbon::parse($articolo->data_carico)->format('d/m/Y') }}</div>
+                                                            @if($articolo->data_carico_effettiva)
+                                                                <div class='text-muted small mt-2'>Caricato: {{ \Carbon\Carbon::parse($articolo->data_carico_effettiva)->format('d/m/Y') }}</div>
                                                             @endif
                                                         </div>
                                                       ">
@@ -982,66 +978,21 @@
                                 <td>
                                     <div class="text-center">
                                         @php
-                                            $fattura = $articolo->fatturaDettaglio->first()?->fattura;
-                                            $ddt = $articolo->ddtDettaglio->first()?->ddt;
-                                            $numeroCarico = trim((string) ($articolo->numero_documento_carico ?? ''));
-                                            $dataCarico = $articolo->data_carico
-                                                ? \Carbon\Carbon::parse((string) $articolo->data_carico)->format('Y-m-d')
-                                                : null;
-
-                                            $fatturaMatch = collect($articolo->fatturaDettaglio ?? [])
-                                                ->map(fn ($row) => $row?->fattura)
-                                                ->filter()
-                                                ->first(function ($doc) use ($numeroCarico, $dataCarico) {
-                                                    if (!$doc || trim((string) ($doc->numero ?? '')) !== $numeroCarico) {
-                                                        return false;
-                                                    }
-                                                    $docDate = $doc->data_documento
-                                                        ? \Carbon\Carbon::parse((string) $doc->data_documento)->format('Y-m-d')
-                                                        : null;
-                                                    return $dataCarico ? $docDate === $dataCarico : true;
-                                                });
-
-                                            $ddtMatch = collect($articolo->ddtDettaglio ?? [])
-                                                ->map(fn ($row) => $row?->ddt)
-                                                ->filter()
-                                                ->first(function ($doc) use ($numeroCarico, $dataCarico) {
-                                                    if (!$doc || trim((string) ($doc->numero ?? '')) !== $numeroCarico) {
-                                                        return false;
-                                                    }
-                                                    $docDate = $doc->data_documento
-                                                        ? \Carbon\Carbon::parse((string) $doc->data_documento)->format('Y-m-d')
-                                                        : null;
-                                                    return $dataCarico ? $docDate === $dataCarico : true;
-                                                });
-
-                                            $docCarico = null;
-                                            if (($articolo->tipo_carico ?? null) === 'fattura') {
-                                                $docCarico = $fatturaMatch;
-                                            } elseif (($articolo->tipo_carico ?? null) === 'ddt') {
-                                                $docCarico = $ddtMatch;
-                                            }
-                                            if (!$docCarico) {
-                                                $docCarico = $fatturaMatch ?? $ddtMatch;
-                                            }
-
+                                            $docCarico = $articolo->ultimo_carico;
+                                            $isProduzioneInterna = !empty($articolo->prodotto_finito_id)
+                                                || ($articolo->tipo_carico_effettivo === 'produzione_interna');
                                             $fornitoreDocumento = $docCarico?->fornitore;
+                                            $fornitoreLabel = $isProduzioneInterna
+                                                ? 'Produzione interna'
+                                                : Str::limit($fornitoreDocumento?->ragione_sociale ?? 'N/A', 15);
+                                            $dataProduzioneInterna = $articolo->assemblato_il ?? $articolo->created_at ?? $articolo->data_carico_effettiva;
                                         @endphp
 
                                         <div class="mb-1">
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:shop-bold" class="text-warning"></iconify-icon>
                                                 <small class="fw-semibold">
-                                                    {{ Str::limit($fornitoreDocumento?->ragione_sociale ?? 'N/A', 15) }}
-                                                </small>
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-1">
-                                            <div class="d-flex align-items-center justify-content-center gap-1">
-                                                <iconify-icon icon="solar:document-bold" class="text-info"></iconify-icon>
-                                                <small class="fw-semibold">
-                                                    {{ $articolo->numero_documento_carico ?: 'N/A' }}
+                                                    {{ $fornitoreLabel }}
                                                 </small>
                                             </div>
                                         </div>
@@ -1050,13 +1001,33 @@
                                             <div class="d-flex align-items-center justify-content-center gap-1">
                                                 <iconify-icon icon="solar:calendar-bold" class="text-primary"></iconify-icon>
                                                 <small class="text-muted">
-                                                    {{ $articolo->data_carico ? \Carbon\Carbon::parse($articolo->data_carico)->format('d/m/Y') : 'N/A' }}
+                                                    @if($isProduzioneInterna)
+                                                        {{ $dataProduzioneInterna ? \Carbon\Carbon::parse($dataProduzioneInterna)->format('d/m/Y') : 'N/A' }}
+                                                    @else
+                                                        {{ $articolo->data_carico_effettiva ? \Carbon\Carbon::parse($articolo->data_carico_effettiva)->format('d/m/Y') : 'N/A' }}
+                                                    @endif
                                                 </small>
-                                                <span class="badge bg-secondary-subtle text-secondary fs-11">
-                                                    {{ strtoupper((string)($articolo->tipo_carico ?? 'N/A')) }}
-                                                </span>
                                             </div>
                                         </div>
+
+                                        @unless($isProduzioneInterna)
+                                            <div class="mb-1">
+                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                    <iconify-icon icon="solar:document-bold" class="text-info"></iconify-icon>
+                                                    <small class="fw-semibold">
+                                                        {{ $articolo->numero_documento_carico_effettivo ?: 'N/A' }}
+                                                    </small>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-1">
+                                                <div class="d-flex align-items-center justify-content-center gap-1">
+                                                    <span class="badge bg-secondary-subtle text-secondary fs-11">
+                                                        {{ strtoupper((string)($articolo->tipo_carico_effettivo ?? 'N/A')) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @endunless
                                     </div>
                                 </td>
                                 @endif

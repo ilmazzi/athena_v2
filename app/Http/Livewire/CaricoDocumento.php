@@ -477,7 +477,6 @@ class CaricoDocumento extends Component
                     'categoria_merceologica_id' => $articoloCategoriaId,
                     'magazzino_logico' => $magazzinoLogico,
                     'sede_id' => $this->sedeId,
-                    'fornitore_id' => $this->fornitoreId ?: null,
                     'prezzo_acquisto' => $this->tipoDocumento === 'fattura' ? $prezzoUnitario : null,
                     'prezzo_fornitore' => $prezzoFornitore,
                     'ean' => $ean,
@@ -492,9 +491,6 @@ class CaricoDocumento extends Component
                     ],
                     'stato' => 'disponibile',
                     'stato_articolo' => 'disponibile',
-                    'tipo_carico' => $this->tipoDocumento,
-                    'numero_documento_carico' => $this->numeroDocumento,
-                    'data_carico' => $this->dataDocumento,
                 ]);
                 $articoloId = $nuovoArticolo->id;
 
@@ -583,9 +579,6 @@ class CaricoDocumento extends Component
                         'caratteristiche' => json_encode($caratteristiche),
                         'stato' => 'disponibile',
                         'stato_articolo' => 'disponibile',
-                        'tipo_carico' => $this->tipoDocumento,
-                        'numero_documento_carico' => $this->numeroDocumento,
-                        'data_carico' => $this->dataDocumento,
                     ]);
                     $articoloId = $nuovoArticolo->id;
                 } else {

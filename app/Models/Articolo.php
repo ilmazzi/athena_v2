@@ -75,7 +75,6 @@ class Articolo extends Model
         'categoria_merceologica_id',
         'magazzino_logico',
         'sede_id',
-        'fornitore_id',
         'prodotto_finito_id',
         'articolo_padre_id',
         'split_index',
@@ -170,11 +169,6 @@ class Articolo extends Model
     public function sede(): BelongsTo
     {
         return $this->belongsTo(Sede::class, 'sede_id');
-    }
-
-    public function fornitore(): BelongsTo
-    {
-        return $this->belongsTo(Fornitore::class, 'fornitore_id');
     }
     
     
@@ -492,20 +486,65 @@ class Articolo extends Model
     {
         return $this->hasMany(CaricoDettaglio::class, 'articolo_id');
     }
+
+    private function firstLoadedRelatedDocument(string $relation, string $documentRelation)
+    {
+        if (!$this->relationLoaded($relation)) {
+            return null;
+        }
+
+        return $this->{$relation}
+            ->sortBy('id')
+            ->map(fn ($detail) => $detail?->{$documentRelation})
+            ->filter()
+            ->first();
+    }
+
+    private function firstRelatedDocument(string $relation, string $documentRelation)
+    {
+        $loadedDocument = $this->firstLoadedRelatedDocument($relation, $documentRelation);
+        if ($loadedDocument) {
+            return $loadedDocument;
+        }
+
+        return $this->{$relation}()
+            ->with($documentRelation)
+            ->first()?->{$documentRelation};
+    }
+
+    private function preferredCaricoDocument()
+    {
+        $fattura = $this->firstRelatedDocument('fatturaDettaglio', 'fattura');
+        $ddt = $this->firstRelatedDocument('ddtDettaglio', 'ddt');
+
+        if ($this->tipo_carico === 'fattura') {
+            return $fattura ?? $ddt;
+        }
+
+        if ($this->tipo_carico === 'ddt') {
+            return $ddt ?? $fattura;
+        }
+
+        return $fattura ?? $ddt;
+    }
+
+    private function preferredFornitoreDocument()
+    {
+        $document = $this->preferredCaricoDocument();
+
+        if ($document && property_exists($document, 'fornitore_id')) {
+            return $document;
+        }
+
+        return null;
+    }
     
     /**
      * Accessor per ottenere il primo carico (compatibilità vecchio/nuovo sistema)
      */
     public function getUltimoCaricoAttribute()
     {
-        // Prima prova dal nuovo sistema (carico_dettagli)
-        $dettaglio = $this->caricoDettagli()->with('carico')->first();
-        if ($dettaglio && $dettaglio->carico) {
-            return $dettaglio->carico;
-        }
-        
-        // Fallback: dati legacy nella tabella articoli
-        return null;
+        return $this->preferredCaricoDocument();
     }
     
     /**
@@ -513,12 +552,10 @@ class Articolo extends Model
      */
     public function getDataCaricoEffettivaAttribute()
     {
-        // Prima prova dal nuovo sistema
         if ($this->ultimoCarico) {
             return $this->ultimoCarico->data_documento;
         }
-        
-        // Fallback: campo legacy
+
         return $this->data_carico;
     }
     
@@ -527,13 +564,62 @@ class Articolo extends Model
      */
     public function getNumeroDocumentoCaricoEffettivoAttribute()
     {
-        // Prima prova dal nuovo sistema
         if ($this->ultimoCarico) {
             return $this->ultimoCarico->numero_documento;
         }
-        
-        // Fallback: campo legacy
+
         return $this->numero_documento_carico;
+    }
+
+    public function getTipoCaricoEffettivoAttribute(): ?string
+    {
+        if ($this->ultimoCarico instanceof Fattura) {
+            return 'fattura';
+        }
+
+        if ($this->ultimoCarico instanceof Ddt) {
+            return 'ddt';
+        }
+
+        return $this->tipo_carico;
+    }
+
+    public function getFornitoreAttribute()
+    {
+        if ($this->prodotto_finito_id || $this->getTipoCaricoEffettivoAttribute() === 'produzione_interna') {
+            return null;
+        }
+
+        return $this->preferredFornitoreDocument()?->fornitore;
+    }
+
+    public function getFornitoreEffettivoIdAttribute(): ?int
+    {
+        if ($this->prodotto_finito_id || $this->getTipoCaricoEffettivoAttribute() === 'produzione_interna') {
+            return null;
+        }
+
+        return $this->preferredFornitoreDocument()?->fornitore_id;
+    }
+
+    public function getReferenzaFornitoreEffettivaAttribute(): ?string
+    {
+        if ($this->relationLoaded('caricoDettagli')) {
+            $referenza = $this->caricoDettagli
+                ->sortBy('id')
+                ->first(fn ($row) => !empty($row->referenza_fornitore))
+                ?->referenza_fornitore;
+
+            return $referenza ? trim((string) $referenza) : null;
+        }
+
+        $referenza = $this->caricoDettagli()
+            ->whereNotNull('referenza_fornitore')
+            ->where('referenza_fornitore', '!=', '')
+            ->orderBy('id')
+            ->value('referenza_fornitore');
+
+        return $referenza ? trim((string) $referenza) : null;
     }
     
     /**
@@ -557,9 +643,7 @@ class Articolo extends Model
      */
     public function getDdtCaricoAttribute()
     {
-        return $this->ddtDettaglio()
-            ->with('ddt.fornitore')
-            ->first()?->ddt;
+        return $this->firstRelatedDocument('ddtDettaglio', 'ddt');
     }
     
     /**
@@ -567,9 +651,7 @@ class Articolo extends Model
      */
     public function getFatturaCaricoAttribute()
     {
-        return $this->fatturaDettaglio()
-            ->with('fattura.fornitore')
-            ->first()?->fattura;
+        return $this->firstRelatedDocument('fatturaDettaglio', 'fattura');
     }
     
     // ==========================================
@@ -758,7 +840,18 @@ class Articolo extends Model
     
     public function scopeCaricatiNelPeriodo($query, \DateTime $da, \DateTime $a)
     {
-        return $query->whereBetween('data_carico', [$da, $a]);
+        $from = $da->format('Y-m-d');
+        $to = $a->format('Y-m-d');
+
+        return $query->where(function ($q) use ($from, $to) {
+            $q->whereBetween('data_carico', [$from, $to])
+                ->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($from, $to) {
+                    $subQ->whereBetween('data_documento', [$from, $to]);
+                })
+                ->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($from, $to) {
+                    $subQ->whereBetween('data_documento', [$from, $to]);
+                });
+        });
     }
     
     // ==========================================

@@ -86,7 +86,8 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
         }
 
         if (!empty($this->filtri['fornitoreId'])) {
-            $query->where(function ($q) {
+            $query->whereNull('prodotto_finito_id')
+                ->where(function ($q) {
                 $q->whereHas('fatturaDettaglio.fattura', function ($subQ) {
                     $subQ->where('fornitore_id', $this->filtri['fornitoreId']);
                 })->orWhereHas('ddtDettaglio.ddt', function ($subQ) {
@@ -149,18 +150,24 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
         $qta = $articolo->giacenza->quantita_residua ?? 0;
         $costo = $articolo->prezzo_acquisto ?? 0;
         $valore = $qta * $costo;
-        $fornitore = $articolo->fatturaDettaglio->first()?->fattura?->fornitore;
+        $isProduzioneInterna = !empty($articolo->prodotto_finito_id) || $articolo->tipo_carico_effettivo === 'produzione_interna';
+        $fornitoreLabel = $isProduzioneInterna
+            ? 'Produzione interna'
+            : ($articolo->fornitore?->ragione_sociale ?? 'N/A');
+        $dataRiferimento = $isProduzioneInterna
+            ? ($articolo->assemblato_il ?? $articolo->created_at ?? $articolo->data_carico_effettiva)
+            : $articolo->data_carico_effettiva;
 
         return [
             $articolo->codice,
             $articolo->descrizione,
             $articolo->giacenza->sede->nome ?? 'N/A',
             $articolo->categoriaMerceologica->nome ?? 'N/A',
-            $fornitore->ragione_sociale ?? 'N/A',
+            $fornitoreLabel,
             $qta,
             $costo > 0 ? number_format($costo, 2, ',', '.') : '-',
             $valore > 0 ? number_format($valore, 2, ',', '.') : '-',
-            $articolo->data_carico ? $articolo->data_carico->format('d/m/Y') : '-',
+            $dataRiferimento?->format('d/m/Y') ?? '-',
         ];
     }
 

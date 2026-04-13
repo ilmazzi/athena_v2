@@ -1423,6 +1423,12 @@ class ArticoliTable extends Component
                 ->orWhereHas('caricoDettagli', function ($subQ) use ($searchTerm) {
                     $subQ->where('referenza_fornitore', 'like', $searchTerm);
                 })
+                ->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($searchTerm) {
+                    $subQ->where('numero', 'like', $searchTerm);
+                })
+                ->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($searchTerm) {
+                    $subQ->where('numero', 'like', $searchTerm);
+                })
                 ->orWhereRaw("JSON_EXTRACT({$caratteristicheColumn}, '$.marca') LIKE ?", [$searchTerm])
                 ->orWhereHas('categoriaMerceologica', function ($subQ) use ($searchTerm) {
                     $subQ->where('nome', 'like', $searchTerm)
@@ -1558,7 +1564,16 @@ class ArticoliTable extends Component
         $query = $this->articoliBaseQuery();
 
         if ($this->prezziFornitoreId) {
-            $query->where('articoli.fornitore_id', $this->prezziFornitoreId);
+            $fornitoreId = (int) $this->prezziFornitoreId;
+
+            $query->whereNull('articoli.prodotto_finito_id')
+                ->where(function ($q) use ($fornitoreId) {
+                    $q->whereHas('fatturaDettaglio.fattura', function ($docQ) use ($fornitoreId) {
+                        $docQ->where('fornitore_id', $fornitoreId);
+                    })->orWhereHas('ddtDettaglio.ddt', function ($docQ) use ($fornitoreId) {
+                        $docQ->where('fornitore_id', $fornitoreId);
+                    });
+                });
         }
 
         $value = trim((string) $this->prezziMatchValue);
@@ -1751,12 +1766,18 @@ class ArticoliTable extends Component
 
     private function applyFornitoreVisibilityFilter($query, $fornitoreId, bool $qualifiedColumns = false): void
     {
-        $codiceColumn = $qualifiedColumns ? 'articoli.codice' : 'codice';
-        $fornitoreColumn = $qualifiedColumns ? 'articoli.fornitore_id' : 'fornitore_id';
-
-        $query->where(function ($q) use ($fornitoreId, $codiceColumn, $fornitoreColumn) {
-            $q->where($codiceColumn, 'like', '9-%')
-                ->orWhere($fornitoreColumn, $fornitoreId);
+        $query->where(function ($q) use ($fornitoreId) {
+            $q->where(function ($subQ) use ($fornitoreId) {
+                $subQ->whereNull('articoli.prodotto_finito_id')
+                    ->whereHas('fatturaDettaglio.fattura', function ($docQ) use ($fornitoreId) {
+                        $docQ->where('fornitore_id', $fornitoreId);
+                    });
+            })->orWhere(function ($subQ) use ($fornitoreId) {
+                $subQ->whereNull('articoli.prodotto_finito_id')
+                    ->whereHas('ddtDettaglio.ddt', function ($docQ) use ($fornitoreId) {
+                        $docQ->where('fornitore_id', $fornitoreId);
+                    });
+            });
         });
     }
 
@@ -1767,7 +1788,13 @@ class ArticoliTable extends Component
 
         $query->where(function ($q) use ($codiceColumn, $dataCaricoColumn, $date) {
             $q->where($codiceColumn, 'like', '9-%')
-                ->orWhere($dataCaricoColumn, '>=', $date);
+                ->orWhere($dataCaricoColumn, '>=', $date)
+                ->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($date) {
+                    $subQ->whereDate('data_documento', '>=', $date);
+                })
+                ->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($date) {
+                    $subQ->whereDate('data_documento', '>=', $date);
+                });
         });
     }
 
@@ -1778,7 +1805,13 @@ class ArticoliTable extends Component
 
         $query->where(function ($q) use ($codiceColumn, $dataCaricoColumn, $date) {
             $q->where($codiceColumn, 'like', '9-%')
-                ->orWhere($dataCaricoColumn, '<=', $date);
+                ->orWhere($dataCaricoColumn, '<=', $date)
+                ->orWhereHas('fatturaDettaglio.fattura', function ($subQ) use ($date) {
+                    $subQ->whereDate('data_documento', '<=', $date);
+                })
+                ->orWhereHas('ddtDettaglio.ddt', function ($subQ) use ($date) {
+                    $subQ->whereDate('data_documento', '<=', $date);
+                });
         });
     }
 
@@ -1854,6 +1887,8 @@ class ArticoliTable extends Component
             'giacenza',
             'categoriaMerceologica',
             'caricoDettagli',
+            'ddtDettaglio.ddt',
+            'fatturaDettaglio.fattura',
             'prodottoFinito.componentiArticoli.articolo',
             'contoDepositoCorrente.sedeDestinataria',
         ];
@@ -1992,6 +2027,22 @@ class ArticoliTable extends Component
                 ->orderByRaw("CAST(SUBSTRING_INDEX({$baseExpr}, '-', -1) AS UNSIGNED) {$dir}")
                 ->orderByRaw("{$baseExpr} {$dir}")
                 ->orderBy('articoli.codice', $dir);
+        } elseif ($this->sortField === 'data_carico') {
+            $dir = $this->sortDirection === 'asc' ? 'asc' : 'desc';
+            $effectiveDataExpr = "COALESCE(
+                (SELECT MIN(f.data_documento)
+                 FROM fatture_dettagli fd
+                 INNER JOIN fatture f ON f.id = fd.fattura_id
+                 WHERE fd.articolo_id = articoli.id),
+                (SELECT MIN(d.data_documento)
+                 FROM ddt_dettagli dd
+                 INNER JOIN ddt d ON d.id = dd.ddt_id
+                 WHERE dd.articolo_id = articoli.id),
+                articoli.data_carico
+            )";
+
+            $query->orderByRaw("{$effectiveDataExpr} {$dir}")
+                ->orderBy('articoli.id', $dir);
         } else {
             $query->orderBy($this->sortField, $this->sortDirection);
         }
@@ -2075,6 +2126,3 @@ class ArticoliTable extends Component
         return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));
     }
 }
-
-
-
