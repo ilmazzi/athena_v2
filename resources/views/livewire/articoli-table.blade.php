@@ -689,8 +689,19 @@
                                                 <span class="fw-semibold">Marca:</span> N/A
                                             @endif
                                             @php
-                                                $referenzaJson = (is_array($articolo->caratteristiche ?? null) && !empty($articolo->caratteristiche['referenza']))
-                                                    ? trim((string) $articolo->caratteristiche['referenza'])
+                                                $caratteristicheRaw = $articolo->caratteristiche ?? null;
+                                                $caratteristicheArray = is_array($caratteristicheRaw) ? $caratteristicheRaw : [];
+
+                                                if (empty($caratteristicheArray) && is_string($caratteristicheRaw) && $caratteristicheRaw !== '') {
+                                                    $decoded = json_decode($caratteristicheRaw, true);
+
+                                                    if (is_array($decoded)) {
+                                                        $caratteristicheArray = $decoded;
+                                                    }
+                                                }
+
+                                                $referenzaJson = !empty($caratteristicheArray['referenza'])
+                                                    ? trim((string) $caratteristicheArray['referenza'])
                                                     : '';
                                                 $referenzaDoc = trim((string) ($articolo->referenza_fornitore_effettiva ?? ''));
                                                 $referenzaView = $referenzaJson !== '' ? $referenzaJson : trim($referenzaDoc);
