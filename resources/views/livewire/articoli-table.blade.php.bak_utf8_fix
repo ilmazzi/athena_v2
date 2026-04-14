@@ -114,7 +114,7 @@
                 </div>
 
                 <div class="col-lg-2">
-                    <label class="form-label small fw-semibold mb-1">Disponibilità</label>
+                    <label class="form-label small fw-semibold mb-1">Disponibilit�</label>
                     <select class="form-select form-select-sm" wire:model.live="disponibilitaFilter">
                         @foreach($disponibilitaOptions as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
@@ -255,12 +255,12 @@
                 </div>
 
                 <div class="col-lg-2">
-                    <label class="form-label small fw-semibold">Prezzo Min (€)</label>
+                    <label class="form-label small fw-semibold">Prezzo Min (�)</label>
                     <input type="number" class="form-control form-control-sm" placeholder="Min" wire:model.live.debounce.500ms="prezzoMin">
                 </div>
 
                 <div class="col-lg-2">
-                    <label class="form-label small fw-semibold">Prezzo Max (€)</label>
+                    <label class="form-label small fw-semibold">Prezzo Max (�)</label>
                     <input type="number" class="form-control form-control-sm" placeholder="Max" wire:model.live.debounce.500ms="prezzoMax">
                 </div>
 
@@ -327,7 +327,7 @@
                 </div>
                 <div class="col-lg-2">
                     <label class="form-label small fw-semibold">Nuovo prezzo</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="â‚¬ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
+                    <input type="text" class="form-control form-control-sm" placeholder="€ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
                 </div>
                 <div class="col-lg-2 d-flex align-items-end">
                     <button class="btn btn-sm btn-outline-secondary w-100" wire:click="aggiornaPreviewPrezzi">
@@ -387,7 +387,7 @@
                                             <td>{{ $row['numero_seriale'] ?? '-' }}</td>
                                             <td>
                                                 @if(!empty($row['prezzo_fornitore']))
-                                                    â‚¬{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
+                                                    €{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
                                                 @else
                                                     <span class="text-muted">-</span>
                                                 @endif
@@ -424,7 +424,7 @@
                         @endif
                     </h6>
                     <small class="text-muted">
-                        {{ $articoli->total() }} articoli â€¢ Pagina {{ $articoli->currentPage() }} di {{ $articoli->lastPage() }}
+                        {{ $articoli->total() }} articoli • Pagina {{ $articoli->currentPage() }} di {{ $articoli->lastPage() }}
                     </small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -489,7 +489,7 @@
                                 8 => ['icon' => 'fluent-emoji-high-contrast:dodo', 'color' => 'text-success', 'title' => 'Dodo'],             // Dodo
                             ];
                             
-                            // Determina categoria attuale e se Ã¨ orologio
+                            // Determina categoria attuale e se è orologio
                             $categoriaAttuale = null;
                             $isOrologioCategory = false;
                             $iconaCategoria = ['icon' => 'lucide:package', 'color' => 'text-secondary', 'title' => 'Tutti']; // default
@@ -610,7 +610,7 @@
                                 <td class="text-nowrap">
                                     <div class="d-flex align-items-center gap-2 text-nowrap">
                                         @php
-                                            // Se c'Ã¨ un filtro attivo, usa l'icona della categoria filtrata
+                                            // Se c'è un filtro attivo, usa l'icona della categoria filtrata
                                             // Altrimenti usa l'icona specifica dell'articolo
                                             if($singleMagazzinoFiltroId) {
                                                 $iconaArticolo = $iconaCategoria;
@@ -784,7 +784,7 @@
                                             @php
                                                 $inProdottoFinito = $articolo->isInProdottoFinito();
                                                 $prodottoFinito = $inProdottoFinito ? $articolo->prodotto_finito : null;
-                                                // Se Ã¨ in un prodotto finito, mostra la quantitÃ  originale, altrimenti la residua
+                                                // Se è in un prodotto finito, mostra la quantità originale, altrimenti la residua
                                                 $giacenzaMostrata = $inProdottoFinito ? $articolo->giacenza->quantita : $articolo->giacenza->quantita_residua;
                                                 $badgeColor = $inProdottoFinito ? 'warning' : ($articolo->giacenza->quantita_residua > 0 ? 'success' : 'danger');
                                             @endphp
@@ -799,8 +799,8 @@
                                                       data-bs-trigger="hover"
                                                       data-bs-content="
                                                         <div class='text-start'>
-                                                            <div class='mb-1'><strong>QtÃ  Iniziale:</strong> {{ number_format($articolo->giacenza->quantita, 0, ',', '.') }}</div>
-                                                            <div class='mb-1'><strong>QtÃ  Residua:</strong> {{ number_format($articolo->giacenza->quantita_residua, 0, ',', '.') }}</div>
+                                                            <div class='mb-1'><strong>Qtà Iniziale:</strong> {{ number_format($articolo->giacenza->quantita, 0, ',', '.') }}</div>
+                                                            <div class='mb-1'><strong>Qtà Residua:</strong> {{ number_format($articolo->giacenza->quantita_residua, 0, ',', '.') }}</div>
                                                             @if($inProdottoFinito && $prodottoFinito)
                                                                 <div class='text-warning mt-2'><strong>In Prodotto Finito:</strong><br>{{ $prodottoFinito->codice }}</div>
                                                             @endif
@@ -843,7 +843,7 @@
                                                         @endphp
                                                         <small class="text-muted">
                                                             @if(is_numeric($prezzoVetrina))
-                                                                â‚¬{{ number_format((float)$prezzoVetrina, 0, ',', '.') }}
+                                                                €{{ number_format((float)$prezzoVetrina, 0, ',', '.') }}
                                                             @else
                                                                 {{ $prezzoVetrina }}
                                                             @endif
@@ -867,7 +867,7 @@
                                         @if($articolo->prezzo_acquisto)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:dollar-bold" class="text-warning"></iconify-icon>
-                                                <span class="fw-semibold text-warning">â‚¬{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</span>
+                                                <span class="fw-semibold text-warning">€{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -881,7 +881,7 @@
                                         @if($articolo->prezzo_fornitore)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
-                                                <span class="fw-semibold text-success">â‚¬{{ number_format($articolo->prezzo_fornitore, 2, ',', '.') }}</span>
+                                                <span class="fw-semibold text-success">€{{ number_format($articolo->prezzo_fornitore, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -893,7 +893,7 @@
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->prezzo_acquisto && $articolo->giacenza)
-                                            <span class="fw-semibold ">â‚¬{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 2, ',', '.') }}</span>
+                                            <span class="fw-semibold ">€{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 2, ',', '.') }}</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
@@ -1020,7 +1020,7 @@
                                                 <hr class="dropdown-divider">
                                                 <button type="button" class="articolo-actions-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
-                                                    Ricarica QuantitÃ 
+                                                    Ricarica Quantità
                                                 </button>
                                             @if($articolo->stato_articolo === 'disponibile')
                                                     <hr class="dropdown-divider">
@@ -1120,7 +1120,7 @@
                             </div>
                             
                             <div class="col-md-6">
-                                <label class="form-label">QuantitÃ  da Scaricare</label>
+                                <label class="form-label">Quantità da Scaricare</label>
                                 <div class="input-group">
                                     <span class="input-group-text">
                                         <iconify-icon icon="solar:minus-bold"></iconify-icon>
@@ -1163,7 +1163,7 @@
         <div class="modal-backdrop fade show"></div>
     @endif
 
-    <!-- Modal Ricarico QuantitÃ  -->
+    <!-- Modal Ricarico Quantità -->
     @if($showModalRicarico && $articoloDaRicaricare)
         <div class="modal fade show" style="display: block;" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-dialog-centered" role="document">
@@ -1171,7 +1171,7 @@
                     <div class="modal-header">
                         <h5 class="modal-title">
                             <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
-                            Ricarica QuantitÃ 
+                            Ricarica Quantità
                         </h5>
                         <button type="button" class="btn-close" wire:click="chiudiModalRicarico"></button>
                     </div>
@@ -1180,10 +1180,10 @@
                             <iconify-icon icon="solar:info-circle-bold" class="me-2"></iconify-icon>
                             <strong>Articolo:</strong> {{ $articoloDaRicaricare->codice }} - {{ $articoloDaRicaricare->descrizione }}
                             <br>
-                            <strong>QuantitÃ  ripristinabile:</strong> {{ $giacenzaMancante }}
+                            <strong>Quantità ripristinabile:</strong> {{ $giacenzaMancante }}
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">QuantitÃ  da ripristinare</label>
+                            <label class="form-label">Quantità da ripristinare</label>
                             <input type="number" class="form-control" min="1" max="{{ $giacenzaMancante }}" wire:model.defer="quantitaDaRicaricare">
                             <small class="text-muted">Max: {{ $giacenzaMancante }}</small>
                         </div>
@@ -1262,7 +1262,7 @@
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" wire:model.live="formatoPrezzo" value="euro" id="formatoEuro">
                                     <label class="form-check-label" for="formatoEuro">
-                                        Euro (â‚¬)
+                                        Euro (€)
                                     </label>
                                 </div>
                                 <div class="form-check">
@@ -1296,7 +1296,7 @@
                                     </label>
                                 </div>
                             </div>
-                            <small class="text-muted">Selezione valida per tutte le stampe finchÃ© non la cambi.</small>
+                            <small class="text-muted">Selezione valida per tutte le stampe finché non la cambi.</small>
                         </div>
 
                         <div class="mb-3">
@@ -1310,7 +1310,7 @@
                             </label>
                             <div class="input-group">
                                 @if($formatoPrezzo === 'euro')
-                                    <span class="input-group-text">â‚¬</span>
+                                    <span class="input-group-text">€</span>
                                 @endif
                                 <input type="text" 
                                        class="form-control" 
@@ -1342,7 +1342,7 @@
                                 <iconify-icon icon="solar:eye-bold" class="me-2"></iconify-icon>
                                 <strong>Anteprima:</strong> 
                                 @if($formatoPrezzo === 'euro')
-                                    â‚¬{{ number_format((float)str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoEtichetta)), 2, ',', '.') }}
+                                    €{{ number_format((float)str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoEtichetta)), 2, ',', '.') }}
                                 @else
                                     {{ $prezzoEtichetta }}
                                 @endif
@@ -1410,11 +1410,11 @@
 
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo acquisto</label>
-                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="â‚¬ 0,00">
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="€ 0,00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo di listino</label>
-                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="â‚¬ 0,00">
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="€ 0,00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Modello</label>
