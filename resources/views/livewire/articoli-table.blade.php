@@ -327,7 +327,7 @@
                 </div>
                 <div class="col-lg-2">
                     <label class="form-label small fw-semibold">Nuovo prezzo</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="â‚¬ 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
+                    <input type="text" class="form-control form-control-sm" placeholder="&euro; 123,45" wire:model.live.debounce.500ms="prezziNuovoPrezzo">
                 </div>
                 <div class="col-lg-2 d-flex align-items-end">
                     <button class="btn btn-sm btn-outline-secondary w-100" wire:click="aggiornaPreviewPrezzi">
@@ -387,7 +387,7 @@
                                             <td>{{ $row['numero_seriale'] ?? '-' }}</td>
                                             <td>
                                                 @if(!empty($row['prezzo_fornitore']))
-                                                    â‚¬{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
+                                                    &euro;{{ number_format($row['prezzo_fornitore'], 2, ',', '.') }}
                                                 @else
                                                     <span class="text-muted">-</span>
                                                 @endif
@@ -424,7 +424,7 @@
                         @endif
                     </h6>
                     <small class="text-muted">
-                        {{ $articoli->total() }} articoli â€¢ Pagina {{ $articoli->currentPage() }} di {{ $articoli->lastPage() }}
+                        {{ $articoli->total() }} articoli &bull; Pagina {{ $articoli->currentPage() }} di {{ $articoli->lastPage() }}
                     </small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -843,7 +843,7 @@
                                                         @endphp
                                                         <small class="text-muted">
                                                             @if(is_numeric($prezzoVetrina))
-                                                                â‚¬{{ number_format((float)$prezzoVetrina, 0, ',', '.') }}
+                                                                &euro;{{ number_format((float)$prezzoVetrina, 0, ',', '.') }}
                                                             @else
                                                                 {{ $prezzoVetrina }}
                                                             @endif
@@ -867,7 +867,7 @@
                                         @if($articolo->prezzo_acquisto)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:dollar-bold" class="text-warning"></iconify-icon>
-                                                <span class="fw-semibold text-warning">â‚¬{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</span>
+                                                <span class="fw-semibold text-warning">&euro;{{ number_format($articolo->prezzo_acquisto, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -881,7 +881,7 @@
                                         @if($articolo->prezzo_fornitore)
                                             <div class="d-flex align-items-center justify-content-center gap-1 mb-1">
                                                 <iconify-icon icon="solar:tag-price-bold" class="text-success"></iconify-icon>
-                                                <span class="fw-semibold text-success">â‚¬{{ number_format($articolo->prezzo_fornitore, 2, ',', '.') }}</span>
+                                                <span class="fw-semibold text-success">&euro;{{ number_format($articolo->prezzo_fornitore, 2, ',', '.') }}</span>
                                             </div>
                                         @else
                                             <span class="text-muted">-</span>
@@ -893,7 +893,7 @@
                                 <td>
                                     <div class="text-center">
                                         @if($articolo->prezzo_acquisto && $articolo->giacenza)
-                                            <span class="fw-semibold ">â‚¬{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 2, ',', '.') }}</span>
+                                            <span class="fw-semibold ">&euro;{{ number_format($articolo->prezzo_acquisto * $articolo->giacenza->quantita_residua, 2, ',', '.') }}</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
@@ -1262,7 +1262,7 @@
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" wire:model.live="formatoPrezzo" value="euro" id="formatoEuro">
                                     <label class="form-check-label" for="formatoEuro">
-                                        Euro (â‚¬)
+                                        Euro (&euro;)
                                     </label>
                                 </div>
                                 <div class="form-check">
@@ -1310,7 +1310,7 @@
                             </label>
                             <div class="input-group">
                                 @if($formatoPrezzo === 'euro')
-                                    <span class="input-group-text">â‚¬</span>
+                                    <span class="input-group-text">&euro;</span>
                                 @endif
                                 <input type="text" 
                                        class="form-control" 
@@ -1342,7 +1342,7 @@
                                 <iconify-icon icon="solar:eye-bold" class="me-2"></iconify-icon>
                                 <strong>Anteprima:</strong> 
                                 @if($formatoPrezzo === 'euro')
-                                    â‚¬{{ number_format((float)str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoEtichetta)), 2, ',', '.') }}
+                                    &euro;{{ number_format((float)str_replace(',', '.', preg_replace('/[^\d,.]/', '', $prezzoEtichetta)), 2, ',', '.') }}
                                 @else
                                     {{ $prezzoEtichetta }}
                                 @endif
@@ -1410,11 +1410,11 @@
 
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo acquisto</label>
-                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="â‚¬ 0,00">
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_acquisto" placeholder="&euro; 0,00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Prezzo di listino</label>
-                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="â‚¬ 0,00">
+                                <input type="text" class="form-control" wire:model.defer="modifica.prezzo_fornitore" placeholder="&euro; 0,00">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Modello</label>
