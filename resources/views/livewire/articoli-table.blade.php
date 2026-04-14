@@ -25,6 +25,7 @@
         $quickPresets = $this->quickPresets;
         $disponibilitaOptions = $this->disponibilitaOptions;
         $singleMagazzinoFiltroId = count($magazziniSelezionati) === 1 ? (int) $magazziniSelezionati[0] : null;
+    @endphp
 
     @if(count($filtriAttivi) > 0)
         <div class="mb-3">
@@ -1947,6 +1948,7 @@
     @endpush
 @endonce
 </div>
+
 
 
 
