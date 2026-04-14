@@ -30,15 +30,15 @@ class ArticoliTable extends Component
     
     // Filtri Avanzati
     public $search = '';
-    public $magazzinoFilter = ''; // Filtro singolo per compatibilitÃ 
-    public $magazziniSelezionati = []; // Filtro multiplo per categorie
+    public $magazziniSelezionati = [];
+    public $magazzinoSearch = '';
     public $showMagazzinoDropdown = false; // Controllo dropdown personalizzato
     public $statoFilter = '';
     public $fornitoreFilter = '';
+    public $fornitoreSearch = '';
     public $marcaFilter = '';
     public $ubicazioneFilter = '';
-    public $giacenzaFilter = ''; // '', 'giacenti', 'scarichi'
-    public $giacenza = ''; // Nuovo parametro per filtri dalla dashboard: 'positiva', 'zero', 'negativa', 'nessuna'
+    public $disponibilitaFilter = '';
     public $statoArticoloFilter = ''; // '', 'disponibile', 'scaricato'
     public $prezzoMin = '';
     public $prezzoMax = '';
@@ -61,19 +61,19 @@ class ArticoliTable extends Component
     public $prezziApplicaATutti = false;
     public $prezziPreviewLoaded = false;
     
-    // ModalitÃ  scarico parziale
+    // Modalità scarico parziale
     public $showModalScarico = false;
     public $articoloDaScaricare = null;
     public $quantitaDaScaricare = 1;
     public $giacenzaDisponibile = 0;
 
-    // ModalitÃ  ricarico quantitÃ 
+    // Modalità ricarico quantità
     public $showModalRicarico = false;
     public $articoloDaRicaricare = null;
     public $giacenzaMancante = 0;
     public $quantitaDaRicaricare = 1;
     
-    // ModalitÃ  stampa etichetta
+    // Modalità stampa etichetta
     public $showModalStampa = false;
     public $articoloDaStampare = null;
     public $prezzoEtichetta = '';
@@ -83,7 +83,7 @@ class ArticoliTable extends Component
     public $stampanteSelezionata = '';
     public $stampantiDisponibili = [];
 
-    // ModalitÃ  modifica articolo
+    // Modalità modifica articolo
     public $showModalModifica = false;
     public $articoloDaModificare = null;
     public $modifica = [
@@ -112,7 +112,7 @@ class ArticoliTable extends Component
         'visibile_catalogo' => false,
     ];
 
-    // ModalitÃ  gestione immagine articolo
+    // Modalità gestione immagine articolo
     public $showModalFoto = false;
     public $articoloFotoTarget = null;
     public $fotoUpload = null;
@@ -157,14 +157,12 @@ class ArticoliTable extends Component
     
     protected $queryString = [
         'search' => ['except' => ''],
-        'magazzinoFilter' => ['except' => ''],
         'magazziniSelezionati' => ['except' => []],
         'statoFilter' => ['except' => ''],
         'fornitoreFilter' => ['except' => ''],
         'marcaFilter' => ['except' => ''],
         'ubicazioneFilter' => ['except' => ''],
-        'giacenzaFilter' => ['except' => ''],
-        'giacenza' => ['except' => ''], // Nuovo parametro per filtri dalla dashboard
+        'disponibilitaFilter' => ['except' => ''],
         'statoArticoloFilter' => ['except' => ''],
         'prezzoMin' => ['except' => ''],
         'prezzoMax' => ['except' => ''],
@@ -177,7 +175,7 @@ class ArticoliTable extends Component
         'sortDirection' => ['except' => 'desc'],
     ];
 
-    // RIMOSSO: Listener JavaScript non piÃ¹ necessario
+    // RIMOSSO: Listener JavaScript non più necessario
     // Il dropdown si chiude automaticamente con Livewire
 
     public function updatedSearch()
@@ -185,13 +183,9 @@ class ArticoliTable extends Component
         $this->resetPage();
     }
 
-    public function updatedMagazzinoFilter()
-    {
-        $this->resetPage();
-    }
-
     public function updatedMagazziniSelezionati()
     {
+        $this->magazziniSelezionati = $this->normalizeSelectedMagazzini($this->magazziniSelezionati);
         $this->resetPage();
     }
 
@@ -316,16 +310,6 @@ class ArticoliTable extends Component
         $this->resetPage();
     }
 
-    public function updatedGiacenzaFilter()
-    {
-        $this->resetPage();
-    }
-
-    public function updatedGiacenza()
-    {
-        $this->resetPage();
-    }
-
     public function updatedPrezzoMin()
     {
         $this->resetPage();
@@ -361,6 +345,11 @@ class ArticoliTable extends Component
         $this->resetPage();
     }
     
+    public function updatedDisponibilitaFilter()
+    {
+        $this->resetPage();
+    }
+
     public function updatedPerPage()
     {
         $this->resetPage();
@@ -375,7 +364,258 @@ class ArticoliTable extends Component
     {
         $this->loadPrezziFornitoreOptions = true;
     }
-    
+
+    private function normalizeSelectedMagazzini($magazzini): array
+    {
+        return collect(is_array($magazzini) ? $magazzini : [$magazzini])
+            ->filter(fn ($value) => $value !== '' && $value !== null)
+            ->map(fn ($value) => (int) $value)
+            ->filter(fn ($value) => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function clearSingleFilter(string $field): void
+    {
+        switch ($field) {
+            case 'search':
+                $this->search = '';
+                break;
+            case 'magazzini':
+                $this->magazziniSelezionati = [];
+                $this->magazzinoSearch = '';
+                break;
+            case 'fornitore':
+                $this->fornitoreFilter = '';
+                $this->fornitoreSearch = '';
+                break;
+            case 'disponibilita':
+                $this->disponibilitaFilter = '';
+                break;
+            case 'stato_articolo':
+                $this->statoArticoloFilter = '';
+                break;
+            case 'marca':
+                $this->marcaFilter = '';
+                break;
+            case 'ubicazione':
+                $this->ubicazioneFilter = '';
+                break;
+            case 'prezzo_min':
+                $this->prezzoMin = '';
+                break;
+            case 'prezzo_max':
+                $this->prezzoMax = '';
+                break;
+            case 'data_from':
+                $this->dataDocumentoFrom = '';
+                break;
+            case 'data_to':
+                $this->dataDocumentoTo = '';
+                break;
+            case 'vetrina':
+                $this->soloVetrina = false;
+                break;
+            case 'foto':
+                $this->fotoFilter = '';
+                break;
+            case 'deposito':
+                $this->inDepositoFilter = '';
+                break;
+        }
+
+        $this->resetPage();
+    }
+
+    public function applyPreset(string $preset): void
+    {
+        switch ($preset) {
+            case 'solo_giacenti':
+                $this->disponibilitaFilter = 'giacenti';
+                break;
+            case 'scaricati':
+                $this->statoArticoloFilter = 'scaricato';
+                break;
+            case 'in_vetrina':
+                $this->soloVetrina = true;
+                break;
+            case 'con_foto':
+                $this->fotoFilter = 'con';
+                break;
+            case 'in_deposito':
+                $this->inDepositoFilter = '1';
+                break;
+        }
+
+        $this->resetPage();
+    }
+
+    public function getDisponibilitaOptionsProperty(): array
+    {
+        return [
+            '' => 'Tutte',
+            'giacenti' => 'Giacenti',
+            'scarichi' => 'Scaricati / zero',
+            'in_produzione' => 'In produzione',
+            'nessuna' => 'Senza giacenza',
+        ];
+    }
+
+    public function getQuickPresetsProperty(): array
+    {
+        return [
+            ['key' => 'solo_giacenti', 'label' => 'Solo giacenti'],
+            ['key' => 'scaricati', 'label' => 'Scaricati'],
+            ['key' => 'in_vetrina', 'label' => 'In vetrina'],
+            ['key' => 'con_foto', 'label' => 'Con foto'],
+            ['key' => 'in_deposito', 'label' => 'In deposito'],
+        ];
+    }
+
+    public function getFilteredMagazziniGruppatiProperty()
+    {
+        $search = trim(mb_strtolower((string) $this->magazzinoSearch));
+        $grouped = $this->getMagazziniGroupedBySede();
+
+        if ($search === '') {
+            return $grouped;
+        }
+
+        return $grouped
+            ->map(function ($items) use ($search) {
+                return collect($items)->filter(function ($magazzino) use ($search) {
+                    return str_contains(mb_strtolower((string) $magazzino->nome), $search)
+                        || str_contains(mb_strtolower((string) $magazzino->codice_locale), $search)
+                        || str_contains((string) $magazzino->id, $search);
+                })->values();
+            })
+            ->filter(fn ($items) => $items->isNotEmpty());
+    }
+
+    public function getFilteredFornitoriProperty()
+    {
+        $search = trim((string) $this->fornitoreSearch);
+
+        return Fornitore::where('attivo', true)
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where('ragione_sociale', 'like', '%' . $search . '%');
+            })
+            ->orderBy('ragione_sociale')
+            ->limit(150)
+            ->get(['id', 'ragione_sociale']);
+    }
+
+    public function getSelectedMagazziniSummaryProperty(): string
+    {
+        $selected = $this->normalizeSelectedMagazzini($this->magazziniSelezionati);
+
+        if (empty($selected)) {
+            return 'Tutti i magazzini';
+        }
+
+        $labels = $this->getMagazziniFilterOptions()
+            ->whereIn('id', $selected)
+            ->pluck('nome')
+            ->values();
+
+        if ($labels->count() === 1) {
+            return $labels->first();
+        }
+
+        return $labels->take(2)->implode(', ') . ' +' . ($labels->count() - 2);
+    }
+
+    public function getFiltriAttiviProperty(): array
+    {
+        $filtri = [];
+
+        if (trim((string) $this->search) !== '') {
+            $filtri[] = ['field' => 'search', 'label' => 'Ricerca', 'value' => $this->search];
+        }
+
+        if (!empty($this->magazziniSelezionati)) {
+            $filtri[] = ['field' => 'magazzini', 'label' => 'Magazzini', 'value' => $this->selectedMagazziniSummary];
+        }
+
+        if ($this->fornitoreFilter !== '') {
+            $fornitore = Fornitore::find($this->fornitoreFilter);
+            $filtri[] = ['field' => 'fornitore', 'label' => 'Fornitore', 'value' => $fornitore?->ragione_sociale ?? $this->fornitoreFilter];
+        }
+
+        if ($this->disponibilitaFilter !== '') {
+            $filtri[] = ['field' => 'disponibilita', 'label' => 'Disponibilità', 'value' => $this->disponibilitaOptions[$this->disponibilitaFilter] ?? $this->disponibilitaFilter];
+        }
+
+        if ($this->statoArticoloFilter !== '') {
+            $filtri[] = ['field' => 'stato_articolo', 'label' => 'Stato', 'value' => $this->statoArticoloFilter];
+        }
+
+        if ($this->marcaFilter !== '') {
+            $filtri[] = ['field' => 'marca', 'label' => 'Marca', 'value' => $this->marcaFilter];
+        }
+
+        if ($this->ubicazioneFilter !== '') {
+            $sede = Sede::find($this->ubicazioneFilter);
+            $filtri[] = ['field' => 'ubicazione', 'label' => 'Ubicazione', 'value' => $sede?->nome ?? $this->ubicazioneFilter];
+        }
+
+        if ($this->prezzoMin !== '') {
+            $filtri[] = ['field' => 'prezzo_min', 'label' => 'Prezzo min', 'value' => $this->prezzoMin];
+        }
+
+        if ($this->prezzoMax !== '') {
+            $filtri[] = ['field' => 'prezzo_max', 'label' => 'Prezzo max', 'value' => $this->prezzoMax];
+        }
+
+        if ($this->dataDocumentoFrom !== '') {
+            $filtri[] = ['field' => 'data_from', 'label' => 'Dal', 'value' => $this->dataDocumentoFrom];
+        }
+
+        if ($this->dataDocumentoTo !== '') {
+            $filtri[] = ['field' => 'data_to', 'label' => 'Al', 'value' => $this->dataDocumentoTo];
+        }
+
+        if ($this->soloVetrina) {
+            $filtri[] = ['field' => 'vetrina', 'label' => 'Vetrina', 'value' => 'Solo in vetrina'];
+        }
+
+        if ($this->fotoFilter !== '') {
+            $filtri[] = ['field' => 'foto', 'label' => 'Foto', 'value' => $this->fotoFilter === 'con' ? 'Con foto' : 'Senza foto'];
+        }
+
+        if ($this->inDepositoFilter === '1') {
+            $filtri[] = ['field' => 'deposito', 'label' => 'Deposito', 'value' => 'In deposito'];
+        }
+
+        return $filtri;
+    }
+
+    public function getResultsSummaryProperty(): string
+    {
+        $parts = [];
+
+        if (!empty($this->magazziniSelezionati)) {
+            $parts[] = $this->selectedMagazziniSummary;
+        }
+
+        if ($this->disponibilitaFilter !== '') {
+            $parts[] = $this->disponibilitaOptions[$this->disponibilitaFilter] ?? $this->disponibilitaFilter;
+        }
+
+        if ($this->fornitoreFilter !== '') {
+            $fornitore = Fornitore::find($this->fornitoreFilter);
+            if ($fornitore) {
+                $parts[] = $fornitore->ragione_sociale;
+            }
+        }
+
+        if ($this->soloVetrina) {
+            $parts[] = 'Solo vetrina';
+        }
+
+        return implode(' • ', $parts);
+    }    
     public function sortBy($field)
     {
         if ($this->sortField === $field) {
@@ -389,15 +629,15 @@ class ArticoliTable extends Component
     public function resetFilters()
     {
         $this->search = '';
-        $this->magazzinoFilter = '';
         $this->magazziniSelezionati = [];
+        $this->magazzinoSearch = '';
         $this->showMagazzinoDropdown = false;
         $this->statoFilter = '';
         $this->fornitoreFilter = '';
+        $this->fornitoreSearch = '';
         $this->marcaFilter = '';
         $this->ubicazioneFilter = '';
-        $this->giacenzaFilter = '';
-        $this->giacenza = '';
+        $this->disponibilitaFilter = '';
         $this->statoArticoloFilter = '';
         $this->prezzoMin = '';
         $this->prezzoMax = '';
@@ -409,12 +649,10 @@ class ArticoliTable extends Component
         $this->sortField = 'codice';
         $this->sortDirection = 'desc';
         $this->resetPage();
-        
-        // Emit event per resettare Flatpickr
+
         $this->dispatch('filters-reset');
         $this->dispatch('close-filters-canvas');
-    }
-    
+    }    
     /**
      * Apre modal per scarico parziale o scarica direttamente
      */
@@ -435,7 +673,7 @@ class ArticoliTable extends Component
             if ($giacenza == 1) {
                 $this->eseguiScarico($articolo, 1);
             } else {
-                // Se giacenza > 1, apri modal per scegliere quantitÃ 
+                // Se giacenza > 1, apri modal per scegliere quantità
                 $this->articoloDaScaricare = $articolo;
                 $this->giacenzaDisponibile = $giacenza;
                 $this->quantitaDaScaricare = 1;
@@ -448,7 +686,7 @@ class ArticoliTable extends Component
     }
     
     /**
-     * Esegue lo scarico con quantitÃ  specificata
+     * Esegue lo scarico con quantità specificata
      */
     public function eseguiScarico($articolo, $quantita)
     {
@@ -456,7 +694,7 @@ class ArticoliTable extends Component
             $giacenzaAttuale = $articolo->giacenza->quantita_residua ?? 0;
             
             if ($quantita > $giacenzaAttuale) {
-                session()->flash('error', 'QuantitÃ  richiesta superiore alla giacenza disponibile');
+                session()->flash('error', 'Quantità richiesta superiore alla giacenza disponibile');
                 return;
             }
             
@@ -499,7 +737,7 @@ class ArticoliTable extends Component
         }
         
         if ($this->quantitaDaScaricare > $this->giacenzaDisponibile) {
-            session()->flash('error', 'QuantitÃ  superiore alla giacenza disponibile');
+            session()->flash('error', 'Quantità superiore alla giacenza disponibile');
             return;
         }
         
@@ -524,7 +762,7 @@ class ArticoliTable extends Component
     }
 
     /**
-     * Apre modal per ricaricare quantitÃ  scaricate per errore
+     * Apre modal per ricaricare quantità scaricate per errore
      */
     public function apriModalRicarico($articoloId)
     {
@@ -544,7 +782,7 @@ class ArticoliTable extends Component
     }
 
     /**
-     * Conferma ricarico quantitÃ 
+     * Conferma ricarico quantità
      */
     public function confermaRicarico()
     {
@@ -554,7 +792,7 @@ class ArticoliTable extends Component
         }
 
         if ($this->giacenzaMancante !== null && $this->quantitaDaRicaricare > $this->giacenzaMancante) {
-            session()->flash('error', 'QuantitÃ  superiore al massimo ripristinabile');
+            session()->flash('error', 'Quantità superiore al massimo ripristinabile');
             return;
         }
 
@@ -708,7 +946,7 @@ class ArticoliTable extends Component
     private function sembraPrezzoEuro(string $value): bool
     {
         $normalized = preg_replace('/\s+/u', '', $value);
-        $normalized = str_replace('â‚¬', '', $normalized);
+        $normalized = str_replace('€', '', $normalized);
 
         return $normalized !== '' && preg_match('/^\d+(?:[.,]\d{0,2})?$/', $normalized) === 1;
     }
@@ -724,7 +962,7 @@ class ArticoliTable extends Component
         $stampanti = \App\Models\Stampante::where('attiva', true)->get();
         
         $this->stampantiDisponibili = $stampanti->map(function ($stampante) {
-            // Admin/superuser: puÃ² stampare su qualsiasi stampante attiva.
+            // Admin/superuser: può stampare su qualsiasi stampante attiva.
             return [
                 'id' => $stampante->id,
                 'nome' => $stampante->nome,
@@ -741,7 +979,7 @@ class ArticoliTable extends Component
             }
         }
         
-        // Se non c'Ã¨ una stampante predefinita, seleziona la prima disponibile
+        // Se non c'è una stampante predefinita, seleziona la prima disponibile
         if (empty($this->stampanteSelezionata) && !empty($this->stampantiDisponibili)) {
             $this->stampanteSelezionata = $this->stampantiDisponibili[0]['id'];
         }
@@ -1166,7 +1404,7 @@ class ArticoliTable extends Component
         }
         
         if (empty($this->prezzoEtichetta)) {
-            session()->flash('error', 'Il prezzo Ã¨ obbligatorio');
+            session()->flash('error', 'Il prezzo è obbligatorio');
             return;
         }
         
@@ -1213,7 +1451,7 @@ class ArticoliTable extends Component
             
             // Verifica che l'articolo sia scaricato
             if ($articolo->stato_articolo !== 'scaricato') {
-                session()->flash('error', 'Articolo non Ã¨ in stato scaricato');
+                session()->flash('error', 'Articolo non è in stato scaricato');
                 return;
             }
             
@@ -1250,8 +1488,6 @@ class ArticoliTable extends Component
 
         if (!empty($this->magazziniSelezionati)) {
             $this->applyMagazzinoFilter($query, $this->magazziniSelezionati);
-        } elseif ($this->magazzinoFilter) {
-            $this->applyMagazzinoFilter($query, [$this->magazzinoFilter]);
         }
 
         if ($this->statoFilter) {
@@ -1280,40 +1516,24 @@ class ArticoliTable extends Component
             });
         }
 
-        if ($this->giacenzaFilter) {
-            if ($this->giacenzaFilter === 'giacenti') {
+        if ($this->disponibilitaFilter) {
+            if ($this->disponibilitaFilter === 'giacenti') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '>', 0);
                 });
-            } elseif ($this->giacenzaFilter === 'in_produzione') {
+            } elseif ($this->disponibilitaFilter === 'in_produzione') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '=', 0);
                 })->whereHas('componentiUtilizzatoIn.prodottoFinito', function($q) {
                     $q->where('stato', 'completato');
                 });
-            } elseif ($this->giacenzaFilter === 'scarichi') {
+            } elseif ($this->disponibilitaFilter === 'scarichi') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '=', 0);
                 })->whereDoesntHave('componentiUtilizzatoIn.prodottoFinito', function($q) {
                     $q->where('stato', 'completato');
                 });
-            }
-        }
-
-        if ($this->giacenza) {
-            if ($this->giacenza === 'positiva') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '>', 0);
-                });
-            } elseif ($this->giacenza === 'zero') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '=', 0);
-                });
-            } elseif ($this->giacenza === 'negativa') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '<', 0);
-                });
-            } elseif ($this->giacenza === 'nessuna') {
+            } elseif ($this->disponibilitaFilter === 'nessuna') {
                 $query->whereDoesntHave('giacenze');
             }
         }
@@ -1906,8 +2126,6 @@ class ArticoliTable extends Component
         // Filtro per categorie (singolo o multiplo)
         if (!empty($this->magazziniSelezionati)) {
             $this->applyMagazzinoFilter($query, $this->magazziniSelezionati);
-        } elseif ($this->magazzinoFilter) {
-            $this->applyMagazzinoFilter($query, [$this->magazzinoFilter]);
         }
 
         if ($this->statoFilter) {
@@ -1938,43 +2156,24 @@ class ArticoliTable extends Component
             });
         }
 
-        if ($this->giacenzaFilter) {
-            if ($this->giacenzaFilter === 'giacenti') {
+        if ($this->disponibilitaFilter) {
+            if ($this->disponibilitaFilter === 'giacenti') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '>', 0);
                 });
-            } elseif ($this->giacenzaFilter === 'in_produzione') {
-                // Articoli con giacenza 0 MA usati in prodotti finiti completati
+            } elseif ($this->disponibilitaFilter === 'in_produzione') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '=', 0);
                 })->whereHas('componentiUtilizzatoIn.prodottoFinito', function($q) {
                     $q->where('stato', 'completato');
                 });
-            } elseif ($this->giacenzaFilter === 'scarichi') {
-                // Articoli con giacenza 0 E NON usati in prodotti finiti
+            } elseif ($this->disponibilitaFilter === 'scarichi') {
                 $query->whereHas('giacenza', function($q) {
                     $q->where('quantita_residua', '=', 0);
                 })->whereDoesntHave('componentiUtilizzatoIn.prodottoFinito', function($q) {
                     $q->where('stato', 'completato');
                 });
-            }
-        }
-
-        // Nuovo filtro per giacenza dalla dashboard
-        if ($this->giacenza) {
-            if ($this->giacenza === 'positiva') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '>', 0);
-                });
-            } elseif ($this->giacenza === 'zero') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '=', 0);
-                });
-            } elseif ($this->giacenza === 'negativa') {
-                $query->whereHas('giacenze', function($q) {
-                    $q->where('quantita_residua', '<', 0);
-                });
-            } elseif ($this->giacenza === 'nessuna') {
+            } elseif ($this->disponibilitaFilter === 'nessuna') {
                 $query->whereDoesntHave('giacenze');
             }
         }
@@ -2101,13 +2300,11 @@ class ArticoliTable extends Component
             'stats_duration_ms' => $statsDurationMs,
             'filters_count' => count(array_filter([
                 $this->search,
-                $this->magazzinoFilter,
                 $this->statoFilter,
                 $this->fornitoreFilter,
                 $this->marcaFilter,
                 $this->ubicazioneFilter,
-                $this->giacenzaFilter,
-                $this->giacenza,
+                $this->disponibilitaFilter,
                 $this->statoArticoloFilter,
                 $this->prezzoMin,
                 $this->prezzoMax,
@@ -2126,3 +2323,6 @@ class ArticoliTable extends Component
         return view('livewire.articoli-table', compact('articoli', 'stats', 'magazzini', 'magazziniGruppati', 'fornitori', 'marche', 'sedi'));
     }
 }
+
+
+

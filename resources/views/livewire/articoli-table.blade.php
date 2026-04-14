@@ -16,65 +16,30 @@
         </div>
     @endif
 
-    <!-- Badge Filtri Attivi -->
     @php
-        $filtriAttivi = [];
-        if($search) $filtriAttivi[] = ['label' => 'Ricerca', 'value' => $search, 'field' => 'search'];
-        if(!empty($magazziniSelezionati)) {
-            $magazziniSelezionatiNomi = collect($magazzini)->whereIn('id', $magazziniSelezionati)->pluck('nome')->toArray();
-            $filtriAttivi[] = ['label' => 'Magazzino', 'value' => implode(', ', $magazziniSelezionatiNomi), 'field' => 'magazziniSelezionati'];
-        } elseif($magazzinoFilter) {
-            $mag = collect($magazzini)->firstWhere('id', $magazzinoFilter);
-            $filtriAttivi[] = ['label' => 'Magazzino', 'value' => $mag ? $mag->nome : $magazzinoFilter, 'field' => 'magazzinoFilter'];
-        }
-        if($fornitoreFilter) {
-            $forn = collect($fornitori)->firstWhere('id', $fornitoreFilter);
-            $filtriAttivi[] = ['label' => 'Fornitore', 'value' => $forn ? $forn->ragione_sociale : $fornitoreFilter, 'field' => 'fornitoreFilter'];
-        }
-        if($giacenzaFilter) $filtriAttivi[] = ['label' => 'Giacenza', 'value' => ucfirst($giacenzaFilter), 'field' => 'giacenzaFilter'];
-        if($giacenza) {
-            $giacenzaLabels = ['positiva' => 'Con Giacenza', 'zero' => 'Giacenza Zero', 'negativa' => 'Giacenza Negativa', 'nessuna' => 'Senza Giacenze'];
-            $filtriAttivi[] = ['label' => 'Filtro Giacenza', 'value' => $giacenzaLabels[$giacenza] ?? ucfirst($giacenza), 'field' => 'giacenza'];
-        }
-        if($statoArticoloFilter) $filtriAttivi[] = ['label' => 'Stato Articolo', 'value' => ucfirst($statoArticoloFilter), 'field' => 'statoArticoloFilter'];
-        if($marcaFilter) $filtriAttivi[] = ['label' => 'Marca', 'value' => $marcaFilter, 'field' => 'marcaFilter'];
-        if($ubicazioneFilter) {
-            $sede = collect($sedi)->firstWhere('id', $ubicazioneFilter);
-            $filtriAttivi[] = ['label' => 'Sede', 'value' => $sede ? $sede->nome : $ubicazioneFilter, 'field' => 'ubicazioneFilter'];
-        }
-        if($statoFilter) $filtriAttivi[] = ['label' => 'Stato', 'value' => ucfirst($statoFilter), 'field' => 'statoFilter'];
-        if($prezzoMin !== '') $filtriAttivi[] = ['label' => 'Prezzo min', 'value' => $prezzoMin, 'field' => 'prezzoMin'];
-        if($prezzoMax !== '') $filtriAttivi[] = ['label' => 'Prezzo max', 'value' => $prezzoMax, 'field' => 'prezzoMax'];
-        if($dataDocumentoFrom) $filtriAttivi[] = ['label' => 'Data da', 'value' => $dataDocumentoFrom, 'field' => 'dataDocumentoFrom'];
-        if($dataDocumentoTo) $filtriAttivi[] = ['label' => 'Data a', 'value' => $dataDocumentoTo, 'field' => 'dataDocumentoTo'];
-        if($soloVetrina) $filtriAttivi[] = ['label' => 'Vetrina', 'value' => 'Solo in vetrina', 'field' => 'soloVetrina'];
-        if($fotoFilter) {
-            $fotoLabel = $fotoFilter === 'con' ? 'Con foto' : 'Senza foto';
-            $filtriAttivi[] = ['label' => 'Foto', 'value' => $fotoLabel, 'field' => 'fotoFilter'];
-        }
-        if($inDepositoFilter === '1') {
-            $filtriAttivi[] = ['label' => 'Conto deposito', 'value' => 'Solo in deposito', 'field' => 'inDepositoFilter'];
-        }
-    @endphp
+        $filtriAttivi = $this->filtriAttivi;
+        $fornitoriFiltrati = $this->filteredFornitori;
+        $magazziniFiltrati = $this->filteredMagazziniGruppati;
+        $selectedMagazziniSummary = $this->selectedMagazziniSummary;
+        $resultsSummary = $this->resultsSummary;
+        $quickPresets = $this->quickPresets;
+        $disponibilitaOptions = $this->disponibilitaOptions;
+        $singleMagazzinoFiltroId = count($magazziniSelezionati) === 1 ? (int) $magazziniSelezionati[0] : null;
 
     @if(count($filtriAttivi) > 0)
         <div class="mb-3">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="text-muted small fw-semibold">
                     <iconify-icon icon="solar:filter-bold" class="me-1"></iconify-icon>
-                    Filtri attivi ({{ count($filtriAttivi) }}):
+                    Filtri attivi ({{ count($filtriAttivi) }})
                 </span>
                 @foreach($filtriAttivi as $filtro)
                     <span class="badge bg-primary-subtle text-primary d-inline-flex align-items-center gap-2 px-3 py-2">
-                        <span><strong>{{ $filtro['label'] }}:</strong> {{ Str::limit($filtro['value'], 30) }}</span>
-                        <button type="button" 
-                                class="btn-close btn-close-sm" 
+                        <span><strong>{{ $filtro['label'] }}:</strong> {{ Str::limit($filtro['value'], 42) }}</span>
+                        <button type="button"
+                                class="btn-close btn-close-sm"
                                 style="font-size: 0.6rem;"
-                                @if($filtro['field'] === 'magazziniSelezionati')
-                                    wire:click="deselezionaTuttiMagazzini"
-                                @else
-                                    wire:click="$set('{{ $filtro['field'] }}', '')"
-                                @endif
+                                wire:click="clearSingleFilter('{{ $filtro['field'] }}')"
                                 aria-label="Rimuovi filtro"></button>
                     </span>
                 @endforeach
@@ -86,70 +51,77 @@
         </div>
     @endif
 
-    <!-- Filtro principale: Magazzino + Ricerca -->
     <div class="card border-0 shadow-sm mb-4" style="position: sticky; top: 64px; z-index: 1000;">
-        <div class="card-body py-2">
-            <div class="row g-2 align-items-center">
-                <div class="col-lg-5">
+        <div class="card-body py-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-4">
                     <label class="form-label small fw-semibold mb-1">Magazzino</label>
                     <details class="position-relative" id="magazzinoDropdown">
                         <summary class="btn btn-secondary btn-sm w-100 text-start d-flex justify-content-between align-items-center">
-                            <span>
-                                @if(empty($magazziniSelezionati))
-                                    Tutti i Magazzini
-                                @else
-                                    {{ count($magazziniSelezionati) }} Magazzini Selezionati
-                                @endif
-                            </span>
+                            <span>{{ $selectedMagazziniSummary }}</span>
                             <iconify-icon icon="solar:alt-arrow-down-bold" class="ms-2"></iconify-icon>
                         </summary>
-                        <div class="position-absolute w-100 bg-white border rounded shadow-lg" 
-                             style="top: 100%; left: 0; z-index: 1050; max-height: 300px; overflow-y: auto;">
-                            <div class="p-2">
-                                <div class="d-flex gap-2 mb-2">
-                                    <button class="btn btn-sm btn-success flex-fill" wire:click="selezionaTuttiMagazzini">
-                                        <iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon>
-                                        Tutti
-                                    </button>
-                                    <button class="btn btn-sm btn-danger flex-fill" wire:click="deselezionaTuttiMagazzini">
-                                        <iconify-icon icon="solar:close-circle-bold-duotone"></iconify-icon>
-                                        Nessuno
-                                    </button>
-                                </div>
-                                <hr class="my-2">
-                                @foreach($magazziniGruppati as $sedeNome => $magazziniSede)
-                                    <div class="small fw-semibold text-uppercase text-muted mt-2 mb-1">{{ $sedeNome }}</div>
-                                    @foreach($magazziniSede as $magazzino)
-                                        <div class="form-check py-1 ps-2">
-                                            <input type="checkbox" 
-                                                   class="form-check-input" 
-                                                   id="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}"
-                                                   wire:change="toggleMagazzino({{ $magazzino->id }})"
-                                                   @if(in_array($magazzino->id, $magazziniSelezionati)) checked @endif>
-                                            <label class="form-check-label w-100" for="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}">
-                                                {{ $magazzino->nome }}
-                                                <span class="text-muted small">({{ $magazzino->codice_locale }})</span>
-                                            </label>
-                                        </div>
-                                    @endforeach
-                                @endforeach
+                        <div class="position-absolute w-100 bg-white border rounded shadow-lg p-2"
+                             style="top: 100%; left: 0; z-index: 1050; max-height: 360px; overflow-y: auto;">
+                            <input type="text"
+                                   class="form-control form-control-sm mb-2"
+                                   placeholder="Cerca magazzino..."
+                                   wire:model.live.debounce.300ms="magazzinoSearch">
+                            <div class="d-flex gap-2 mb-2">
+                                <button class="btn btn-sm btn-success flex-fill" wire:click="selezionaTuttiMagazzini">
+                                    <iconify-icon icon="solar:check-circle-bold-duotone"></iconify-icon>
+                                    Tutti
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger flex-fill" wire:click="deselezionaTuttiMagazzini">
+                                    <iconify-icon icon="solar:close-circle-bold-duotone"></iconify-icon>
+                                    Nessuno
+                                </button>
                             </div>
+                            @forelse($magazziniFiltrati as $sedeNome => $magazziniSede)
+                                <div class="small fw-semibold text-uppercase text-muted mt-2 mb-1">{{ $sedeNome }}</div>
+                                @foreach($magazziniSede as $magazzino)
+                                    <div class="form-check py-1 ps-2">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               id="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}"
+                                               wire:change="toggleMagazzino({{ $magazzino->id }})"
+                                               @checked(in_array($magazzino->id, $magazziniSelezionati))>
+                                        <label class="form-check-label w-100" for="magazzino_{{ $magazzino->sede_id }}_{{ $magazzino->id }}">
+                                            {{ $magazzino->nome }}
+                                            <span class="text-muted small">({{ $magazzino->codice_locale }})</span>
+                                        </label>
+                                    </div>
+                                @endforeach
+                            @empty
+                                <div class="text-muted small py-2">Nessun magazzino trovato.</div>
+                            @endforelse
                         </div>
                     </details>
                 </div>
+
                 <div class="col-lg-4">
                     <label class="form-label small fw-semibold mb-1">Ricerca</label>
                     <div class="input-group input-group-sm">
                         <span class="input-group-text">
                             <iconify-icon icon="solar:magnifer-bold"></iconify-icon>
                         </span>
-                        <input type="text" 
-                               class="form-control" 
-                               placeholder="Codice, descrizione, fornitore..." 
-                               wire:model.live.debounce.600ms="search">
+                        <input type="text"
+                               class="form-control"
+                               placeholder="Codice, descrizione, referenza, fornitore..."
+                               wire:model.live.debounce.500ms="search">
                     </div>
                 </div>
-                <div class="col-lg-3 text-lg-end">
+
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold mb-1">Disponibilità</label>
+                    <select class="form-select form-select-sm" wire:model.live="disponibilitaFilter">
+                        @foreach($disponibilitaOptions as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-lg-2 text-lg-end">
                     <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
@@ -158,7 +130,7 @@
                                 data-bs-target="#articoliFiltersCanvas"
                                 aria-controls="articoliFiltersCanvas">
                             <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
-                            Altri filtri
+                            Avanzati
                             @if(count($filtriAttivi) > 0)
                                 <span class="badge bg-primary ms-2">{{ count($filtriAttivi) }}</span>
                             @endif
@@ -168,96 +140,70 @@
                                 wire:click="openPrezziFornitoreCanvas"
                                 data-bs-toggle="offcanvas"
                                 data-bs-target="#prezziFornitoreCanvas"
-                                aria-controls="prezziFornitoreCanvas">
+                                aria-controls="#prezziFornitoreCanvas">
                             <iconify-icon icon="solar:dollar-minimalistic-bold" class="me-1"></iconify-icon>
-                            Prezzi fornitore
+                            Prezzi
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 align-items-end mt-1">
+                <div class="col-lg-4">
+                    <label class="form-label small fw-semibold mb-1">Fornitore</label>
+                    <input type="text"
+                           class="form-control form-control-sm mb-2"
+                           placeholder="Cerca fornitore..."
+                           wire:model.live.debounce.300ms="fornitoreSearch">
+                    <select class="form-select form-select-sm" wire:model.live="fornitoreFilter">
+                        <option value="">Tutti i fornitori</option>
+                        @foreach($fornitoriFiltrati as $fornitore)
+                            <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-lg-5">
+                    <label class="form-label small fw-semibold mb-1">Preset rapidi</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($quickPresets as $preset)
+                            <button class="btn btn-sm btn-outline-secondary" wire:click="applyPreset('{{ $preset['key'] }}')">
+                                {{ $preset['label'] }}
+                            </button>
+                        @endforeach
+                        <button class="btn btn-sm btn-outline-danger" wire:click="resetFilters">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-lg-3">
+                    <div class="rounded-3 bg-light border px-3 py-2 small text-muted">
+                        <div class="fw-semibold text-dark">Contesto corrente</div>
+                        <div>{{ $resultsSummary !== '' ? $resultsSummary : 'Nessun filtro rapido attivo' }}</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Offcanvas Filtri -->
     <div class="offcanvas offcanvas-top" tabindex="-1" id="articoliFiltersCanvas" aria-labelledby="articoliFiltersCanvasLabel" style="height: 85vh;" wire:ignore.self>
         <div class="offcanvas-header">
             <h6 class="offcanvas-title" id="articoliFiltersCanvasLabel">
                 <iconify-icon icon="solar:filter-bold" class="me-2"></iconify-icon>
-                Filtri e Ricerca
+                Filtri avanzati
             </h6>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body overflow-auto">
-            @if(count($filtriAttivi) > 0)
-                <div class="mb-3">
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <span class="text-muted small fw-semibold">
-                            <iconify-icon icon="solar:filter-bold" class="me-1"></iconify-icon>
-                            Filtri attivi ({{ count($filtriAttivi) }}):
-                        </span>
-                        @foreach($filtriAttivi as $filtro)
-                            <span class="badge bg-primary-subtle text-primary d-inline-flex align-items-center gap-2 px-3 py-2">
-                                <span><strong>{{ $filtro['label'] }}:</strong> {{ Str::limit($filtro['value'], 30) }}</span>
-                                <button type="button" 
-                                        class="btn-close btn-close-sm" 
-                                        style="font-size: 0.6rem;"
-                                        @if($filtro['field'] === 'magazziniSelezionati')
-                                            wire:click="deselezionaTuttiMagazzini"
-                                        @else
-                                            wire:click="$set('{{ $filtro['field'] }}', '')"
-                                        @endif
-                                        aria-label="Rimuovi filtro"></button>
-                            </span>
-                        @endforeach
-                        <button class="btn btn-sm btn-danger" wire:click="resetFilters">
-                            <iconify-icon icon="solar:trash-bin-minimalistic-bold" class="me-1"></iconify-icon>
-                            Rimuovi tutti
-                        </button>
-                    </div>
-                </div>
-            @endif
-
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-sm btn-info" 
-                        type="button" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#advancedFilters"
-                        aria-expanded="true"
-                        aria-controls="advancedFilters"
-                        id="toggleAdvancedBtn">
-                    <iconify-icon icon="solar:slider-vertical-bold" class="me-1"></iconify-icon>
-                    Avanzati
-                </button>
                 <button class="btn btn-sm btn-secondary" wire:click="resetFilters">
                     <iconify-icon icon="solar:refresh-bold" class="me-1"></iconify-icon>
-                    Reset
+                    Reset completo
                 </button>
             </div>
 
             <div class="row g-3">
-                <!-- Filtro Fornitore -->
-                <div class="col-lg-3">
-                    <label class="form-label small fw-semibold">Fornitore</label>
-                    <select class="form-select form-select-sm" wire:model.live="fornitoreFilter">
-                        <option value="">Tutti</option>
-                        @foreach($fornitori as $fornitore)
-                            <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <!-- Filtro Giacenza -->
-                <div class="col-lg-2">
-                    <label class="form-label small fw-semibold">Giacenza</label>
-                    <select class="form-select form-select-sm" wire:model.live="giacenzaFilter">
-                        <option value="">Tutti</option>
-                        <option value="giacenti">Solo Giacenti</option>
-                        <option value="in_produzione">In Produzione</option>
-                        <option value="scarichi">Solo Scarichi</option>
-                    </select>
-                </div>
-
-                <!-- Filtro Stato Articolo -->
                 <div class="col-lg-2">
                     <label class="form-label small fw-semibold">Stato Articolo</label>
                     <select class="form-select form-select-sm" wire:model.live="statoArticoloFilter">
@@ -267,7 +213,6 @@
                     </select>
                 </div>
 
-                <!-- Per Pagina -->
                 <div class="col-lg-2">
                     <label class="form-label small fw-semibold">Per Pagina</label>
                     <select class="form-select form-select-sm" wire:model.live="perPage">
@@ -277,81 +222,66 @@
                         <option value="250">250</option>
                     </select>
                 </div>
-            </div>
 
-            <!-- Filtri Avanzati (Aperti per default) -->
-            <div class="collapse show mt-3" id="advancedFilters">
-                <div class="row g-3">
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Marca</label>
-                        <select class="form-select form-select-sm" wire:model.live="marcaFilter">
-                            <option value="">Tutte</option>
-                            @foreach($marche as $marca)
-                                <option value="{{ $marca }}">{{ $marca }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Marca</label>
+                    <select class="form-select form-select-sm" wire:model.live="marcaFilter">
+                        <option value="">Tutte</option>
+                        @foreach($marche as $marca)
+                            <option value="{{ $marca }}">{{ $marca }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Sede</label>
-                        <select class="form-select form-select-sm" wire:model.live="ubicazioneFilter">
-                            <option value="">Tutte</option>
-                            @foreach($sedi as $sede)
-                                <option value="{{ $sede->id }}">
-                                    {{ $sede->nome }} ({{ $sede->citta }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Sede</label>
+                    <select class="form-select form-select-sm" wire:model.live="ubicazioneFilter">
+                        <option value="">Tutte</option>
+                        @foreach($sedi as $sede)
+                            <option value="{{ $sede->id }}">{{ $sede->nome }} ({{ $sede->citta }})</option>
+                        @endforeach
+                    </select>
+                </div>
 
-                    <div class="col-lg-2" wire:ignore>
-                        <label class="form-label small fw-semibold">Data Inizio</label>
-                        <input type="text" 
-                               class="form-control form-control-sm" 
-                               placeholder="gg/mm/aaaa"
-                               id="dataDocumentoFrom"
-                               data-input>
-                    </div>
+                <div class="col-lg-2" wire:ignore>
+                    <label class="form-label small fw-semibold">Data Inizio</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="gg/mm/aaaa" id="dataDocumentoFrom" data-input>
+                </div>
 
-                    <div class="col-lg-2" wire:ignore>
-                        <label class="form-label small fw-semibold">Data Fine</label>
-                        <input type="text" 
-                               class="form-control form-control-sm" 
-                               placeholder="gg/mm/aaaa"
-                               id="dataDocumentoTo"
-                               data-input>
-                    </div>
+                <div class="col-lg-2" wire:ignore>
+                    <label class="form-label small fw-semibold">Data Fine</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="gg/mm/aaaa" id="dataDocumentoTo" data-input>
+                </div>
 
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Prezzo Min (â‚¬)</label>
-                        <input type="number" class="form-control form-control-sm" placeholder="Min" wire:model.live.debounce.500ms="prezzoMin">
-                    </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Prezzo Min (€)</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Min" wire:model.live.debounce.500ms="prezzoMin">
+                </div>
 
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Prezzo Max (â‚¬)</label>
-                        <input type="number" class="form-control form-control-sm" placeholder="Max" wire:model.live.debounce.500ms="prezzoMax">
-                    </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Prezzo Max (€)</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Max" wire:model.live.debounce.500ms="prezzoMax">
+                </div>
 
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Foto</label>
-                        <select class="form-select form-select-sm" wire:model.live="fotoFilter">
-                            <option value="">Tutte</option>
-                            <option value="con">Con foto</option>
-                            <option value="senza">Senza foto</option>
-                        </select>
-                    </div>
+                <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Foto</label>
+                    <select class="form-select form-select-sm" wire:model.live="fotoFilter">
+                        <option value="">Tutte</option>
+                        <option value="con">Con foto</option>
+                        <option value="senza">Senza foto</option>
+                    </select>
+                </div>
 
-                    <div class="col-lg-2">
-                        <label class="form-label small fw-semibold">Filtri Speciali</label>
-                        <div class="d-flex gap-3 mt-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" wire:model.live="soloVetrina" id="soloVetrina">
-                                <label class="form-check-label small" for="soloVetrina">In Vetrina</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" wire:model.live="inDepositoFilter" value="1" id="inDepositoFilter">
-                                <label class="form-check-label small" for="inDepositoFilter">In Deposito</label>
-                            </div>
+                <div class="col-lg-4">
+                    <label class="form-label small fw-semibold">Filtri speciali</label>
+                    <div class="d-flex gap-3 mt-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" wire:model.live="soloVetrina" id="soloVetrina">
+                            <label class="form-check-label small" for="soloVetrina">In vetrina</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" wire:model.live="inDepositoFilter" value="1" id="inDepositoFilter">
+                            <label class="form-check-label small" for="inDepositoFilter">In deposito</label>
                         </div>
                     </div>
                 </div>
@@ -487,14 +417,9 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h6 class="card-title mb-0">
-                        @if($magazzinoFilter)
-                            @php
-                                $magazzinoSelezionato = $magazzini->firstWhere('id', $magazzinoFilter);
-                                $nomeMagazzino = $magazzinoSelezionato->nome ?? ('Magazzino ' . $magazzinoFilter);
-                            @endphp
-                            Articoli - {{ $nomeMagazzino }}
-                        @else
-                            Articoli Magazzino
+                        Articoli
+                        @if($resultsSummary !== '')
+                            <span class="text-muted">- {{ $resultsSummary }}</span>
                         @endif
                     </h6>
                     <small class="text-muted">
@@ -568,8 +493,8 @@
                             $isOrologioCategory = false;
                             $iconaCategoria = ['icon' => 'lucide:package', 'color' => 'text-secondary', 'title' => 'Tutti']; // default
                             
-                            if($this->magazzinoFilter) {
-                                $magazzinoLogicoAttuale = (int) $this->magazzinoFilter;
+                            if($singleMagazzinoFiltroId) {
+                                $magazzinoLogicoAttuale = $singleMagazzinoFiltroId;
                                 $iconaCategoria = $iconeCategorie[$magazzinoLogicoAttuale] ?? $iconaCategoria;
                                 $isOrologioCategory = in_array($magazzinoLogicoAttuale, [1, 2, 3, 4]); // Sveglie, Orologi Acciaio, Oro, Cinturini
                             } elseif($articoli->count() > 0) {
@@ -587,7 +512,7 @@
                                 <div class="d-flex align-items-center gap-1">
                                     @php
                                         // Header icona: se filtro attivo usa categoria, altrimenti icona generica
-                                        if($this->magazzinoFilter) {
+                                        if($singleMagazzinoFiltroId) {
                                             $iconaHeader = $iconaCategoria;
                                         } else {
                                             $iconaHeader = ['icon' => 'lucide:package', 'color' => 'text-secondary', 'title' => 'Tutti'];
@@ -686,7 +611,7 @@
                                         @php
                                             // Se c'Ã¨ un filtro attivo, usa l'icona della categoria filtrata
                                             // Altrimenti usa l'icona specifica dell'articolo
-                                            if($this->magazzinoFilter) {
+                                            if($singleMagazzinoFiltroId) {
                                                 $iconaArticolo = $iconaCategoria;
                                             } else {
                                                 // Nessun filtro: usa l'icona specifica del magazzino logico dell'articolo
@@ -2022,5 +1947,6 @@
     @endpush
 @endonce
 </div>
+
 
 
