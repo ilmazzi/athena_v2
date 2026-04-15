@@ -806,6 +806,9 @@ class Articolo extends Model
         if (method_exists($vo, 'toEtichetta')) {
             return $vo->toEtichetta();
         }
+        if (method_exists($vo, 'toDisplayString')) {
+            return $vo->toDisplayString();
+        }
         if (method_exists($vo, 'toString')) {
             return $vo->toString();
         }
