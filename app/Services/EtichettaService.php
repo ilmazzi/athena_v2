@@ -191,16 +191,7 @@ class EtichettaService
      */
     private function getTemplateZT420(): string
     {
-        return '^XA
-^MD30
-^CI28
-^LH160,8
-^PW552^LL80
-^FO05,10^BQ,2,3^FDQA,{CARICO}^FS
-^FO80,10^A0N,19,19^FD{CARICO}^FS
-^FO80,35^A0N,19,19^FD{PREZZO}^FS
-^FO80,60^A0N,19,19^FB120,2,3,L^FD{CARATI}^FS
-^XZ';
+        return $this->getTemplateZT421();
     }
 
     /**
@@ -260,14 +251,7 @@ class EtichettaService
 
     private function getTemplateNcZT420(): string
     {
-        return '^XA
-^MD30
-^CI28
-^LH145,8
-^PW552^LL80
-^FO80,30^A0N,22,22^FD{PREZZO}^FS
-^FO80,58^A0N,21,21^FB140,2,3,L^FD{CARATI}^FS
-^XZ';
+        return $this->getTemplateNcZT421();
     }
 
     /**
