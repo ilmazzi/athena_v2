@@ -3,9 +3,18 @@
 namespace App\Services;
 
 use App\Models\CategoriaMerceologica;
+use App\Models\Sede;
 
 class MagazzinoLogicoService
 {
+    public function getSedePrincipaleId(): ?int
+    {
+        return Sede::query()
+            ->where('attivo', true)
+            ->orderBy('id')
+            ->value('id');
+    }
+
     public function resolveFromCategoriaId(?int $categoriaId): ?int
     {
         if (!$categoriaId) {
@@ -44,6 +53,16 @@ class MagazzinoLogicoService
             });
 
         return $categoria?->id;
+    }
+
+    public function findCategoriaIdForSedePrincipale(int $magazzinoLogico): ?int
+    {
+        $sedePrincipaleId = $this->getSedePrincipaleId();
+        if (!$sedePrincipaleId) {
+            return null;
+        }
+
+        return $this->findCategoriaIdForSede($sedePrincipaleId, $magazzinoLogico);
     }
 
     public function extractMagazzinoLogico(string $codice, string $nome = ''): ?int

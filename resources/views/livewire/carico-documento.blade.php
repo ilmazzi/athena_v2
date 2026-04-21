@@ -309,13 +309,13 @@
                             @endforeach
                         </select>
                         @error('categoriaId')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">
-                            @if(empty($sedeId))
-                                Seleziona prima la sede.
-                            @else
-                                Mostra i magazzini globali disponibili per la sede selezionata.
-                            @endif
-                        </div>
+                            <div class="form-text">
+                                @if(empty($sedeId))
+                                    Seleziona prima la sede.
+                                @else
+                                    Mostra i magazzini globali definiti sulla sede principale. La sede selezionata imposta l'ubicazione del carico.
+                                @endif
+                            </div>
                     </div>
 
                     @if($tipoDocumento === 'fattura')

@@ -1060,13 +1060,19 @@ class CaricoDocumento extends Component
             return;
         }
 
+        $service = app(MagazzinoLogicoService::class);
+        $sedePrincipaleId = $service->getSedePrincipaleId();
+
+        if (!$sedePrincipaleId) {
+            $this->categorie = collect();
+            return;
+        }
+
         $categorie = CategoriaMerceologica::query()
             ->where('attivo', true)
-            ->where('sede_id', $this->sedeId)
+            ->where('sede_id', $sedePrincipaleId)
             ->orderBy('nome')
             ->get();
-
-        $service = app(MagazzinoLogicoService::class);
 
         $this->categorie = $categorie
             ->map(function (CategoriaMerceologica $categoria) use ($service) {
@@ -1110,8 +1116,7 @@ class CaricoDocumento extends Component
             return null;
         }
 
-        return app(MagazzinoLogicoService::class)->findCategoriaIdForSede((int) $sedeId, (int) $magazzinoLogico);
+        return app(MagazzinoLogicoService::class)->findCategoriaIdForSedePrincipale((int) $magazzinoLogico);
     }
 }
-
 
