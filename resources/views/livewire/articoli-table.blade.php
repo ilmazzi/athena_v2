@@ -215,6 +215,15 @@
                 </div>
 
                 <div class="col-lg-2">
+                    <label class="form-label small fw-semibold">Costo</label>
+                    <select class="form-select form-select-sm" wire:model.live="costoFilter">
+                        <option value="">Tutti</option>
+                        <option value="con">Con costo</option>
+                        <option value="senza">Senza costo</option>
+                    </select>
+                </div>
+
+                <div class="col-lg-2">
                     <label class="form-label small fw-semibold">Per Pagina</label>
                     <select class="form-select form-select-sm" wire:model.live="perPage">
                         <option value="25">25</option>
@@ -1027,6 +1036,10 @@
                                                 <button type="button" class="articolo-actions-item" wire:click="apriModalStampa({{ $articolo->id }})">
                                                     <iconify-icon icon="solar:printer-bold" class="text-success me-2"></iconify-icon>
                                                     Stampa Etichetta
+                                                </button>
+                                                <button type="button" class="articolo-actions-item" wire:click="fatturaArticolo({{ $articolo->id }})">
+                                                    <iconify-icon icon="solar:bill-list-bold" class="text-primary me-2"></iconify-icon>
+                                                    Fattura articolo
                                                 </button>
                                                 <hr class="dropdown-divider">
                                                 <button type="button" class="articolo-actions-item text-success" wire:click="apriModalRicarico({{ $articolo->id }})">

@@ -555,6 +555,14 @@
                                 </button>
                             </div>
                             <div class="col-12">
+                                <label class="form-label small text-muted mb-1">PDF Fattura</label>
+                                <input type="file" class="form-control form-control-sm" wire:model="convertPdf" accept="application/pdf">
+                                <small class="text-muted">Opzionale, max 10 MB.</small>
+                                @error('convertPdf')
+                                    <div class="text-danger small mt-1">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label small text-muted mb-1">Note</label>
                                 <textarea class="form-control form-control-sm" rows="2" wire:model.defer="convertForm.note"></textarea>
                             </div>

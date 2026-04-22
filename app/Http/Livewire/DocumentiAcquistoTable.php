@@ -18,16 +18,19 @@ use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Livewire\WithFileUploads;
 
 #[Layout('layouts.vertical', ['title' => 'Documenti di Acquisto'])]
 class DocumentiAcquistoTable extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     // Filtri
     public $search = '';
     public $tipoDocumento = ''; // 'ddt', 'fattura', ''
     public $tipoCarico = ''; // 'ocr', 'manuale', ''
+    public $convertDdt = '';
     public $fornitoreFilter = '';
     public $sedeFilter = '';
     public $categoriaFilter = '';
@@ -57,6 +60,7 @@ class DocumentiAcquistoTable extends Component
     public $showConvertModal = false;
     public $convertDdtId = null;
     public $convertRows = [];
+    public $convertPdf;
     public $convertForm = [
         'numero' => '',
         'data_documento' => '',
@@ -83,6 +87,7 @@ class DocumentiAcquistoTable extends Component
         'search' => ['except' => ''],
         'tipoDocumento' => ['except' => ''],
         'tipoCarico' => ['except' => ''],
+        'convertDdt' => ['except' => ''],
         'fornitoreFilter' => ['except' => ''],
         'sedeFilter' => ['except' => ''],
         'categoriaFilter' => ['except' => ''],
@@ -91,6 +96,13 @@ class DocumentiAcquistoTable extends Component
         'dataTo' => ['except' => ''],
         'nascondiVuoti' => ['except' => true],
     ];
+
+    public function mount(): void
+    {
+        if (!empty($this->convertDdt)) {
+            $this->openConvertModal((int) $this->convertDdt);
+        }
+    }
 
     private function applyUniqueDocumentScope($query, string $table): void
     {
@@ -313,7 +325,9 @@ class DocumentiAcquistoTable extends Component
     {
         $this->showConvertModal = false;
         $this->convertDdtId = null;
+        $this->convertDdt = '';
         $this->convertRows = [];
+        $this->convertPdf = null;
         $this->convertForm = [
             'numero' => '',
             'data_documento' => '',
@@ -356,6 +370,7 @@ class DocumentiAcquistoTable extends Component
             'convertForm.iva' => 'nullable',
             'convertForm.totale' => 'nullable',
             'convertForm.note' => 'nullable|string',
+            'convertPdf' => 'nullable|file|mimes:pdf|max:10240',
             'convertRows' => 'required|array|min:1',
             'convertRows.*.articolo_id' => 'required|integer|exists:articoli,id',
             'convertRows.*.descrizione' => 'nullable|string|max:500',
@@ -376,6 +391,22 @@ class DocumentiAcquistoTable extends Component
                 'note' => $this->convertForm['note'],
                 'righe' => $this->convertRows,
             ]);
+
+            if ($this->convertPdf) {
+                $path = $this->convertPdf->store("documenti/fatture/{$fattura->id}", 'public');
+
+                $update = [];
+                if (Schema::hasColumn('fatture', 'allegato_path')) {
+                    $update['allegato_path'] = $path;
+                }
+                if (Schema::hasColumn('fatture', 'file_pdf_path')) {
+                    $update['file_pdf_path'] = $path;
+                }
+
+                if (!empty($update)) {
+                    $fattura->update($update);
+                }
+            }
 
             $this->closeConvertModal();
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Livewire;
 
+use App\Models\Ddt;
 use App\Models\Fornitore;
 use App\Models\CategoriaMerceologica;
 use App\Models\Articolo;
@@ -41,6 +42,7 @@ class ArticoliTable extends Component
     public $marcaFilter = '';
     public $ubicazioneFilter = '';
     public $disponibilitaFilter = '';
+    public $costoFilter = '';
     public $statoArticoloFilter = ''; // '', 'disponibile', 'scaricato'
     public $prezzoMin = '';
     public $prezzoMax = '';
@@ -165,6 +167,7 @@ class ArticoliTable extends Component
         'marcaFilter' => ['except' => ''],
         'ubicazioneFilter' => ['except' => ''],
         'disponibilitaFilter' => ['except' => ''],
+        'costoFilter' => ['except' => ''],
         'statoArticoloFilter' => ['except' => ''],
         'prezzoMin' => ['except' => ''],
         'prezzoMax' => ['except' => ''],
@@ -352,6 +355,11 @@ class ArticoliTable extends Component
         $this->resetPage();
     }
 
+    public function updatedCostoFilter()
+    {
+        $this->resetPage();
+    }
+
     public function updatedPerPage()
     {
         $this->resetPage();
@@ -397,6 +405,9 @@ class ArticoliTable extends Component
                 break;
             case 'stato_articolo':
                 $this->statoArticoloFilter = '';
+                break;
+            case 'costo':
+                $this->costoFilter = '';
                 break;
             case 'marca':
                 $this->marcaFilter = '';
@@ -575,6 +586,14 @@ class ArticoliTable extends Component
             $filtri[] = ['field' => 'stato_articolo', 'label' => 'Stato', 'value' => $this->statoArticoloFilter];
         }
 
+        if ($this->costoFilter !== '') {
+            $filtri[] = [
+                'field' => 'costo',
+                'label' => 'Costo',
+                'value' => $this->costoFilter === 'con' ? 'Con costo' : 'Senza costo',
+            ];
+        }
+
         if ($this->marcaFilter !== '') {
             $filtri[] = ['field' => 'marca', 'label' => 'Marca', 'value' => $this->sanitizeUtf8((string) $this->marcaFilter)];
         }
@@ -634,6 +653,10 @@ class ArticoliTable extends Component
             }
         }
 
+        if ($this->costoFilter !== '') {
+            $parts[] = $this->costoFilter === 'con' ? 'Con costo' : 'Senza costo';
+        }
+
         if ($this->soloVetrina) {
             $parts[] = 'Solo vetrina';
         }
@@ -662,6 +685,7 @@ class ArticoliTable extends Component
         $this->marcaFilter = '';
         $this->ubicazioneFilter = '';
         $this->disponibilitaFilter = '';
+        $this->costoFilter = '';
         $this->statoArticoloFilter = '';
         $this->prezzoMin = '';
         $this->prezzoMax = '';
@@ -864,6 +888,51 @@ class ArticoliTable extends Component
         $this->articoloDaRicaricare = null;
         $this->giacenzaMancante = 0;
         $this->quantitaDaRicaricare = 1;
+    }
+
+    public function fatturaArticolo(int $articoloId)
+    {
+        try {
+            $articolo = $this->findArticoloForTable((int) $articoloId, [
+                'caricoDettagli.ddt',
+                'ddtDettaglio.ddt',
+            ]);
+
+            $ddt = $this->resolveDdtForFatturazione($articolo);
+
+            if (!$ddt) {
+                session()->flash('error', "Nessun DDT collegato trovato per l'articolo {$articolo->codice}.");
+                return null;
+            }
+
+            if ($ddt->is_fatturato) {
+                session()->flash('error', "Il DDT {$ddt->numero} risulta già fatturato.");
+                return null;
+            }
+
+            return redirect()->route('documenti-acquisto.index', [
+                'tipoDocumento' => 'ddt',
+                'convertDdt' => $ddt->id,
+            ]);
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Errore apertura conversione fattura: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function resolveDdtForFatturazione(Articolo $articolo): ?Ddt
+    {
+        $ddtDaCarico = $articolo->caricoDettagli
+            ->first(fn ($caricoDettaglio) => !empty($caricoDettaglio->ddt_id) && $caricoDettaglio->ddt);
+
+        if ($ddtDaCarico?->ddt) {
+            return $ddtDaCarico->ddt;
+        }
+
+        $ddtLegacy = $articolo->ddtDettaglio
+            ->first(fn ($ddtDettaglio) => $ddtDettaglio->ddt);
+
+        return $ddtLegacy?->ddt;
     }
     
     /**
@@ -1566,6 +1635,16 @@ class ArticoliTable extends Component
             $query->where('articoli.stato_articolo', $this->statoArticoloFilter);
         }
 
+        if ($this->costoFilter === 'con') {
+            $query->whereNotNull('articoli.prezzo_acquisto')
+                ->where('articoli.prezzo_acquisto', '>', 0);
+        } elseif ($this->costoFilter === 'senza') {
+            $query->where(function ($subQ) {
+                $subQ->whereNull('articoli.prezzo_acquisto')
+                    ->orWhere('articoli.prezzo_acquisto', '<=', 0);
+            });
+        }
+
         if ($this->prezzoMin) {
             $query->where('articoli.prezzo_acquisto', '>=', $this->prezzoMin);
         }
@@ -2237,6 +2316,16 @@ class ArticoliTable extends Component
         // Filtro stato articolo (disponibile/scaricato)
         if ($this->statoArticoloFilter) {
             $query->where('stato_articolo', $this->statoArticoloFilter);
+        }
+
+        if ($this->costoFilter === 'con') {
+            $query->whereNotNull('prezzo_acquisto')
+                ->where('prezzo_acquisto', '>', 0);
+        } elseif ($this->costoFilter === 'senza') {
+            $query->where(function ($subQ) {
+                $subQ->whereNull('prezzo_acquisto')
+                    ->orWhere('prezzo_acquisto', '<=', 0);
+            });
         }
 
         if ($this->prezzoMin) {
