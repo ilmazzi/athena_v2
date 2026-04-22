@@ -39,13 +39,19 @@ class Ddt extends Model
         'magazzino_logico',
         'quantita_totale',
         'numero_articoli',
+        'is_fatturato',
+        'fatturato_at',
+        'fatturato_da',
+        'fattura_id',
     ];
     
     protected $casts = [
         'data_documento' => 'date',
         'data_carico' => 'datetime',
+        'fatturato_at' => 'datetime',
         'anno' => 'integer',
         'magazzino_logico' => 'integer',
+        'is_fatturato' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
@@ -93,6 +99,16 @@ class Ddt extends Model
     public function caricoDettagli(): HasMany
     {
         return $this->hasMany(CaricoDettaglio::class, 'ddt_id');
+    }
+
+    public function fattura(): BelongsTo
+    {
+        return $this->belongsTo(Fattura::class, 'fattura_id');
+    }
+
+    public function utenteFatturazione(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'fatturato_da');
     }
     
     // ==========================================

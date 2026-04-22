@@ -295,20 +295,26 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @switch($doc->stato)
-                                            @case('bozza')
-                                                <span class="badge bg-warning">Bozza</span>
-                                                @break
-                                            @case('validato')
-                                                <span class="badge bg-primary">Validato</span>
-                                                @break
-                                            @case('completato')
-                                                <span class="badge bg-success">Completato</span>
-                                                @break
-                                            @case('annullato')
-                                                <span class="badge bg-danger">Annullato</span>
-                                                @break
-                                        @endswitch
+                                        @if($doc->tipo_documento === 'ddt' && ($doc->is_fatturato ?? false))
+                                            <span class="badge bg-success-subtle text-success">Fatturato</span>
+                                        @else
+                                            @switch($doc->stato)
+                                                @case('bozza')
+                                                    <span class="badge bg-warning">Bozza</span>
+                                                    @break
+                                                @case('validato')
+                                                    <span class="badge bg-primary">Validato</span>
+                                                    @break
+                                                @case('completato')
+                                                    <span class="badge bg-success">Completato</span>
+                                                    @break
+                                                @case('annullato')
+                                                    <span class="badge bg-danger">Annullato</span>
+                                                    @break
+                                                @default
+                                                    <span class="badge bg-secondary">{{ $doc->stato }}</span>
+                                            @endswitch
+                                        @endif
                                     </td>
                                     <td>
                                         <small class="text-muted">
@@ -323,6 +329,14 @@
                                                     title="Modifica Documento">
                                                 <iconify-icon icon="solar:pen-bold-duotone" class="text-primary"></iconify-icon>
                                             </button>
+                                            @if($doc->tipo_documento === 'ddt' && !($doc->is_fatturato ?? false))
+                                                <button type="button"
+                                                        class="btn btn-light"
+                                                        wire:click="openConvertModal({{ $doc->id }})"
+                                                        title="Converti in fattura">
+                                                    <iconify-icon icon="solar:bill-list-bold-duotone" class="text-warning"></iconify-icon>
+                                                </button>
+                                            @endif
                                             <button type="button"
                                                     class="btn btn-light"
                                                     wire:click="openPrintModal('{{ $doc->tipo_documento }}', {{ $doc->id }})"
@@ -485,6 +499,117 @@
         </div>
     @endif
 
+    @if($showConvertModal)
+        <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <iconify-icon icon="solar:bill-list-bold-duotone" class="text-warning me-2"></iconify-icon>
+                            Converti DDT in Fattura
+                        </h5>
+                        <button type="button" class="btn-close" wire:click="closeConvertModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info py-2">
+                            Il DDT verrà marcato come fatturato e verrà creata una nuova fattura con aggiornamento dei costi articolo e dei carichi relazionali.
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Numero Fattura *</label>
+                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertForm.numero">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Data Fattura *</label>
+                                <input type="date" class="form-control form-control-sm" wire:model.defer="convertForm.data_documento">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Fornitore</label>
+                                <select class="form-select form-select-sm" wire:model.defer="convertForm.fornitore_id">
+                                    <option value="">Nessuno</option>
+                                    @foreach($fornitori as $fornitore)
+                                        <option value="{{ $fornitore->id }}">{{ $fornitore->ragione_sociale }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Partita IVA</label>
+                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertForm.partita_iva">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Imponibile</label>
+                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertForm.imponibile">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">IVA</label>
+                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertForm.iva">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Totale</label>
+                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertForm.totale">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-outline-primary btn-sm w-100" type="button" wire:click="recalculateConversionTotals">
+                                    Ricalcola totali
+                                </button>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small text-muted mb-1">Note</label>
+                                <textarea class="form-control form-control-sm" rows="2" wire:model.defer="convertForm.note"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="140">Referenza</th>
+                                        <th width="150">Codice</th>
+                                        <th>Descrizione</th>
+                                        <th width="90" class="text-center">Qta</th>
+                                        <th width="140" class="text-end">Costo attuale</th>
+                                        <th width="160">Costo fattura</th>
+                                        <th width="160">Totale riga</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($convertRows as $index => $row)
+                                        <tr>
+                                            <td><strong>{{ $row['referenza'] }}</strong></td>
+                                            <td><strong>{{ $row['codice'] }}</strong></td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm" wire:model.defer="convertRows.{{ $index }}.descrizione">
+                                            </td>
+                                            <td>
+                                                <input type="number" min="1" class="form-control form-control-sm text-center" wire:model.defer="convertRows.{{ $index }}.quantita">
+                                            </td>
+                                            <td class="text-end">
+                                                {{ is_null($row['costo_attuale']) ? '-' : number_format((float) $row['costo_attuale'], 2, ',', '.') }}
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm text-end" wire:model.defer="convertRows.{{ $index }}.prezzo_unitario">
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control form-control-sm text-end" wire:model.defer="convertRows.{{ $index }}.totale_riga">
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" wire:click="closeConvertModal">Annulla</button>
+                        <button class="btn btn-success" type="button" wire:click="convertDdtToFattura">
+                            Crea Fattura e Marca DDT come Fatturato
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <!-- Modal Modifica Documento -->
     <div class="modal fade" id="editModal" tabindex="-1" wire:ignore.self>
         <div class="modal-dialog">
@@ -592,4 +717,3 @@
     });
 </script>
 @endpush
-

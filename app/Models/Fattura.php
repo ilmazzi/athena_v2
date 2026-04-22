@@ -41,6 +41,7 @@ class Fattura extends Model
         'partita_iva',
         'quantita_totale',
         'numero_articoli',
+        'ddt_origine_id',
     ];
     
     protected $casts = [
@@ -98,6 +99,11 @@ class Fattura extends Model
     public function caricoDettagli(): HasMany
     {
         return $this->hasMany(CaricoDettaglio::class, 'fattura_id');
+    }
+
+    public function ddtOrigine(): BelongsTo
+    {
+        return $this->belongsTo(Ddt::class, 'ddt_origine_id');
     }
     
     // ==========================================

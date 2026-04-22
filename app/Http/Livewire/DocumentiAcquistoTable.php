@@ -9,6 +9,7 @@ use App\Models\CategoriaMerceologica;
 use App\Models\Sede;
 use App\Models\Stampante;
 use App\Models\CaricoDettaglio;
+use App\Services\ConvertiDdtInFatturaService;
 use App\Services\MagazzinoLogicoService;
 use App\Services\EtichettaService;
 use Illuminate\Support\Facades\Schema;
@@ -49,6 +50,21 @@ class DocumentiAcquistoTable extends Component
         'fornitore_id' => '',
         'partita_iva' => '',
         'importo_totale' => '',
+        'note' => '',
+    ];
+
+    // Modal conversione DDT -> Fattura
+    public $showConvertModal = false;
+    public $convertDdtId = null;
+    public $convertRows = [];
+    public $convertForm = [
+        'numero' => '',
+        'data_documento' => '',
+        'fornitore_id' => '',
+        'partita_iva' => '',
+        'imponibile' => '',
+        'iva' => '',
+        'totale' => '',
         'note' => '',
     ];
 
@@ -230,6 +246,154 @@ class DocumentiAcquistoTable extends Component
 
         $this->etichetteTotali = 0;
         $this->showPrintModal = true;
+    }
+
+    public function openConvertModal(int $ddtId): void
+    {
+        $ddt = Ddt::with([
+            'fornitore',
+            'caricoDettagli' => fn ($query) => $query->with(['articolo' => fn ($articoloQuery) => $articoloQuery->withoutGlobalScopes()->withTrashed()]),
+        ])->findOrFail($ddtId);
+
+        if ($ddt->is_fatturato) {
+            $this->dispatch('show-toast',
+                type: 'warning',
+                message: 'Questo DDT risulta già fatturato.'
+            );
+            return;
+        }
+
+        $rows = $ddt->caricoDettagli->map(function (CaricoDettaglio $riga) {
+            $prezzoUnitario = $riga->prezzo_unitario
+                ?? ($riga->articolo->prezzo_acquisto ?? null);
+            $totaleRiga = $riga->prezzo_totale;
+            if ($totaleRiga === null && $prezzoUnitario !== null) {
+                $totaleRiga = (float) $prezzoUnitario * max(1, (int) ($riga->quantita ?? 1));
+            }
+
+            return [
+                'carico_dettaglio_id' => $riga->id,
+                'articolo_id' => $riga->articolo_id,
+                'codice' => $riga->articolo->codice ?? '',
+                'referenza' => $riga->referenza_fornitore ?? ($riga->articolo?->caratteristiche['referenza'] ?? ''),
+                'descrizione' => $riga->descrizione ?? ($riga->articolo->descrizione ?? ''),
+                'quantita' => (int) ($riga->quantita ?? 1),
+                'costo_attuale' => $riga->articolo->prezzo_acquisto ?? null,
+                'prezzo_unitario' => $prezzoUnitario,
+                'totale_riga' => $totaleRiga,
+            ];
+        })->values();
+
+        if ($rows->isEmpty()) {
+            $this->dispatch('show-toast',
+                type: 'warning',
+                message: 'Il DDT non ha righe di carico da convertire.'
+            );
+            return;
+        }
+
+        $totale = $rows->sum(fn ($row) => (float) ($row['totale_riga'] ?? 0));
+
+        $this->convertDdtId = $ddt->id;
+        $this->convertRows = $rows->toArray();
+        $this->convertForm = [
+            'numero' => '',
+            'data_documento' => optional($ddt->data_documento)->format('Y-m-d') ?: now()->format('Y-m-d'),
+            'fornitore_id' => $ddt->fornitore_id ?: '',
+            'partita_iva' => '',
+            'imponibile' => $this->formatEuroPrezzoEtichetta($totale),
+            'iva' => $this->formatEuroPrezzoEtichetta(0),
+            'totale' => $this->formatEuroPrezzoEtichetta($totale),
+            'note' => 'Fattura generata da conversione del DDT ' . $ddt->numero,
+        ];
+        $this->showConvertModal = true;
+    }
+
+    public function closeConvertModal(): void
+    {
+        $this->showConvertModal = false;
+        $this->convertDdtId = null;
+        $this->convertRows = [];
+        $this->convertForm = [
+            'numero' => '',
+            'data_documento' => '',
+            'fornitore_id' => '',
+            'partita_iva' => '',
+            'imponibile' => '',
+            'iva' => '',
+            'totale' => '',
+            'note' => '',
+        ];
+    }
+
+    public function recalculateConversionTotals(): void
+    {
+        $totale = 0.0;
+        foreach ($this->convertRows as $index => $row) {
+            $quantita = max(1, (int) ($row['quantita'] ?? 1));
+            $prezzo = $this->normalizePrice($row['prezzo_unitario'] ?? null) ?? 0.0;
+            $totaleRiga = $this->normalizePrice($row['totale_riga'] ?? null);
+            if ($totaleRiga === null) {
+                $totaleRiga = $quantita * $prezzo;
+            }
+            $this->convertRows[$index]['totale_riga'] = $this->formatEuroPrezzoEtichetta($totaleRiga);
+            $totale += (float) $totaleRiga;
+        }
+
+        $iva = $this->normalizePrice($this->convertForm['iva'] ?? null) ?? 0.0;
+        $this->convertForm['imponibile'] = $this->formatEuroPrezzoEtichetta($totale);
+        $this->convertForm['totale'] = $this->formatEuroPrezzoEtichetta($totale + $iva);
+    }
+
+    public function convertDdtToFattura(): void
+    {
+        $this->validate([
+            'convertForm.numero' => 'required|string|max:50',
+            'convertForm.data_documento' => 'required|date',
+            'convertForm.fornitore_id' => 'nullable|exists:fornitori,id',
+            'convertForm.partita_iva' => 'nullable|string|max:50',
+            'convertForm.imponibile' => 'nullable',
+            'convertForm.iva' => 'nullable',
+            'convertForm.totale' => 'nullable',
+            'convertForm.note' => 'nullable|string',
+            'convertRows' => 'required|array|min:1',
+            'convertRows.*.articolo_id' => 'required|integer|exists:articoli,id',
+            'convertRows.*.descrizione' => 'nullable|string|max:500',
+            'convertRows.*.quantita' => 'required|integer|min:1',
+            'convertRows.*.prezzo_unitario' => 'required',
+            'convertRows.*.totale_riga' => 'nullable',
+        ]);
+
+        try {
+            $fattura = app(ConvertiDdtInFatturaService::class)->convert($this->convertDdtId, [
+                'numero' => $this->convertForm['numero'],
+                'data_documento' => $this->convertForm['data_documento'],
+                'fornitore_id' => $this->convertForm['fornitore_id'],
+                'partita_iva' => $this->convertForm['partita_iva'],
+                'imponibile' => $this->convertForm['imponibile'],
+                'iva' => $this->convertForm['iva'],
+                'totale' => $this->convertForm['totale'],
+                'note' => $this->convertForm['note'],
+                'righe' => $this->convertRows,
+            ]);
+
+            $this->closeConvertModal();
+
+            $this->dispatch('show-toast',
+                type: 'success',
+                message: 'Fattura creata con successo dal DDT. Nuova fattura #' . $fattura->id
+            );
+        } catch (\Throwable $e) {
+            Log::error('Errore conversione DDT in fattura', [
+                'ddt_id' => $this->convertDdtId,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->dispatch('show-toast',
+                type: 'error',
+                message: 'Errore durante la conversione: ' . $e->getMessage()
+            );
+        }
     }
 
     public function closePrintModal(): void
