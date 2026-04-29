@@ -191,7 +191,22 @@ class EtichettaService
      */
     private function getTemplateZT420(): string
     {
-        return $this->getTemplateZT230();
+        return '^XA
+^MN D
+^MTD
+^PW160
+^LL80
+^LH0,0
+^LS0
+^LT26
+^CI28
+^PR2
+^MD30
+^FO6,6^BQN,2,2^FDLA,{CARICOQR}^FS
+^FO56,8^A0N,22,22^FD{CARICO}^FS
+^FO56,34^A0N,24,24^FD{PREZZO}^FS
+^FO56,60^A0N,14,14^FD{CARATI}^FS
+^XZ';
     }
 
     /**
