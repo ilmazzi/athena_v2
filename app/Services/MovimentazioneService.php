@@ -44,7 +44,7 @@ class MovimentazioneService
     {
         return DB::transaction(function () use ($dto) {
             // Verifica articolo esiste
-            $articolo = Articolo::findOrFail($dto->articoloId);
+            $articolo = Articolo::withoutGlobalScope('user_sede')->findOrFail($dto->articoloId);
             
             $giacenzaOrigine = $this->resolveGiacenzaOrigine($dto);
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
@@ -128,7 +128,7 @@ class MovimentazioneService
     public function eseguiMovimentazioneDettaglio(Movimentazione $movimentazione, MovimentazioneDTO $dto): Movimentazione
     {
         return DB::transaction(function () use ($movimentazione, $dto) {
-            $articolo = Articolo::findOrFail($dto->articoloId);
+            $articolo = Articolo::withoutGlobalScope('user_sede')->findOrFail($dto->articoloId);
             
             $giacenzaOrigine = $this->resolveGiacenzaOrigine($dto);
             if (!$giacenzaOrigine || !$giacenzaOrigine->hasDisponibilita($dto->quantita)) {
