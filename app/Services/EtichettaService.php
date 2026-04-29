@@ -493,6 +493,12 @@ class EtichettaService
 
         try {
             $zpl = $this->normalizePrinterEncoding($zpl);
+            Log::info('ZPL completo inviato alla stampante', [
+                'ip' => $ip,
+                'port' => $port,
+                'payload_length' => strlen($zpl),
+                'zpl' => $zpl,
+            ]);
             $socket = $this->createPrinterSocket($ip, $port);
 
             $sent = socket_write($socket, $zpl, strlen($zpl));
