@@ -191,7 +191,7 @@ class EtichettaService
      */
     private function getTemplateZT420(): string
     {
-        return $this->getTemplateZT421();
+        return $this->getTemplateZT230();
     }
 
     /**
