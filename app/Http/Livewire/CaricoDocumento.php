@@ -1061,16 +1061,16 @@ class CaricoDocumento extends Component
         }
 
         $service = app(MagazzinoLogicoService::class);
-        $sedePrincipaleId = $service->getSedePrincipaleId();
+        $sedeMagazziniId = $service->resolveSedeMagazziniIdForCarico((int) $this->sedeId);
 
-        if (!$sedePrincipaleId) {
+        if (!$sedeMagazziniId) {
             $this->categorie = collect();
             return;
         }
 
         $categorie = CategoriaMerceologica::query()
             ->where('attivo', true)
-            ->where('sede_id', $sedePrincipaleId)
+            ->where('sede_id', $sedeMagazziniId)
             ->orderBy('nome')
             ->get();
 
@@ -1116,7 +1116,14 @@ class CaricoDocumento extends Component
             return null;
         }
 
-        return app(MagazzinoLogicoService::class)->findCategoriaIdForSedePrincipale((int) $magazzinoLogico);
+        $service = app(MagazzinoLogicoService::class);
+        $sedeMagazziniId = $service->resolveSedeMagazziniIdForCarico((int) $sedeId);
+
+        if (!$sedeMagazziniId) {
+            return null;
+        }
+
+        return $service->findCategoriaIdForSede($sedeMagazziniId, (int) $magazzinoLogico);
     }
 }
 

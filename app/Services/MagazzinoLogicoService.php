@@ -7,12 +7,60 @@ use App\Models\Sede;
 
 class MagazzinoLogicoService
 {
+    private const SEDE_CODE_CAVOUR = 'CAV';
+    private const SEDE_CODE_JOLLY = 'JOL';
+    private const SEDE_CODE_MAZZINI = 'MAZ';
+    private const SEDE_CODE_MONASTERO = 'MON';
+
     public function getSedePrincipaleId(): ?int
     {
         return Sede::query()
             ->where('attivo', true)
             ->orderBy('id')
             ->value('id');
+    }
+
+    public function getSedePrincipaleIdBySocieta(int $societaId): ?int
+    {
+        return Sede::query()
+            ->where('attivo', true)
+            ->where('societa_id', $societaId)
+            ->orderBy('id')
+            ->value('id');
+    }
+
+    public function resolveSedeMagazziniIdForCarico(int $sedeId): ?int
+    {
+        $sedeCarico = Sede::query()
+            ->where('attivo', true)
+            ->find($sedeId);
+
+        if (!$sedeCarico) {
+            return null;
+        }
+
+        $codice = strtoupper(trim((string) $sedeCarico->codice));
+
+        // Jolly usa sempre i propri magazzini dedicati.
+        if ($codice === self::SEDE_CODE_JOLLY) {
+            return (int) $sedeCarico->id;
+        }
+
+        // Mazzini e Monastero condividono i magazzini della sede Cavour/Lecco.
+        if (in_array($codice, [self::SEDE_CODE_MAZZINI, self::SEDE_CODE_MONASTERO], true)) {
+            $cavourId = Sede::query()
+                ->where('attivo', true)
+                ->where('societa_id', $sedeCarico->societa_id)
+                ->where('codice', self::SEDE_CODE_CAVOUR)
+                ->value('id');
+
+            if ($cavourId) {
+                return (int) $cavourId;
+            }
+        }
+
+        // Fallback: sede principale della società (es. Roma -> Roma).
+        return $this->getSedePrincipaleIdBySocieta((int) $sedeCarico->societa_id);
     }
 
     public function resolveFromCategoriaId(?int $categoriaId): ?int
