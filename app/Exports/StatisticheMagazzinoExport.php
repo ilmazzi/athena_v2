@@ -134,6 +134,7 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
     {
         return [
             'Codice',
+            'Referenza',
             'Descrizione',
             'Sede',
             'Categoria',
@@ -158,8 +159,13 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             ? ($articolo->assemblato_il ?? $articolo->created_at ?? $articolo->data_carico_effettiva)
             : $articolo->data_carico_effettiva;
 
+        $caratteristiche = $articolo->caratteristiche ?? [];
+        $referenzaArticolo = trim((string) ($caratteristiche['referenza'] ?? ''));
+        $referenzaLabel = $referenzaArticolo !== '' ? $referenzaArticolo : '-';
+
         return [
             $articolo->codice,
+            $referenzaLabel,
             $articolo->descrizione,
             $articolo->giacenza->sede->nome ?? 'N/A',
             $articolo->categoriaMerceologica->nome ?? 'N/A',
@@ -175,14 +181,15 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
     {
         return [
             'A' => 20,  // Codice
-            'B' => 40,  // Descrizione
-            'C' => 15,  // Sede
-            'D' => 20,  // Categoria
-            'E' => 30,  // Fornitore
-            'F' => 10,  // Quantità
-            'G' => 12,  // Costo Unit.
-            'H' => 15,  // Valore Totale
-            'I' => 12,  // Data Carico
+            'B' => 22,  // Referenza
+            'C' => 40,  // Descrizione
+            'D' => 15,  // Sede
+            'E' => 20,  // Categoria
+            'F' => 30,  // Fornitore
+            'G' => 10,  // Quantità
+            'H' => 12,  // Costo Unit.
+            'I' => 15,  // Valore Totale
+            'J' => 12,  // Data Carico
         ];
     }
 
