@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Articolo;
+use App\Models\Giacenza;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -27,21 +28,26 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
     public function collection()
     {
         $query = Articolo::with([
-            'giacenza',
+            'giacenza.sede',
+            'giacenze.sede',
             'categoriaMerceologica',
             'sede',
             'fatturaDettaglio.fattura.fornitore',
             'ddtDettaglio.ddt.fornitore'
         ])
-        ->whereHas('giacenza', function ($q) {
+        ->whereHas('giacenze', function ($q) {
             if ($this->filtri['soloGiacenti'] ?? true) {
                 $q->where('quantita_residua', '>', 0);
             }
+            if (!empty($this->filtri['sedeId'])) {
+                $q->where('sede_id', $this->filtri['sedeId']);
+            }
         });
 
-        if (!empty($this->filtri['sedeId'])) {
-            $query->whereHas('giacenza', function ($q) {
-                $q->where('sede_id', $this->filtri['sedeId']);
+        if ($this->filtri['soloGiacenti'] ?? true) {
+            $query->where(function ($q) {
+                $q->whereNull('stato_articolo')
+                    ->orWhere('stato_articolo', '<>', 'scaricato');
             });
         }
 
@@ -130,6 +136,25 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
         return $query->orderBy('codice')->get();
     }
 
+    /**
+     * Stessa riga giacenza usata dai filtri (sede + residuo): evita due whereHas separati
+     * che richiedono condizioni su righe diverse della tabella giacenze.
+     */
+    private function giacenzaRigaPerFiltri(Articolo $articolo): ?Giacenza
+    {
+        $sedeId = $this->filtri['sedeId'] ?? null;
+        if ($sedeId !== null && $sedeId !== '') {
+            $sid = (int) $sedeId;
+            if ($articolo->relationLoaded('giacenze')) {
+                return $articolo->giacenze->firstWhere('sede_id', $sid);
+            }
+
+            return $articolo->giacenze()->where('sede_id', $sid)->first();
+        }
+
+        return $articolo->giacenza;
+    }
+
     public function headings(): array
     {
         return [
@@ -139,7 +164,7 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             'Sede',
             'Categoria',
             'Fornitore',
-            'Quantità',
+            'Quantità residua',
             'Costo Unit.',
             'Valore Totale',
             'Data Carico',
@@ -148,9 +173,14 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
 
     public function map($articolo): array
     {
-        $qta = $articolo->giacenza->quantita_residua ?? 0;
+        $gRiga = $this->giacenzaRigaPerFiltri($articolo);
+        // Disponibilità operativa: giacenze.quantita_residua (allineata a sede filtro + stato)
+        $quantitaResidua = (int) ($gRiga->quantita_residua ?? 0);
+        if (($articolo->stato_articolo ?? '') === 'scaricato') {
+            $quantitaResidua = 0;
+        }
         $costo = $articolo->prezzo_acquisto ?? 0;
-        $valore = $qta * $costo;
+        $valore = $quantitaResidua * $costo;
         $isProduzioneInterna = !empty($articolo->prodotto_finito_id) || $articolo->tipo_carico_effettivo === 'produzione_interna';
         $fornitoreLabel = $isProduzioneInterna
             ? 'Produzione interna'
@@ -167,10 +197,10 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             $articolo->codice,
             $referenzaLabel,
             $articolo->descrizione,
-            $articolo->giacenza->sede->nome ?? 'N/A',
+            $gRiga?->sede?->nome ?? 'N/A',
             $articolo->categoriaMerceologica->nome ?? 'N/A',
             $fornitoreLabel,
-            $qta,
+            $quantitaResidua,
             $costo > 0 ? number_format($costo, 2, ',', '.') : '-',
             $valore > 0 ? number_format($valore, 2, ',', '.') : '-',
             $dataRiferimento?->format('d/m/Y') ?? '-',
@@ -186,7 +216,7 @@ class StatisticheMagazzinoExport implements FromCollection, WithHeadings, WithMa
             'D' => 15,  // Sede
             'E' => 20,  // Categoria
             'F' => 30,  // Fornitore
-            'G' => 10,  // Quantità
+            'G' => 18,  // Quantità residua
             'H' => 12,  // Costo Unit.
             'I' => 15,  // Valore Totale
             'J' => 12,  // Data Carico

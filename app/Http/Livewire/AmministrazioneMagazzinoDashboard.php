@@ -553,16 +553,20 @@ class AmministrazioneMagazzinoDashboard extends Component
 
     private function applyFiltriArticoli($query): void
     {
-        // Deve sempre esistere almeno una giacenza; opzionalmente solo giacenze con residuo > 0
-        $query->whereHas('giacenza', function ($q) {
+        // Una sola EXISTS: stessa riga giacenza deve soddisfare sede (se filtro attivo) e residuo (se solo giacenti)
+        $query->whereHas('giacenze', function ($q) {
             if ($this->soloGiacenti) {
                 $q->where('quantita_residua', '>', 0);
             }
+            if ($this->sedeId) {
+                $q->where('sede_id', $this->sedeId);
+            }
         });
 
-        if ($this->sedeId) {
-            $query->whereHas('giacenza', function ($q) {
-                $q->where('sede_id', $this->sedeId);
+        if ($this->soloGiacenti) {
+            $query->where(function ($q) {
+                $q->whereNull('stato_articolo')
+                    ->orWhere('stato_articolo', '<>', 'scaricato');
             });
         }
 
