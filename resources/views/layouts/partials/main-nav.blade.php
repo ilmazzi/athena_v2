@@ -73,7 +73,7 @@
                     <span class="nav-icon">
                         <iconify-icon icon="solar:printer-minimalistic-bold-duotone"></iconify-icon>
                     </span>
-                    <span class="nav-text">Stampa NC</span>
+                    <span class="nav-text">Stampa Etichetta</span>
                 </a>
             </li>
 
