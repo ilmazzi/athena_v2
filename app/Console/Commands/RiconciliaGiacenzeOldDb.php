@@ -48,6 +48,8 @@ class RiconciliaGiacenzeOldDb extends Command
      */
     private const MAG_ESCLUSI = [8, 9, 22];
 
+    private ?array $magFiltroAttivo = null;
+
     /** Ultimo numero progressivo per magazzino nell'old DB. */
     private const CUTOFF = [
         1 => 746,    2 => 64316,  3 => 14272,  4 => 11611,  5 => 36245,
@@ -84,6 +86,7 @@ class RiconciliaGiacenzeOldDb extends Command
         $magFiltro = null;
         if ($this->option('magazzini')) {
             $magFiltro = array_map('intval', explode(',', $this->option('magazzini')));
+            $this->magFiltroAttivo = $magFiltro;
             $this->info('Filtro magazzini: MAG ' . implode(', ', $magFiltro));
         }
 
@@ -326,7 +329,10 @@ class RiconciliaGiacenzeOldDb extends Command
         $this->line("  Nuovi carichi soft-deleted → RESTORE:          {$stats['new_restore']}");
         $this->line("  Old non-inventariati       → SOFT-DELETE:      {$stats['old_delete']}");
         $this->line("  Già corretti (nessuna azione):                 {$stats['ok']}");
-        $this->line("  Skip MAG8/MAG9/MAG22 (trattare a parte):      {$stats['skip_pf_mag']}");
+        $magSkipLabel = $this->magFiltroAttivo
+            ? 'Esclusi (fuori filtro + MAG8/9/22):'
+            : 'Skip MAG8/MAG9/MAG22 (trattare a parte):';
+        $this->line("  {$magSkipLabel}           {$stats['skip_pf_mag']}");
         $this->line("  Skip carichi multipli (trattare a parte):     {$stats['skip_multiplo']}");
         $this->line("  Skip PF annullati:                             {$stats['skip_pf']}");
         $this->line("  Skip INESISTENTE:                              {$stats['skip_inesistente']}");
