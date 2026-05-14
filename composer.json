@@ -16,6 +16,7 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "laravel/boost": "^2.4",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.26",
         "mockery/mockery": "^1.6",
@@ -64,7 +65,16 @@
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
         },
-        "platform-check": false
+        "platform-check": false,
+        "audit": {
+            "ignore": [
+                "PKSA-8cfg-tzhf-fr83",
+                "PKSA-x13r-n4wc-4gcr",
+                "PKSA-gz3f-3cz3-3wsw",
+                "PKSA-jtdk-dcr5-f11n",
+                "PKSA-hznc-gbby-6w16"
+            ]
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true

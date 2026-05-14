@@ -1,0 +1,27 @@
+---
+description: Usa Laravel Boost (MCP) per DB, schema, log e documentazione Laravel
+alwaysApply: true
+---
+
+# Laravel Boost (MCP)
+
+Per questo progetto è abilitato il server MCP **Laravel Boost** (`project-0-athena_v2-laravel-boost`).
+
+## Quando usarlo (sempre che serva evidenza runtime)
+
+1. **Database** — Prima di affermare contenuti di tabelle, filtri o conteggi, chiamare il tool MCP **`database-query`** con SQL **solo in lettura** (`SELECT`, `SHOW`, `EXPLAIN`, `DESCRIBE`).
+2. **Schema** — Per colonne, FK, indici: **`database-schema`** (modalità `summary` prima, poi `filter` sul nome tabella).
+3. **Connessioni** — Se servono: **`database-connections`**.
+4. **Laravel** — Versione/pacchetti: **`application-info`**; doc ufficiale: **`search-docs`**.
+5. **Debug** — **`last-error`**, **`read-log-entries`**, **`browser-logs`** quando il task riguarda errori o log.
+
+Invocazione: tool MCP sul server del progetto Laravel Boost (identifier cartella `project-0-athena_v2-laravel-boost` in Cursor).
+
+## Codice sorgente del repo
+
+Boost MCP **non** sostituisce la lettura del codice applicativo: per `app/`, `routes/`, `resources/` usare grep / semantic search / Read come al solito. Combinare **Boost per DB/schema** + **tool workspace per PHP/Blade/Livewire**.
+
+## Anti-pattern
+
+- Indovinare ID sede, codici o range magazzino senza una `SELECT`.
+- Descrivere il flusso magazzino solo da memoria se esiste una query che conferma.
