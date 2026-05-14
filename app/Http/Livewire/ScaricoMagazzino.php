@@ -210,34 +210,33 @@ class ScaricoMagazzino extends Component
                 $articolo = Articolo::findOrFail($articoloId);
                 $quantita = $this->quantitaArticoli[$articoloId] ?? 1;
                 
-                if ($articolo->stato_articolo === 'disponibile') {
-                    $giacenzaAttuale = $articolo->giacenza->quantita_residua ?? 0;
-                    
-                    if ($quantita > $giacenzaAttuale) {
-                        $errori++;
-                        continue;
-                    }
-                    
-                    $nuovaGiacenza = $giacenzaAttuale - $quantita;
-                    
-                    // Aggiorna giacenza
-                    $articolo->giacenza()->update([
-                        'quantita_residua' => $nuovaGiacenza
-                    ]);
-                    
-                    // Se giacenza diventa 0, marca come scaricato
-                    if ($nuovaGiacenza == 0) {
-                        $articolo->update([
-                            'stato_articolo' => 'scaricato',
-                            'scaricato_il' => now(),
-                            'scaricato_da' => Auth::id()
-                        ]);
-                    }
-                    
-                    $scaricati++;
-                } else {
+                $giacenzaAttuale = $articolo->giacenza->quantita_residua ?? 0;
+
+                if ($giacenzaAttuale <= 0) {
                     $errori++;
+                    continue;
                 }
+
+                if ($quantita > $giacenzaAttuale) {
+                    $errori++;
+                    continue;
+                }
+
+                $nuovaGiacenza = $giacenzaAttuale - $quantita;
+
+                $articolo->giacenza()->update([
+                    'quantita_residua' => $nuovaGiacenza
+                ]);
+
+                if ($nuovaGiacenza == 0) {
+                    $articolo->update([
+                        'stato_articolo' => 'scaricato',
+                        'scaricato_il'   => now(),
+                        'scaricato_da'   => Auth::id(),
+                    ]);
+                }
+
+                $scaricati++;
             } catch (\Exception $e) {
                 $errori++;
             }
@@ -282,7 +281,6 @@ class ScaricoMagazzino extends Component
     private function getArticoliQuery()
     {
         $query = Articolo::with(['categoria', 'sede', 'giacenza', 'categoriaMerceologica'])
-            ->where('stato_articolo', 'disponibile')
             ->whereHas('giacenza', function($q) {
                 $q->where('quantita_residua', '>', 0);
             });
@@ -355,7 +353,7 @@ class ScaricoMagazzino extends Component
 
         // Statistiche
         $stats = [
-            'totali_disponibili' => Articolo::where('stato_articolo', 'disponibile')->count(),
+            'totali_disponibili' => Articolo::whereHas('giacenza', fn($q) => $q->where('quantita_residua', '>', 0))->count(),
             'selezionati' => count($this->articoliSelezionati),
             'in_pagina' => $articoli->count(),
         ];

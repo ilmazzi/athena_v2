@@ -1046,13 +1046,13 @@
                                                     <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>
                                                     Ricarica QuantitÃ 
                                                 </button>
-                                            @if($articolo->stato_articolo === 'disponibile')
+                                            @if(($articolo->giacenza->quantita_residua ?? 0) > 0)
                                                     <hr class="dropdown-divider">
                                                     <button type="button" class="articolo-actions-item text-danger" wire:click="scaricaArticolo({{ $articolo->id }})">
                                                         <iconify-icon icon="solar:box-remove-bold" class="text-danger me-2"></iconify-icon>
                                                         Scarica Articolo
                                                     </button>
-                                            @elseif($articolo->stato_articolo === 'scaricato')
+                                            @else
                                                     <hr class="dropdown-divider">
                                                     <button type="button" class="articolo-actions-item text-success" wire:click="ripristinaArticolo({{ $articolo->id }})">
                                                         <iconify-icon icon="solar:box-add-bold" class="text-success me-2"></iconify-icon>

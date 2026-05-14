@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Livewire;
 
@@ -709,13 +709,12 @@ class ArticoliTable extends Component
         try {
             $articolo = $this->findArticoloForTable((int) $articoloId);
             
-            // Verifica che l'articolo sia disponibile
-            if ($articolo->stato_articolo !== 'disponibile') {
-                session()->flash('error', 'Articolo non disponibile per lo scarico');
+            $giacenza = $articolo->giacenza->quantita_residua ?? 0;
+
+            if ($giacenza <= 0) {
+                session()->flash('error', 'Articolo non disponibile per lo scarico: quantità residua 0');
                 return;
             }
-            
-            $giacenza = $articolo->giacenza->quantita_residua ?? 0;
             
             // Se giacenza = 1, scarico diretto
             if ($giacenza == 1) {
@@ -1542,9 +1541,9 @@ class ArticoliTable extends Component
         try {
             $articolo = $this->findArticoloForTable((int) $articoloId);
             
-            // Verifica che l'articolo sia scaricato
-            if ($articolo->stato_articolo !== 'scaricato') {
-                session()->flash('error', 'Articolo non ÃƒÆ’Ã‚Â¨ in stato scaricato');
+            // Verifica che l'articolo abbia giacenza 0 (fonte di verità)
+            if (($articolo->giacenza->quantita_residua ?? 0) > 0) {
+                session()->flash('error', 'Articolo ha ancora giacenza residua, non necessita ripristino');
                 return;
             }
             
