@@ -104,6 +104,16 @@
             </li>
 
             <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('diagnostica-magazzino') ? 'active' : '' }}"
+                   href="{{ route('diagnostica-magazzino') }}">
+                    <span class="nav-icon">
+                        <iconify-icon icon="solar:bug-bold-duotone"></iconify-icon>
+                    </span>
+                    <span class="nav-text text-danger fw-semibold">Diagnostica Magazzino</span>
+                </a>
+            </li>
+
+            <li class="nav-item">
                 <a class="nav-link" href="{{ route('vetrine.index') }}">
                     <span class="nav-icon">
                         <iconify-icon icon="solar:shop-bold-duotone"></iconify-icon>

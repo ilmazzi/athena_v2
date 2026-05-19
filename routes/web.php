@@ -25,6 +25,7 @@ use App\Http\Livewire\GiacenzePerUbicazione;
 use App\Http\Livewire\GiacenzeInventario;
 use App\Http\Livewire\StampaNc;
 use App\Http\Controllers\StampaController;
+use App\Http\Livewire\DiagnosticaMagazzino;
 
 require __DIR__.'/auth.php';
 
@@ -162,6 +163,9 @@ Route::prefix('giacenze')->name('giacenze.')->group(function () {
         Route::get('/test/{stampante}', [StampaController::class, 'testStampante'])->name('stampa.test');
     });
     
+    // Diagnostica magazzino (strumento anomalie)
+    Route::get('/diagnostica-magazzino', DiagnosticaMagazzino::class)->name('diagnostica-magazzino');
+
     // Alias per retrocompatibilità - usa Livewire component
     Route::get('/articoli', ArticoliTable::class)->name('articoli.index');
     Route::get('/articoli/{id}', [MagazzinoViewController::class, 'show'])->name('articoli.show');
