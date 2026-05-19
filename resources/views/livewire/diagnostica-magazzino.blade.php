@@ -95,6 +95,13 @@
                     </select>
                 </div>
 
+                {{-- Fornitore --}}
+                <div class="col-md-3">
+                    <label class="form-label form-label-sm mb-1">Fornitore (contiene)</label>
+                    <input wire:model.live.debounce.400ms="fornitoreSearch" type="text"
+                           class="form-control form-control-sm" placeholder="es. Rolex, De Pascalis...">
+                </div>
+
                 {{-- Qta min/max --}}
                 <div class="col-md-1">
                     <label class="form-label form-label-sm mb-1">Qta min</label>
@@ -182,20 +189,33 @@
             <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
                 <table class="table table-sm table-hover table-bordered mb-0" style="font-size:0.78rem;">
                     <thead class="table-dark sticky-top">
+                        @php
+                            $sortIcon = fn(string $col) => match(true) {
+                                $sortBy === \App\Http\Livewire\DiagnosticaMagazzino::colSql($col) && $sortDir === 'asc'  => '▲',
+                                $sortBy === \App\Http\Livewire\DiagnosticaMagazzino::colSql($col) && $sortDir === 'desc' => '▼',
+                                default => '⇅',
+                            };
+                            $thClass = 'sortable-th';
+                        @endphp
                         <tr>
-                            <th>Codice</th>
-                            <th>Mag.</th>
-                            <th>Descrizione</th>
-                            <th>Categoria</th>
-                            <th>Sede</th>
-                            <th class="text-center">Qta</th>
-                            <th class="text-center">Qta Res.</th>
-                            <th>Stato</th>
-                            <th>Materiale</th>
-                            <th>N. Seriale</th>
-                            <th>Referenza</th>
-                            <th>Data Carico</th>
-                            <th>Eliminato</th>
+                            <th wire:click="sortBy('codice')" class="{{ $thClass }}" style="cursor:pointer; white-space:nowrap;">Codice {{ $sortIcon('codice') }}</th>
+                            <th wire:click="sortBy('mag')" class="{{ $thClass }}" style="cursor:pointer;">Mag. {{ $sortIcon('mag') }}</th>
+                            <th wire:click="sortBy('descrizione')" class="{{ $thClass }}" style="cursor:pointer;">Descrizione {{ $sortIcon('descrizione') }}</th>
+                            <th wire:click="sortBy('categoria')" class="{{ $thClass }}" style="cursor:pointer;">Categoria {{ $sortIcon('categoria') }}</th>
+                            <th wire:click="sortBy('sede')" class="{{ $thClass }}" style="cursor:pointer;">Sede {{ $sortIcon('sede') }}</th>
+                            <th wire:click="sortBy('qta')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta {{ $sortIcon('qta') }}</th>
+                            <th wire:click="sortBy('qta_residua')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta Res. {{ $sortIcon('qta_residua') }}</th>
+                            <th wire:click="sortBy('stato_articolo')" class="{{ $thClass }}" style="cursor:pointer;">Stato {{ $sortIcon('stato_articolo') }}</th>
+                            <th wire:click="sortBy('fornitore')" class="{{ $thClass }}" style="cursor:pointer;">Fornitore {{ $sortIcon('fornitore') }}</th>
+                            <th wire:click="sortBy('num_documento')" class="{{ $thClass }}" style="cursor:pointer;">N. Doc {{ $sortIcon('num_documento') }}</th>
+                            <th wire:click="sortBy('data_documento')" class="{{ $thClass }}" style="cursor:pointer;">Data Doc {{ $sortIcon('data_documento') }}</th>
+                            <th wire:click="sortBy('prezzo_carico')" class="{{ $thClass }} text-end" style="cursor:pointer;">€ Carico {{ $sortIcon('prezzo_carico') }}</th>
+                            <th wire:click="sortBy('referenza_doc')" class="{{ $thClass }}" style="cursor:pointer;">Ref. Doc {{ $sortIcon('referenza_doc') }}</th>
+                            <th wire:click="sortBy('materiale')" class="{{ $thClass }}" style="cursor:pointer;">Materiale {{ $sortIcon('materiale') }}</th>
+                            <th wire:click="sortBy('numero_seriale')" class="{{ $thClass }}" style="cursor:pointer;">N. Seriale {{ $sortIcon('numero_seriale') }}</th>
+                            <th>Referenza JSON</th>
+                            <th wire:click="sortBy('data_carico')" class="{{ $thClass }}" style="cursor:pointer;">Data Carico {{ $sortIcon('data_carico') }}</th>
+                            <th wire:click="sortBy('deleted_at')" class="{{ $thClass }}" style="cursor:pointer;">Eliminato {{ $sortIcon('deleted_at') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -245,6 +265,19 @@
                                         default       => 'bg-light text-dark'
                                     } }}">{{ $a->stato_articolo }}</span>
                                 </td>
+                                {{-- Dati carico --}}
+                                <td class="{{ empty($a->fornitore_nome) ? 'text-danger' : '' }}" style="white-space:nowrap;">
+                                    {{ $a->fornitore_nome ?: '—' }}
+                                </td>
+                                <td class="text-muted small">{{ $a->num_documento ?: '—' }}</td>
+                                <td class="text-muted small" style="white-space:nowrap;">
+                                    {{ $a->data_documento ? \Carbon\Carbon::parse($a->data_documento)->format('d/m/Y') : '—' }}
+                                </td>
+                                <td class="text-end" style="white-space:nowrap;">
+                                    {{ $a->prezzo_carico !== null ? '€ ' . number_format((float)$a->prezzo_carico, 2, ',', '.') : '—' }}
+                                </td>
+                                <td class="text-muted small">{{ $a->referenza_doc ?: '—' }}</td>
+                                {{-- Fine dati carico --}}
                                 <td>{{ $a->materiale ?? '—' }}</td>
                                 <td class="{{ empty($a->numero_seriale) ? 'text-danger' : '' }}">
                                     {{ $a->numero_seriale ?: '—' }}
@@ -259,7 +292,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="13" class="text-center text-muted py-4">
+                                <td colspan="18" class="text-center text-muted py-4">
                                     Nessun articolo trovato con i filtri selezionati.
                                 </td>
                             </tr>

@@ -62,6 +62,11 @@ class DiagnosticaExport implements
                     'numero_seriale'   => $row->numero_seriale ?? '',
                     'ean'              => $row->ean ?? '',
                     'modello'          => $row->modello ?? '',
+                    'fornitore'        => $row->fornitore_nome ?? '',
+                    'referenza_doc'    => $row->referenza_doc ?? '',
+                    'prezzo_carico'    => $row->prezzo_carico !== null ? (float) $row->prezzo_carico : '',
+                    'num_documento'    => $row->num_documento ?? '',
+                    'data_documento'   => $row->data_documento ?? '',
                     'referenza'        => $caratteristiche['referenza'] ?? '',
                     'prezzo_acquisto'  => (float) ($row->prezzo_acquisto ?? 0),
                     'prezzo_fornitore' => (float) ($row->prezzo_fornitore ?? 0),
@@ -91,6 +96,9 @@ class DiagnosticaExport implements
             }
             if (is_null($row->quantita ?? null)) {
                 $anomalie[] = 'Senza giacenza';
+            }
+            if (empty($row->fornitore_nome)) {
+                $anomalie[] = 'No fornitore';
             }
             if (empty($caratteristiche['referenza'])) {
                 $anomalie[] = 'No referenza';

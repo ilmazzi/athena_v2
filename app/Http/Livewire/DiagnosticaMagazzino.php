@@ -40,10 +40,15 @@ class DiagnosticaMagazzino extends Component
     public bool $includiEliminati = false;
     public bool $soloEliminati = false;
 
+    // --- Filtro fornitore ---
+    public string $fornitoreSearch = '';
+
     // --- Colonne selezionabili per export ---
     public array $colonneSelezionate = [
         'codice', 'descrizione', 'mag', 'categoria', 'sede',
         'qta_residua', 'qta', 'stato_articolo',
+        'fornitore', 'referenza_doc', 'prezzo_carico',
+        'num_documento', 'data_documento',
     ];
 
     public array $tutteLeColonne = [
@@ -56,6 +61,12 @@ class DiagnosticaMagazzino extends Component
         'qta_residua'      => 'Qta residua',
         'stato_articolo'   => 'Stato articolo',
         'stato'            => 'Stato',
+        'fornitore'        => 'Fornitore',
+        'referenza_doc'    => 'Referenza doc. carico',
+        'referenza'        => 'Referenza (JSON)',
+        'prezzo_carico'    => 'Prezzo carico (doc)',
+        'num_documento'    => 'N. Documento carico',
+        'data_documento'   => 'Data documento carico',
         'materiale'        => 'Materiale',
         'colore'           => 'Colore',
         'titolo'           => 'Titolo',
@@ -63,12 +74,11 @@ class DiagnosticaMagazzino extends Component
         'numero_seriale'   => 'N. Seriale',
         'ean'              => 'EAN',
         'modello'          => 'Modello',
-        'referenza'        => 'Referenza',
         'prezzo_acquisto'  => 'Prezzo acquisto',
         'prezzo_fornitore' => 'Prezzo fornitore',
         'costo_unitario'   => 'Costo unitario (giacenza)',
         'tipo_carico'      => 'Tipo carico',
-        'data_carico'      => 'Data carico',
+        'data_carico'      => 'Data carico (articolo)',
         'scaffale'         => 'Scaffale',
         'posizione'        => 'Posizione',
         'magazzino_logico' => 'Mag. logico',
@@ -79,38 +89,97 @@ class DiagnosticaMagazzino extends Component
 
     public int $perPage = 50;
 
+    public string $sortBy = 'a.codice';
+    public string $sortDir = 'asc';
+
     public array $anomalieDisponibili = [
-        ''                   => '— Nessuna anomalia —',
+        ''                     => '— Nessuna anomalia —',
         'qta_zero_non_deleted' => 'Qta=0 ma non eliminati',
-        'qta_alta'           => 'Qta residua > 1',
-        'deleted_con_qta'    => 'Eliminati con qta > 0',
-        'senza_giacenza'     => 'Senza record giacenza',
-        'cat_mag_mismatch'   => 'Categoria/Magazzino discordanti',
-        'senza_referenza'    => 'Senza referenza (JSON)',
-        'senza_seriale'      => 'Senza numero seriale',
+        'qta_alta'             => 'Qta residua > 1',
+        'deleted_con_qta'      => 'Eliminati con qta > 0',
+        'senza_giacenza'       => 'Senza record giacenza',
+        'senza_fornitore'      => 'Senza fornitore',
+        'cat_mag_mismatch'     => 'Categoria/Mag discordanti',
+        'senza_referenza'      => 'Senza referenza (JSON)',
+        'senza_seriale'        => 'Senza numero seriale',
+    ];
+
+    // Colonne ordinabili: chiave UI => colonna SQL (whitelist per sicurezza)
+    private const SORT_COLUMNS = [
+        'codice'           => 'a.codice',
+        'mag'              => 'mag',
+        'descrizione'      => 'a.descrizione',
+        'categoria'        => 'cm.codice',
+        'sede'             => 's.nome',
+        'qta'              => 'g.quantita',
+        'qta_residua'      => 'g.quantita_residua',
+        'stato_articolo'   => 'a.stato_articolo',
+        'stato'            => 'a.stato',
+        'materiale'        => 'a.materiale',
+        'colore'           => 'a.colore',
+        'numero_seriale'   => 'a.numero_seriale',
+        'ean'              => 'a.ean',
+        'modello'          => 'a.modello',
+        'prezzo_acquisto'  => 'a.prezzo_acquisto',
+        'prezzo_fornitore' => 'a.prezzo_fornitore',
+        'costo_unitario'   => 'g.costo_unitario',
+        'tipo_carico'      => 'a.tipo_carico',
+        'data_carico'      => 'a.data_carico',
+        'scaffale'         => 'g.scaffale',
+        'magazzino_logico' => 'a.magazzino_logico',
+        'deleted_at'       => 'a.deleted_at',
+        'created_at'       => 'a.created_at',
+        'fornitore'        => 'fornitore_nome',
+        'referenza_doc'    => 'referenza_doc',
+        'prezzo_carico'    => 'prezzo_carico',
+        'num_documento'    => 'num_documento',
+        'data_documento'   => 'data_documento',
     ];
 
     protected $queryString = [
-        'search'         => ['except' => ''],
-        'magazzino'      => ['except' => ''],
-        'anomalia'       => ['except' => ''],
-        'categoriaId'    => ['except' => ''],
-        'qtaMin'         => ['except' => ''],
-        'qtaMax'         => ['except' => ''],
-        'statoArticolo'  => ['except' => ''],
+        'search'           => ['except' => ''],
+        'magazzino'        => ['except' => ''],
+        'anomalia'         => ['except' => ''],
+        'categoriaId'      => ['except' => ''],
+        'qtaMin'           => ['except' => ''],
+        'qtaMax'           => ['except' => ''],
+        'statoArticolo'    => ['except' => ''],
         'includiEliminati' => ['except' => false],
-        'soloEliminati'  => ['except' => false],
+        'soloEliminati'    => ['except' => false],
+        'sortBy'           => ['except' => 'a.codice'],
+        'sortDir'          => ['except' => 'asc'],
+        'fornitoreSearch'  => ['except' => ''],
     ];
 
-    public function updatedSearch()        { $this->resetPage(); }
-    public function updatedMagazzino()     { $this->resetPage(); }
-    public function updatedAnomalia()      { $this->resetPage(); }
-    public function updatedCategoriaId()   { $this->resetPage(); }
-    public function updatedQtaMin()        { $this->resetPage(); }
-    public function updatedQtaMax()        { $this->resetPage(); }
-    public function updatedStatoArticolo() { $this->resetPage(); }
+    public function updatedSearch()           { $this->resetPage(); }
+    public function updatedMagazzino()        { $this->resetPage(); }
+    public function updatedAnomalia()         { $this->resetPage(); }
+    public function updatedCategoriaId()      { $this->resetPage(); }
+    public function updatedQtaMin()           { $this->resetPage(); }
+    public function updatedQtaMax()           { $this->resetPage(); }
+    public function updatedStatoArticolo()    { $this->resetPage(); }
     public function updatedIncludiEliminati() { $this->resetPage(); }
-    public function updatedSoloEliminati() { $this->resetPage(); }
+    public function updatedSoloEliminati()    { $this->resetPage(); }
+    public function updatedFornitoreSearch()  { $this->resetPage(); }
+
+    public static function colSql(string $col): string
+    {
+        return self::SORT_COLUMNS[$col] ?? 'a.codice';
+    }
+
+    public function sortBy(string $col): void
+    {
+        if (!array_key_exists($col, self::SORT_COLUMNS)) {
+            return;
+        }
+        if ($this->sortBy === self::SORT_COLUMNS[$col]) {
+            $this->sortDir = $this->sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortBy  = self::SORT_COLUMNS[$col];
+            $this->sortDir = 'asc';
+        }
+        $this->resetPage();
+    }
 
     public function resetFiltri(): void
     {
@@ -145,10 +214,28 @@ class DiagnosticaMagazzino extends Component
 
     private function buildQuery()
     {
+        // Subquery: prende UN solo carico_dettaglio per articolo (il più recente)
+        // e risolve subito ddt+fattura per avere fornitore_id, num doc, data doc, prezzo
+        $cdSub = DB::table('carico_dettagli as cd')
+            ->leftJoin('ddt as d', 'd.id', '=', 'cd.ddt_id')
+            ->leftJoin('fatture as fat', 'fat.id', '=', 'cd.fattura_id')
+            ->select(
+                'cd.articolo_id',
+                DB::raw('MAX(cd.id) as cd_id_max'),
+            )
+            ->whereNotNull('cd.articolo_id')
+            ->groupBy('cd.articolo_id');
+
         $query = DB::table('articoli as a')
             ->leftJoin('giacenze as g', 'g.articolo_id', '=', 'a.id')
             ->leftJoin('categorie_merceologiche as cm', 'cm.id', '=', 'a.categoria_merceologica_id')
             ->leftJoin('sedi as s', 's.id', '=', 'a.sede_id')
+            // Join al carico_dettaglio più recente per questo articolo
+            ->leftJoinSub($cdSub, 'cd_last', 'cd_last.articolo_id', '=', 'a.id')
+            ->leftJoin('carico_dettagli as cd', 'cd.id', '=', 'cd_last.cd_id_max')
+            ->leftJoin('ddt as d', 'd.id', '=', 'cd.ddt_id')
+            ->leftJoin('fatture as fat', 'fat.id', '=', 'cd.fattura_id')
+            ->leftJoin('fornitori as f', 'f.id', '=', DB::raw('COALESCE(d.fornitore_id, fat.fornitore_id)'))
             ->select(
                 'a.id',
                 'a.codice',
@@ -181,6 +268,12 @@ class DiagnosticaMagazzino extends Component
                 'g.costo_unitario',
                 'g.scaffale',
                 'g.posizione',
+                // Dati documento di carico
+                'f.ragione_sociale as fornitore_nome',
+                'cd.referenza_fornitore as referenza_doc',
+                'cd.prezzo_unitario as prezzo_carico',
+                DB::raw("COALESCE(d.numero, fat.numero) as num_documento"),
+                DB::raw("COALESCE(d.data_documento, fat.data_documento) as data_documento"),
             );
 
         // Soft delete handling
@@ -233,7 +326,7 @@ class DiagnosticaMagazzino extends Component
             $query->where('a.data_carico', '<=', $this->dataCaricoA);
         }
 
-        // Ricerca
+        // Ricerca generale
         if ($this->search !== '') {
             $q = '%' . $this->search . '%';
             $query->where(function ($sub) use ($q) {
@@ -241,8 +334,15 @@ class DiagnosticaMagazzino extends Component
                     ->orWhere('a.descrizione', 'like', $q)
                     ->orWhere('a.numero_seriale', 'like', $q)
                     ->orWhere('a.ean', 'like', $q)
-                    ->orWhere('a.modello', 'like', $q);
+                    ->orWhere('a.modello', 'like', $q)
+                    ->orWhere('f.ragione_sociale', 'like', $q)
+                    ->orWhere('cd.referenza_fornitore', 'like', $q);
             });
+        }
+
+        // Filtro fornitore dedicato
+        if ($this->fornitoreSearch !== '') {
+            $query->where('f.ragione_sociale', 'like', '%' . $this->fornitoreSearch . '%');
         }
 
         // Anomalie
@@ -266,10 +366,21 @@ class DiagnosticaMagazzino extends Component
             'senza_seriale' => $query->where(function ($q) {
                 $q->whereNull('a.numero_seriale')->orWhere('a.numero_seriale', '');
             }),
+            'senza_fornitore' => $query->whereNull('f.id'),
             default => null,
         };
 
-        return $query->orderBy('a.codice');
+        // Ordina: 'mag' è una colonna calcolata, usa la raw expression
+        if ($this->sortBy === 'mag') {
+            $query->orderByRaw("CAST(SUBSTRING_INDEX(a.codice, '-', 1) AS UNSIGNED) " . ($this->sortDir === 'asc' ? 'ASC' : 'DESC'));
+        } else {
+            $col = in_array($this->sortBy, self::SORT_COLUMNS)
+                ? $this->sortBy
+                : 'a.codice';
+            $query->orderBy($col, $this->sortDir);
+        }
+
+        return $query;
     }
 
     public function getCountProperty(): int
@@ -296,6 +407,6 @@ class DiagnosticaMagazzino extends Component
 
         return view('livewire.diagnostica-magazzino', compact(
             'articoli', 'categorie', 'sedi', 'count'
-        ));
+        ) + ['sortBy' => $this->sortBy, 'sortDir' => $this->sortDir]);
     }
 }
