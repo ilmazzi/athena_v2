@@ -98,7 +98,8 @@ class DiagnosticaMagazzino extends Component
         'qta_alta'             => 'Qta residua > 1',
         'deleted_con_qta'      => 'Eliminati con qta > 0',
         'senza_giacenza'       => 'Senza record giacenza',
-        'senza_fornitore'      => 'Senza fornitore',
+        'senza_fornitore'      => 'Senza fornitore (nessun documento)',
+        'senza_carico_dettagli' => 'Senza carico_dettagli',
         'cat_mag_mismatch'     => 'Categoria/Mag discordanti',
         'senza_referenza'      => 'Senza referenza (JSON)',
         'senza_seriale'        => 'Senza numero seriale',
@@ -235,7 +236,18 @@ class DiagnosticaMagazzino extends Component
             ->leftJoin('carico_dettagli as cd', 'cd.id', '=', 'cd_last.cd_id_max')
             ->leftJoin('ddt as d', 'd.id', '=', 'cd.ddt_id')
             ->leftJoin('fatture as fat', 'fat.id', '=', 'cd.fattura_id')
-            ->leftJoin('fornitori as f', 'f.id', '=', DB::raw('COALESCE(d.fornitore_id, fat.fornitore_id)'))
+            // Fallback: documento da articoli.numero_documento_carico (migrazione senza carico_dettagli)
+            ->leftJoin(DB::raw('(SELECT numero, MIN(id) AS id FROM ddt WHERE numero IS NOT NULL AND TRIM(numero) != \'\' GROUP BY numero) d_pick'), function ($join) {
+                $join->on('d_pick.numero', '=', DB::raw('TRIM(a.numero_documento_carico)'));
+            })
+            ->leftJoin('ddt as d_art', 'd_art.id', '=', 'd_pick.id')
+            ->leftJoin(DB::raw('(SELECT numero, MIN(id) AS id FROM fatture WHERE numero IS NOT NULL AND TRIM(numero) != \'\' GROUP BY numero) fat_pick'), function ($join) {
+                $join->on('fat_pick.numero', '=', DB::raw('TRIM(a.numero_documento_carico)'));
+            })
+            ->leftJoin('fatture as fat_art', 'fat_art.id', '=', 'fat_pick.id')
+            ->leftJoin('fornitori as f_cd', 'f_cd.id', '=', DB::raw('COALESCE(d.fornitore_id, fat.fornitore_id)'))
+            ->leftJoin('fornitori as f_ddt_art', 'f_ddt_art.id', '=', 'd_art.fornitore_id')
+            ->leftJoin('fornitori as f_fat_art', 'f_fat_art.id', '=', 'fat_art.fornitore_id')
             ->select(
                 'a.id',
                 'a.codice',
@@ -268,12 +280,28 @@ class DiagnosticaMagazzino extends Component
                 'g.costo_unitario',
                 'g.scaffale',
                 'g.posizione',
-                // Dati documento di carico
-                'f.ragione_sociale as fornitore_nome',
+                // Dati documento: prima carico_dettagli, poi match su numero_documento_carico
+                DB::raw("COALESCE(
+                    f_cd.ragione_sociale,
+                    CASE WHEN a.tipo_carico = 'fattura' THEN f_fat_art.ragione_sociale ELSE f_ddt_art.ragione_sociale END,
+                    f_ddt_art.ragione_sociale,
+                    f_fat_art.ragione_sociale
+                ) as fornitore_nome"),
+                DB::raw('cd.id IS NULL as senza_carico_dettagli'),
                 'cd.referenza_fornitore as referenza_doc',
                 'cd.prezzo_unitario as prezzo_carico',
-                DB::raw("COALESCE(d.numero, fat.numero) as num_documento"),
-                DB::raw("COALESCE(d.data_documento, fat.data_documento) as data_documento"),
+                DB::raw("COALESCE(
+                    d.numero, fat.numero,
+                    CASE WHEN a.tipo_carico = 'fattura' THEN fat_art.numero ELSE d_art.numero END,
+                    d_art.numero, fat_art.numero,
+                    a.numero_documento_carico
+                ) as num_documento"),
+                DB::raw("COALESCE(
+                    d.data_documento, fat.data_documento,
+                    CASE WHEN a.tipo_carico = 'fattura' THEN fat_art.data_documento ELSE d_art.data_documento END,
+                    d_art.data_documento, fat_art.data_documento,
+                    a.data_carico
+                ) as data_documento"),
             );
 
         // Soft delete handling
@@ -335,14 +363,18 @@ class DiagnosticaMagazzino extends Component
                     ->orWhere('a.numero_seriale', 'like', $q)
                     ->orWhere('a.ean', 'like', $q)
                     ->orWhere('a.modello', 'like', $q)
-                    ->orWhere('f.ragione_sociale', 'like', $q)
+                    ->orWhereRaw("COALESCE(f_cd.ragione_sociale, f_ddt_art.ragione_sociale, f_fat_art.ragione_sociale) LIKE ?", [$q])
                     ->orWhere('cd.referenza_fornitore', 'like', $q);
             });
         }
 
         // Filtro fornitore dedicato
         if ($this->fornitoreSearch !== '') {
-            $query->where('f.ragione_sociale', 'like', '%' . $this->fornitoreSearch . '%');
+            $q = '%' . $this->fornitoreSearch . '%';
+            $query->whereRaw(
+                "COALESCE(f_cd.ragione_sociale, CASE WHEN a.tipo_carico = 'fattura' THEN f_fat_art.ragione_sociale ELSE f_ddt_art.ragione_sociale END, f_ddt_art.ragione_sociale, f_fat_art.ragione_sociale) LIKE ?",
+                [$q]
+            );
         }
 
         // Anomalie
@@ -366,7 +398,10 @@ class DiagnosticaMagazzino extends Component
             'senza_seriale' => $query->where(function ($q) {
                 $q->whereNull('a.numero_seriale')->orWhere('a.numero_seriale', '');
             }),
-            'senza_fornitore' => $query->whereNull('f.id'),
+            'senza_fornitore' => $query->whereRaw(
+                "COALESCE(f_cd.ragione_sociale, f_ddt_art.ragione_sociale, f_fat_art.ragione_sociale) IS NULL"
+            ),
+            'senza_carico_dettagli' => $query->whereNull('cd.id'),
             default => null,
         };
 
