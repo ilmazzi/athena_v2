@@ -58,10 +58,9 @@ class FixFornitoriMigrazione extends Command
             JOIN (
                 SELECT numero, MIN(id) AS id
                 FROM ddt
-                WHERE quantita_totale > 0
                 GROUP BY numero
-            ) best ON best.numero = a.numero_documento_carico
-            JOIN ddt d_ok ON d_ok.id = best.id AND d_ok.id != cd.ddt_id
+            ) best ON best.numero = a.numero_documento_carico AND best.id != cd.ddt_id
+            JOIN ddt d_ok ON d_ok.id = best.id
             JOIN fornitori f_ok ON f_ok.id = d_ok.fornitore_id
             WHERE f_wrong.id != f_ok.id
             ORDER BY a.codice
