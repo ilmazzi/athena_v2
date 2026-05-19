@@ -167,12 +167,12 @@ class DiagnosticaMagazzino extends Component
         return self::SORT_COLUMNS[$col] ?? 'a.codice';
     }
 
-    public function sortBy(string $col): void
+    public function ordinaPer(string $col): void
     {
         if (!array_key_exists($col, self::SORT_COLUMNS)) {
             return;
         }
-        if ($this->sortBy === self::SORT_COLUMNS[$col]) {
+        if ($this->sortBy === (self::SORT_COLUMNS[$col] ?? '')) {
             $this->sortDir = $this->sortDir === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortBy  = self::SORT_COLUMNS[$col];

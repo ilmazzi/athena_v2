@@ -198,24 +198,24 @@
                             $thClass = 'sortable-th';
                         @endphp
                         <tr>
-                            <th wire:click="sortBy('codice')" class="{{ $thClass }}" style="cursor:pointer; white-space:nowrap;">Codice {{ $sortIcon('codice') }}</th>
-                            <th wire:click="sortBy('mag')" class="{{ $thClass }}" style="cursor:pointer;">Mag. {{ $sortIcon('mag') }}</th>
-                            <th wire:click="sortBy('descrizione')" class="{{ $thClass }}" style="cursor:pointer;">Descrizione {{ $sortIcon('descrizione') }}</th>
-                            <th wire:click="sortBy('categoria')" class="{{ $thClass }}" style="cursor:pointer;">Categoria {{ $sortIcon('categoria') }}</th>
-                            <th wire:click="sortBy('sede')" class="{{ $thClass }}" style="cursor:pointer;">Sede {{ $sortIcon('sede') }}</th>
-                            <th wire:click="sortBy('qta')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta {{ $sortIcon('qta') }}</th>
-                            <th wire:click="sortBy('qta_residua')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta Res. {{ $sortIcon('qta_residua') }}</th>
-                            <th wire:click="sortBy('stato_articolo')" class="{{ $thClass }}" style="cursor:pointer;">Stato {{ $sortIcon('stato_articolo') }}</th>
-                            <th wire:click="sortBy('fornitore')" class="{{ $thClass }}" style="cursor:pointer;">Fornitore {{ $sortIcon('fornitore') }}</th>
-                            <th wire:click="sortBy('num_documento')" class="{{ $thClass }}" style="cursor:pointer;">N. Doc {{ $sortIcon('num_documento') }}</th>
-                            <th wire:click="sortBy('data_documento')" class="{{ $thClass }}" style="cursor:pointer;">Data Doc {{ $sortIcon('data_documento') }}</th>
-                            <th wire:click="sortBy('prezzo_carico')" class="{{ $thClass }} text-end" style="cursor:pointer;">€ Carico {{ $sortIcon('prezzo_carico') }}</th>
-                            <th wire:click="sortBy('referenza_doc')" class="{{ $thClass }}" style="cursor:pointer;">Ref. Doc {{ $sortIcon('referenza_doc') }}</th>
-                            <th wire:click="sortBy('materiale')" class="{{ $thClass }}" style="cursor:pointer;">Materiale {{ $sortIcon('materiale') }}</th>
-                            <th wire:click="sortBy('numero_seriale')" class="{{ $thClass }}" style="cursor:pointer;">N. Seriale {{ $sortIcon('numero_seriale') }}</th>
+                            <th wire:click="ordinaPer('codice')" class="{{ $thClass }}" style="cursor:pointer; white-space:nowrap;">Codice {{ $sortIcon('codice') }}</th>
+                            <th wire:click="ordinaPer('mag')" class="{{ $thClass }}" style="cursor:pointer;">Mag. {{ $sortIcon('mag') }}</th>
+                            <th wire:click="ordinaPer('descrizione')" class="{{ $thClass }}" style="cursor:pointer;">Descrizione {{ $sortIcon('descrizione') }}</th>
+                            <th wire:click="ordinaPer('categoria')" class="{{ $thClass }}" style="cursor:pointer;">Categoria {{ $sortIcon('categoria') }}</th>
+                            <th wire:click="ordinaPer('sede')" class="{{ $thClass }}" style="cursor:pointer;">Sede {{ $sortIcon('sede') }}</th>
+                            <th wire:click="ordinaPer('qta')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta {{ $sortIcon('qta') }}</th>
+                            <th wire:click="ordinaPer('qta_residua')" class="{{ $thClass }} text-center" style="cursor:pointer;">Qta Res. {{ $sortIcon('qta_residua') }}</th>
+                            <th wire:click="ordinaPer('stato_articolo')" class="{{ $thClass }}" style="cursor:pointer;">Stato {{ $sortIcon('stato_articolo') }}</th>
+                            <th wire:click="ordinaPer('fornitore')" class="{{ $thClass }}" style="cursor:pointer;">Fornitore {{ $sortIcon('fornitore') }}</th>
+                            <th wire:click="ordinaPer('num_documento')" class="{{ $thClass }}" style="cursor:pointer;">N. Doc {{ $sortIcon('num_documento') }}</th>
+                            <th wire:click="ordinaPer('data_documento')" class="{{ $thClass }}" style="cursor:pointer;">Data Doc {{ $sortIcon('data_documento') }}</th>
+                            <th wire:click="ordinaPer('prezzo_carico')" class="{{ $thClass }} text-end" style="cursor:pointer;">€ Carico {{ $sortIcon('prezzo_carico') }}</th>
+                            <th wire:click="ordinaPer('referenza_doc')" class="{{ $thClass }}" style="cursor:pointer;">Ref. Doc {{ $sortIcon('referenza_doc') }}</th>
+                            <th wire:click="ordinaPer('materiale')" class="{{ $thClass }}" style="cursor:pointer;">Materiale {{ $sortIcon('materiale') }}</th>
+                            <th wire:click="ordinaPer('numero_seriale')" class="{{ $thClass }}" style="cursor:pointer;">N. Seriale {{ $sortIcon('numero_seriale') }}</th>
                             <th>Referenza JSON</th>
-                            <th wire:click="sortBy('data_carico')" class="{{ $thClass }}" style="cursor:pointer;">Data Carico {{ $sortIcon('data_carico') }}</th>
-                            <th wire:click="sortBy('deleted_at')" class="{{ $thClass }}" style="cursor:pointer;">Eliminato {{ $sortIcon('deleted_at') }}</th>
+                            <th wire:click="ordinaPer('data_carico')" class="{{ $thClass }}" style="cursor:pointer;">Data Carico {{ $sortIcon('data_carico') }}</th>
+                            <th wire:click="ordinaPer('deleted_at')" class="{{ $thClass }}" style="cursor:pointer;">Eliminato {{ $sortIcon('deleted_at') }}</th>
                         </tr>
                     </thead>
                     <tbody>
